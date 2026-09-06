@@ -43,6 +43,7 @@ export function FriendListModal({
   const [personality, setPersonality] = useState('')
   const [hobbiesInput, setHobbiesInput] = useState('')
   const [tone, setTone] = useState('')
+  const [voiceGender, setVoiceGender] = useState<'female' | 'male'>('female')
   const [formError, setFormError] = useState('')
 
   if (!isOpen) return null
@@ -70,6 +71,12 @@ export function FriendListModal({
       personality: personality.trim(),
       hobbies: hobbies.length > 0 ? hobbies : ['日常会話'],
       tone: tone.trim() || undefined,
+      voice: {
+        quality: 'natural',
+        gender: voiceGender,
+        rate: 0.95,
+        pitch: voiceGender === 'female' ? 1.05 : 0.95,
+      },
     }
 
     onCreateFriend(newFriend)
@@ -79,6 +86,7 @@ export function FriendListModal({
     setPersonality('')
     setHobbiesInput('')
     setTone('')
+    setVoiceGender('female')
     setFormError('')
     onClose()
   }
@@ -153,10 +161,13 @@ export function FriendListModal({
                   <div className="flex items-start gap-3 min-w-0">
                     <FriendAvatar friend={friend} size="md" shape="rounded" />
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <h4 lang="zh-CN" className="font-chinese text-sm font-bold text-stone-900 m-0 truncate">
                           {friend.name}
                         </h4>
+                        <span className="text-[10px] px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded font-medium">
+                          {friend.voice?.gender === 'male' ? '👨 男性声' : '👩 女性声'}
+                        </span>
                         {isCustom && (
                           <span className="text-[10px] px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded font-medium">
                             カスタム
@@ -316,6 +327,37 @@ export function FriendListModal({
                 placeholder="例: 丁寧で穏やかな敬語口調、または同年代の親しいタメ口"
                 className="w-full px-3 py-2 text-xs sm:text-sm border border-stone-300 rounded-xl focus:border-rose-500 focus:outline-none"
               />
+            </div>
+
+            {/* 声の性別 */}
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">
+                会話相手の声（性別）:
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVoiceGender('female')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    voiceGender === 'female'
+                      ? 'border-rose-400 bg-rose-500 text-white shadow-xs'
+                      : 'border-stone-200 bg-stone-50 text-stone-600 hover:bg-stone-100'
+                  }`}
+                >
+                  👩 女性声 (Female)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVoiceGender('male')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    voiceGender === 'male'
+                      ? 'border-rose-400 bg-rose-500 text-white shadow-xs'
+                      : 'border-stone-200 bg-stone-50 text-stone-600 hover:bg-stone-100'
+                  }`}
+                >
+                  👨 男性声 (Male)
+                </button>
+              </div>
             </div>
 
             <div className="pt-2 flex justify-end gap-2">

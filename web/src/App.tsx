@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import type { Friend, ChatMessage } from './types'
+import type { Friend, ChatMessage, Voice } from './types'
 import { PRESET_FRIENDS } from './data/presetFriends'
 import { Header } from './components/Header'
 import { FriendCard } from './components/FriendCard'
@@ -8,8 +8,10 @@ import { ChatInput } from './components/ChatInput'
 import { SettingsModal } from './components/SettingsModal'
 import { OnboardingModal } from './components/OnboardingModal'
 import { FriendListModal } from './components/FriendListModal'
+import { VoiceSettingsModal } from './components/VoiceSettingsModal'
 import { AlertIcon, CloseIcon } from './components/Icons'
 import { sendMessageToChatApi } from './services/api'
+import { speakChinese, stopSpeaking } from './services/speech'
 import {
   loadApiKey,
   saveApiKey,
@@ -28,6 +30,12 @@ import {
   isOnboardingCompleted,
   setOnboardingCompleted,
   saveUserHobbies,
+  loadAutoPlayTts,
+  saveAutoPlayTts,
+  loadSpeechInputLang,
+  saveSpeechInputLang,
+  loadFriendVoice,
+  saveFriendVoice,
 } from './services/storage'
 
 const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => {
@@ -91,19 +99,31 @@ export default function App() {
   const [model, setModel] = useState<string>(() => loadSelectedModel('google/gemini-2.5-flash'))
   const [customFriends, setCustomFriends] = useState<Friend[]>(() => loadCustomFriends())
 
-  // 全友達リスト（プリセット＋カスタム）
+  // 全友達リスト（プリセット＋カスタム）※保存された個別声質設定をマージ
   const allFriends = useMemo(() => {
-    return [...PRESET_FRIENDS, ...customFriends]
+    const list = [...PRESET_FRIENDS, ...customFriends]
+    return list.map((f) => {
+      if (!f.id) return f
+      const savedVoice = loadFriendVoice(f.id)
+      return savedVoice ? { ...f, voice: savedVoice } : f
+    })
   }, [customFriends])
 
   // 現在の友達
   const [currentFriend, setCurrentFriend] = useState<Friend>(() => {
     const savedId = loadSelectedFriendId('friend-meiling')
-    return (
-      allFriends.find((f) => f.id === savedId) ||
-      PRESET_FRIENDS[0]
-    )
+    const found = allFriends.find((f) => f.id === savedId) || PRESET_FRIENDS[0]
+    const savedVoice = found.id ? loadFriendVoice(found.id) : null
+    return savedVoice ? { ...found, voice: savedVoice } : found
   })
+
+  // 音声関連設定
+  const [autoPlayTts, setAutoPlayTts] = useState<boolean>(() => loadAutoPlayTts(false))
+  const [speechInputLang, setSpeechInputLang] = useState<'zh-CN' | 'ja-JP'>(() =>
+    loadSpeechInputLang('zh-CN')
+  )
+  const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false)
+  const [playingText, setPlayingText] = useState<string | null>(null)
 
   // モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
@@ -126,22 +146,70 @@ export default function App() {
     saveFriendMessages(friendId, messages)
   }, [messages, currentFriend.id])
 
+  // 画面遷移やアンマウント時の音声停止
+  useEffect(() => {
+    return () => {
+      stopSpeaking()
+    }
+  }, [])
+
   const handleHskChange = (level: number) => {
     setHskLevel(level)
     saveHskLevel(level)
   }
 
-  const handleSaveSettings = (newKey: string, newModel: string) => {
+  const handleSaveSettings = (
+    newKey: string,
+    newModel: string,
+    newAutoPlay: boolean,
+    newSpeechLang: 'zh-CN' | 'ja-JP'
+  ) => {
     setApiKey(newKey)
     saveApiKey(newKey)
     setModel(newModel)
     saveSelectedModel(newModel)
+    setAutoPlayTts(newAutoPlay)
+    saveAutoPlayTts(newAutoPlay)
+    setSpeechInputLang(newSpeechLang)
+    saveSpeechInputLang(newSpeechLang)
     setErrorMessage(null)
+  }
+
+  const handleSpeechLangChange = (newLang: 'zh-CN' | 'ja-JP') => {
+    setSpeechInputLang(newLang)
+    saveSpeechInputLang(newLang)
+  }
+
+  const handleSaveFriendVoice = (updatedVoice: Voice) => {
+    if (!currentFriend.id) return
+    saveFriendVoice(currentFriend.id, updatedVoice)
+    const updated = { ...currentFriend, voice: updatedVoice }
+    setCurrentFriend(updated)
+    setCustomFriends((prev) =>
+      prev.map((f) => (f.id === currentFriend.id ? { ...f, voice: updatedVoice } : f))
+    )
+  }
+
+  const handlePlayText = (text: string) => {
+    stopSpeaking()
+    setPlayingText(text)
+    speakChinese(text, currentFriend.voice, {
+      onEnd: () => setPlayingText(null),
+      onError: () => setPlayingText(null),
+    })
+  }
+
+  const handleStopText = () => {
+    stopSpeaking()
+    setPlayingText(null)
   }
 
   // 友達切り替え
   const handleSelectFriend = (newFriend: Friend) => {
     if (newFriend.id === currentFriend.id) return
+
+    stopSpeaking()
+    setPlayingText(null)
 
     const oldFriendId = currentFriend.id || 'friend-meiling'
     saveFriendMessages(oldFriendId, messages)
@@ -151,7 +219,11 @@ export default function App() {
     const initial = saved.length > 0 ? saved : [buildWelcomeMessage(newFriend, hskLevel)]
     const nextMessages = sanitizeWelcomeHistory(initial, newFriend, hskLevel)
 
-    setCurrentFriend(newFriend)
+    // 保存された音声設定を反映
+    const savedVoice = loadFriendVoice(newFriendId)
+    const friendWithVoice = savedVoice ? { ...newFriend, voice: savedVoice } : newFriend
+
+    setCurrentFriend(friendWithVoice)
     setMessages(nextMessages)
     saveSelectedFriendId(newFriendId)
     setErrorMessage(null)
@@ -175,6 +247,8 @@ export default function App() {
 
   const handleClearHistory = () => {
     if (confirm(`「${currentFriend.name}」との会話履歴をリセットしますか？`)) {
+      stopSpeaking()
+      setPlayingText(null)
       const friendId = currentFriend.id || 'friend-meiling'
       clearFriendMessages(friendId)
       setMessages([buildWelcomeMessage(currentFriend, hskLevel)])
@@ -182,6 +256,8 @@ export default function App() {
   }
 
   const handleSendMessage = async (text: string) => {
+    stopSpeaking()
+    setPlayingText(null)
     setErrorMessage(null)
 
     const userMessage: ChatMessage = {
@@ -215,6 +291,11 @@ export default function App() {
       }
 
       setMessages((prev) => [...prev, assistantMessage])
+
+      // 返答の自動読み上げ（設定がONの場合）
+      if (autoPlayTts && response.reply?.zh) {
+        handlePlayText(response.reply.zh)
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '予期せぬエラーが発生しました'
       setErrorMessage(msg)
@@ -246,6 +327,7 @@ export default function App() {
         <FriendCard
           friend={currentFriend}
           onOpenFriendList={() => setIsFriendListOpen(true)}
+          onOpenVoiceSettings={() => setIsVoiceSettingsOpen(true)}
         />
 
         {/* Error Alert Banner */}
@@ -272,6 +354,9 @@ export default function App() {
             messages={messages}
             friend={currentFriend}
             isLoading={isLoading}
+            playingText={playingText}
+            onPlayText={handlePlayText}
+            onStopText={handleStopText}
           />
         </div>
 
@@ -279,16 +364,29 @@ export default function App() {
         <ChatInput
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
+          speechLang={speechInputLang}
+          onSpeechLangChange={handleSpeechLangChange}
+          onError={(msg) => setErrorMessage(msg)}
         />
       </main>
 
-      {/* Settings Modal (BYO-AI & Model Selection) */}
+      {/* Settings Modal (BYO-AI & Model Selection & Audio) */}
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         currentApiKey={apiKey}
         currentModel={model}
+        autoPlayTts={autoPlayTts}
+        speechInputLang={speechInputLang}
         onSave={handleSaveSettings}
+      />
+
+      {/* Voice Settings Modal */}
+      <VoiceSettingsModal
+        isOpen={isVoiceSettingsOpen}
+        onClose={() => setIsVoiceSettingsOpen(false)}
+        friend={currentFriend}
+        onSaveVoice={handleSaveFriendVoice}
       />
 
       {/* Onboarding Modal */}

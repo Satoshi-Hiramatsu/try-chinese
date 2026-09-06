@@ -8,6 +8,12 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '親しみやすく好奇心旺盛、上海在住の大学生。日本のサブカルチャーや歴史にも詳しい。',
     hobbies: ['三国志', '映画鑑賞', '台湾料理'],
     tone: '明るくフランクな同年代の友達言葉',
+    voice: {
+      quality: 'natural',
+      gender: 'female',
+      rate: 0.95,
+      pitch: 1.05,
+    },
     initialMessage: {
       zh: '你好！我是陈美玲。很高兴认识你！你想聊点什么？三国志、看电影，还是台湾美食？',
       ja: 'こんにちは！陳美玲です。はじめまして！何について話したい？三国志、映画、それとも台湾グルメ？',
@@ -26,6 +32,12 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '北京在住のITエンジニア。論理的で穏やか。最新テクノロジーやSF、街歩きカフェ巡りが好き。',
     hobbies: ['テクノロジー・AI', 'ゲーム', 'SF小説', 'カフェ巡り'],
     tone: '落ち着いて知的な、温かみのあるトーン',
+    voice: {
+      quality: 'natural',
+      gender: 'male',
+      rate: 0.95,
+      pitch: 0.9,
+    },
     initialMessage: {
       zh: '你好！我是王浩。很高兴认识你！你想聊点什么？科技、游戏，还是科幻小说？',
       ja: 'こんにちは！王浩です。はじめまして！何について話したいですか？テクノロジー、ゲーム、それともSF小説？',
@@ -44,6 +56,12 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '成都在住のグラフィックデザイナー。感性豊かでのんびり屋。四川の激辛グルメとアート、猫が大好き。',
     hobbies: ['四川料理・火鍋', 'アート・イラスト', '猫・ペット', '旅行'],
     tone: 'ゆったり優しく、愛嬌のある話し方',
+    voice: {
+      quality: 'natural',
+      gender: 'female',
+      rate: 0.9,
+      pitch: 1.15,
+    },
     initialMessage: {
       zh: '你好呀！我是李雪。很高兴认识你！想聊聊四川火锅、画画，还是可爱的猫猫？',
       ja: 'こんにちは！李雪だよ。はじめまして！四川火鍋やお絵描き、それとも可愛い猫ちゃんについて話す？',
@@ -62,6 +80,12 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '広州在住のフィットネスインストラクター。エネルギッシュでポジティブ。広東飲茶とランニングが日課。',
     hobbies: ['アウトドア・ランニング', '広東飲茶', 'ポップミュージック', 'スポーツ観戦'],
     tone: '元気いっぱいで前向き、元気をくれるトーン',
+    voice: {
+      quality: 'natural',
+      gender: 'male',
+      rate: 1.05,
+      pitch: 1.0,
+    },
     initialMessage: {
       zh: '你好！我是张伟。很高兴认识你！今天想聊点什么？跑步、广东早茶，还是看球赛？',
       ja: 'こんにちは！張偉です。はじめまして！今日は何について話そうか？ランニング、広東飲茶、それとも球技観戦？',

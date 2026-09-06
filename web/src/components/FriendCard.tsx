@@ -1,13 +1,17 @@
 import type { Friend } from '../types'
-import { UsersIcon } from './Icons'
+import { UsersIcon, SpeakerIcon } from './Icons'
 import { FriendAvatar } from './FriendAvatar'
 
 interface FriendCardProps {
   friend: Friend
   onOpenFriendList?: () => void
+  onOpenVoiceSettings?: () => void
 }
 
-export function FriendCard({ friend, onOpenFriendList }: FriendCardProps) {
+export function FriendCard({ friend, onOpenFriendList, onOpenVoiceSettings }: FriendCardProps) {
+  const genderLabel = friend.voice?.gender === 'male' ? '男性声' : '女性声'
+  const rateLabel = friend.voice?.rate ? `${friend.voice.rate.toFixed(1)}x` : '0.9x'
+
   return (
     <div className="w-full bg-white/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-sm border border-rose-150/80 transition-all">
       <div className="flex items-start gap-4">
@@ -22,16 +26,32 @@ export function FriendCard({ friend, onOpenFriendList }: FriendCardProps) {
                 {friend.name}
               </h2>
             </div>
-            {onOpenFriendList && (
-              <button
-                type="button"
-                onClick={onOpenFriendList}
-                className="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2.5 py-1.5 rounded-lg hover:bg-rose-50 transition-colors flex items-center gap-1.5 border border-rose-200/60 flex-shrink-0 cursor-pointer"
-              >
-                <UsersIcon className="w-3.5 h-3.5" />
-                <span>切替</span>
-              </button>
-            )}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {onOpenVoiceSettings && (
+                <button
+                  type="button"
+                  onClick={onOpenVoiceSettings}
+                  title="相手の声質・読み上げ設定"
+                  className="text-xs text-stone-600 hover:text-rose-600 font-medium px-2.5 py-1.5 rounded-lg hover:bg-rose-50 transition-colors flex items-center gap-1 border border-stone-200 hover:border-rose-200 cursor-pointer"
+                >
+                  <SpeakerIcon className="w-3.5 h-3.5 text-rose-500" />
+                  <span>声質</span>
+                  <span className="text-[10px] text-stone-400 font-normal hidden sm:inline">
+                    ({genderLabel}·{rateLabel})
+                  </span>
+                </button>
+              )}
+              {onOpenFriendList && (
+                <button
+                  type="button"
+                  onClick={onOpenFriendList}
+                  className="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2.5 py-1.5 rounded-lg hover:bg-rose-50 transition-colors flex items-center gap-1.5 border border-rose-200/60 cursor-pointer"
+                >
+                  <UsersIcon className="w-3.5 h-3.5" />
+                  <span>切替</span>
+                </button>
+              )}
+            </div>
           </div>
           <p className="text-xs sm:text-sm text-stone-600 mt-1 mb-2 leading-relaxed">
             {friend.personality}

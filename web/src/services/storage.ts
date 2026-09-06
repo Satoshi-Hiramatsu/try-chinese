@@ -1,4 +1,4 @@
-import type { ChatMessage, Friend } from '../types'
+import type { ChatMessage, Friend, Voice } from '../types'
 
 const STORAGE_KEYS = {
   API_KEY: 'shabe_china_api_key',
@@ -10,6 +10,9 @@ const STORAGE_KEYS = {
   SELECTED_FRIEND_ID: 'shabe_china_selected_friend_id',
   SESSION_PREFIX: 'shabe_china_session_',
   SELECTED_MODEL: 'shabe_china_selected_model',
+  AUTO_PLAY_TTS: 'shabe_china_auto_play_tts',
+  SPEECH_INPUT_LANG: 'shabe_china_speech_input_lang',
+  FRIEND_VOICE_PREFIX: 'shabe_china_voice_',
 } as const
 
 export function loadApiKey(): string {
@@ -213,6 +216,60 @@ export function saveSelectedModel(model: string): void {
     } else {
       localStorage.removeItem(STORAGE_KEYS.SELECTED_MODEL)
     }
+  } catch {
+    // ignore
+  }
+}
+
+export function loadAutoPlayTts(defaultValue = false): boolean {
+  try {
+    const val = localStorage.getItem(STORAGE_KEYS.AUTO_PLAY_TTS)
+    if (val === null) return defaultValue
+    return val === 'true'
+  } catch {
+    return defaultValue
+  }
+}
+
+export function saveAutoPlayTts(enabled: boolean): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.AUTO_PLAY_TTS, String(enabled))
+  } catch {
+    // ignore
+  }
+}
+
+export function loadSpeechInputLang(defaultLang: 'zh-CN' | 'ja-JP' = 'zh-CN'): 'zh-CN' | 'ja-JP' {
+  try {
+    const val = localStorage.getItem(STORAGE_KEYS.SPEECH_INPUT_LANG)
+    if (val === 'zh-CN' || val === 'ja-JP') return val
+    return defaultLang
+  } catch {
+    return defaultLang
+  }
+}
+
+export function saveSpeechInputLang(lang: 'zh-CN' | 'ja-JP'): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.SPEECH_INPUT_LANG, lang)
+  } catch {
+    // ignore
+  }
+}
+
+export function loadFriendVoice(friendId: string): Voice | null {
+  try {
+    const raw = localStorage.getItem(`${STORAGE_KEYS.FRIEND_VOICE_PREFIX}${friendId}`)
+    if (!raw) return null
+    return JSON.parse(raw) as Voice
+  } catch {
+    return null
+  }
+}
+
+export function saveFriendVoice(friendId: string, voice: Voice): void {
+  try {
+    localStorage.setItem(`${STORAGE_KEYS.FRIEND_VOICE_PREFIX}${friendId}`, JSON.stringify(voice))
   } catch {
     // ignore
   }

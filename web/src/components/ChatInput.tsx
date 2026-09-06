@@ -1,26 +1,62 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
-import { SendIcon } from './Icons'
+import { SendIcon, MicIcon, StopCircleIcon } from './Icons'
+import {
+  createSpeechRecognizer,
+  isSpeechRecognitionSupported,
+  type SpeechRecognitionController,
+} from '../services/speech'
 
 interface ChatInputProps {
   onSendMessage: (content: string) => void
   isLoading: boolean
   disabled?: boolean
+  speechLang?: 'zh-CN' | 'ja-JP'
+  onSpeechLangChange?: (lang: 'zh-CN' | 'ja-JP') => void
+  onError?: (message: string) => void
 }
 
-export function ChatInput({ onSendMessage, isLoading, disabled = false }: ChatInputProps) {
+export function ChatInput({
+  onSendMessage,
+  isLoading,
+  disabled = false,
+  speechLang = 'zh-CN',
+  onSpeechLangChange,
+  onError,
+}: ChatInputProps) {
   const [text, setText] = useState('')
+  const [isListening, setIsListening] = useState(false)
+  const [interimText, setInterimText] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const recognizerRef = useRef<SpeechRecognitionController | null>(null)
+
+  const isSupported = isSpeechRecognitionSupported()
 
   useEffect(() => {
-    if (!isLoading && textareaRef.current) {
+    if (!isLoading && textareaRef.current && !isListening) {
       textareaRef.current.focus()
     }
-  }, [isLoading])
+  }, [isLoading, isListening])
+
+  // クリーンアップ
+  useEffect(() => {
+    return () => {
+      if (recognizerRef.current) {
+        recognizerRef.current.abort()
+      }
+    }
+  }, [])
 
   const handleSend = () => {
+    if (isListening && recognizerRef.current) {
+      recognizerRef.current.stop()
+      setIsListening(false)
+      setInterimText('')
+    }
+
     if (text.trim() && !isLoading && !disabled) {
       onSendMessage(text.trim())
       setText('')
+      setInterimText('')
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto'
       }
@@ -41,9 +77,90 @@ export function ChatInput({ onSendMessage, isLoading, disabled = false }: ChatIn
     }
   }
 
+  const toggleListening = () => {
+    if (!isSupported) {
+      onError?.('お使いのブラウザは音声認識に対応していません。ChromeまたはEdgeをご利用ください。')
+      return
+    }
+
+    if (isListening) {
+      // 停止
+      recognizerRef.current?.stop()
+      setIsListening(false)
+      setInterimText('')
+      return
+    }
+
+    // 開始
+    setInterimText('')
+    const recognizer = createSpeechRecognizer({
+      lang: speechLang,
+      onStart: () => {
+        setIsListening(true)
+      },
+      onInterimResult: (interim) => {
+        setInterimText(interim)
+      },
+      onFinalResult: (final) => {
+        setText((prev) => {
+          const next = prev ? `${prev} ${final}` : final
+          setTimeout(() => handleInput(), 10)
+          return next
+        })
+        setInterimText('')
+      },
+      onError: (err) => {
+        setIsListening(false)
+        setInterimText('')
+        onError?.(err)
+      },
+      onEnd: () => {
+        setIsListening(false)
+        setInterimText('')
+      },
+    })
+
+    if (recognizer) {
+      recognizerRef.current = recognizer
+      recognizer.start()
+    }
+  }
+
   return (
-    <div className="w-full bg-white/95 backdrop-blur-md rounded-2xl p-2 sm:p-3 shadow-md border border-rose-200/80">
-      <div className="flex items-end gap-2">
+    <div className="w-full bg-white/95 backdrop-blur-md rounded-2xl p-2 sm:p-3 shadow-md border border-rose-200/80 transition-all">
+      {/* 音声認識中のインジケータ */}
+      {isListening && (
+        <div className="mb-2 px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between animate-pulse">
+          <div className="flex items-center gap-2 text-xs font-semibold text-rose-600">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+            <span>
+              {speechLang === 'zh-CN' ? '中国語' : '日本語'}で聞き取り中...
+            </span>
+            {interimText && (
+              <span className="text-stone-600 font-normal italic truncate max-w-xs">
+                "{interimText}"
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] text-rose-400">マイクボタンで停止</span>
+        </div>
+      )}
+
+      <div className="flex items-end gap-1.5 sm:gap-2">
+        {/* 言語切り替えボタン (中国語 / 日本語) */}
+        <button
+          type="button"
+          onClick={() => {
+            const nextLang = speechLang === 'zh-CN' ? 'ja-JP' : 'zh-CN'
+            onSpeechLangChange?.(nextLang)
+          }}
+          title={`音声入力言語の切替: 現在 ${speechLang === 'zh-CN' ? '中国語 (zh-CN)' : '日本語 (ja-JP)'}`}
+          className="px-2 py-2 text-xs font-bold rounded-xl border border-stone-200 hover:bg-stone-100 text-stone-600 transition-colors flex items-center gap-1 cursor-pointer select-none"
+        >
+          <span>{speechLang === 'zh-CN' ? '🇨🇳 中' : '🇯🇵 日'}</span>
+        </button>
+
+        {/* テキスト入力エリア */}
         <textarea
           ref={textareaRef}
           value={text}
@@ -53,16 +170,41 @@ export function ChatInput({ onSendMessage, isLoading, disabled = false }: ChatIn
           }}
           onKeyDown={handleKeyDown}
           rows={1}
-          placeholder="中国語でも日本語でもOK！話しかけてみよう (Enterで送信)"
+          placeholder={
+            isListening
+              ? '話しかけてください...'
+              : '中国語でも日本語でもOK！話しかけてみよう (Enterで送信)'
+          }
           disabled={isLoading || disabled}
-          className="flex-1 max-h-32 resize-none bg-transparent px-3 py-2 text-sm sm:text-base text-stone-900 placeholder:text-stone-400 outline-none leading-relaxed"
+          className="flex-1 max-h-32 resize-none bg-transparent px-2.5 py-2 text-sm sm:text-base text-stone-900 placeholder:text-stone-400 outline-none leading-relaxed"
         />
 
+        {/* 音声入力ボタン */}
+        <button
+          type="button"
+          onClick={toggleListening}
+          disabled={isLoading || disabled}
+          aria-label={isListening ? '音声入力を停止' : '音声入力を開始'}
+          title={isListening ? '停止' : `音声入力 (${speechLang === 'zh-CN' ? '中国語' : '日本語'})`}
+          className={`p-2.5 rounded-xl font-medium transition-all flex items-center justify-center cursor-pointer ${
+            isListening
+              ? 'bg-rose-600 text-white animate-bounce shadow-md'
+              : 'bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-600'
+          }`}
+        >
+          {isListening ? (
+            <StopCircleIcon className="w-5 h-5" />
+          ) : (
+            <MicIcon className="w-5 h-5" />
+          )}
+        </button>
+
+        {/* 送信ボタン */}
         <button
           onClick={handleSend}
           disabled={!text.trim() || isLoading || disabled}
           aria-label="送信"
-          className={`px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-1.5 justify-center transition-all ${
+          className={`px-3 sm:px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-1.5 justify-center transition-all ${
             text.trim() && !isLoading && !disabled
               ? 'bg-rose-500 text-white hover:bg-rose-600 shadow-sm cursor-pointer'
               : 'bg-stone-100 text-stone-300 cursor-not-allowed'
@@ -81,3 +223,4 @@ export function ChatInput({ onSendMessage, isLoading, disabled = false }: ChatIn
     </div>
   )
 }
+

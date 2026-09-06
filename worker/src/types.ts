@@ -3,6 +3,14 @@
  * 用語定義書.md および 要件定義書.md に準拠
  */
 
+export interface Voice {
+  quality: 'standard' | 'natural' | 'high'
+  gender: 'male' | 'female'
+  voiceName?: string
+  rate?: number
+  pitch?: number
+}
+
 export interface Friend {
   id?: string
   name: string
@@ -10,6 +18,7 @@ export interface Friend {
   personality: string
   hobbies: string[]
   tone?: string
+  voice?: Voice
   initialMessage?: {
     zh: string
     ja: string

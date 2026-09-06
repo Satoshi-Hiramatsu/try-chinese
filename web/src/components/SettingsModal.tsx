@@ -7,6 +7,7 @@ import {
   CheckIcon,
   KeyIcon,
   SparklesIcon,
+  SpeakerIcon,
 } from './Icons'
 
 interface SettingsModalProps {
@@ -14,7 +15,9 @@ interface SettingsModalProps {
   onClose: () => void
   currentApiKey: string
   currentModel: string
-  onSave: (apiKey: string, model: string) => void
+  autoPlayTts?: boolean
+  speechInputLang?: 'zh-CN' | 'ja-JP'
+  onSave: (apiKey: string, model: string, autoPlayTts: boolean, speechInputLang: 'zh-CN' | 'ja-JP') => void
 }
 
 const PRESET_MODELS = [
@@ -30,20 +33,26 @@ export function SettingsModal({
   onClose,
   currentApiKey,
   currentModel,
+  autoPlayTts = false,
+  speechInputLang = 'zh-CN',
   onSave,
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey)
   const [model, setModel] = useState(currentModel || 'google/gemini-2.5-flash')
+  const [autoPlay, setAutoPlay] = useState(autoPlayTts)
+  const [inputLang, setInputLang] = useState<'zh-CN' | 'ja-JP'>(speechInputLang)
 
   useEffect(() => {
     setApiKey(currentApiKey)
     setModel(currentModel || 'google/gemini-2.5-flash')
-  }, [currentApiKey, currentModel, isOpen])
+    setAutoPlay(autoPlayTts)
+    setInputLang(speechInputLang)
+  }, [currentApiKey, currentModel, autoPlayTts, speechInputLang, isOpen])
 
   if (!isOpen) return null
 
   const handleSave = () => {
-    onSave(apiKey, model)
+    onSave(apiKey, model, autoPlay, inputLang)
     onClose()
   }
 
@@ -157,7 +166,78 @@ export function SettingsModal({
             </p>
           </div>
 
-          {/* Section 3: トークン効率についての案内 */}
+          {/* Section 3: 音声（TTS / STT）設定 */}
+          <div className="pt-3 border-t border-stone-100 space-y-3">
+            <label className="block text-xs font-bold text-stone-800 flex items-center gap-1.5">
+              <SpeakerIcon className="w-4 h-4 text-stone-600" />
+              <span>音声機能設定 (TTS / STT):</span>
+            </label>
+
+            {/* 自動読み上げトグル */}
+            <div className="flex items-center justify-between p-3 bg-stone-50 rounded-2xl border border-stone-200/80">
+              <div>
+                <span className="text-xs font-bold text-stone-800 block">
+                  AIの返答を自動で読み上げる
+                </span>
+                <span className="text-[11px] text-stone-500 block mt-0.5">
+                  ONにすると返信が届いた際に中国語音声が自動再生されます
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAutoPlay(!autoPlay)}
+                className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                  autoPlay ? 'bg-rose-500' : 'bg-stone-300'
+                }`}
+                role="switch"
+                aria-checked={autoPlay}
+              >
+                <span
+                  className={`block w-4 h-4 rounded-full bg-white transition-transform transform shadow-xs ${
+                    autoPlay ? 'translate-x-6' : 'translate-x-1'
+                  } top-1`}
+                />
+              </button>
+            </div>
+
+            {/* 音声入力の初期言語 */}
+            <div className="flex items-center justify-between p-3 bg-stone-50 rounded-2xl border border-stone-200/80">
+              <div>
+                <span className="text-xs font-bold text-stone-800 block">
+                  音声入力（マイク）のデフォルト言語
+                </span>
+                <span className="text-[11px] text-stone-500 block mt-0.5">
+                  入力欄でもいつでもワンタップで切り替え可能です
+                </span>
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setInputLang('zh-CN')}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    inputLang === 'zh-CN'
+                      ? 'bg-rose-500 text-white shadow-2xs'
+                      : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-100'
+                  }`}
+                >
+                  🇨🇳 中国語
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInputLang('ja-JP')}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    inputLang === 'ja-JP'
+                      ? 'bg-rose-500 text-white shadow-2xs'
+                      : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-100'
+                  }`}
+                >
+                  🇯🇵 日本語
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: トークン効率についての案内 */}
           <div className="bg-amber-50/70 p-3.5 rounded-2xl border border-amber-200/60 text-xs space-y-1 text-stone-700">
             <p className="font-bold text-amber-900 m-0 flex items-center gap-1.5">
               <SparklesIcon className="w-4 h-4 text-amber-600" />

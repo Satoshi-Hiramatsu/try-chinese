@@ -1,14 +1,23 @@
 import { useState } from 'react'
 import type { ChatMessage, Friend } from '../types'
-import { BulbIcon } from './Icons'
+import { BulbIcon, SpeakerIcon, StopCircleIcon } from './Icons'
 import { FriendAvatar } from './FriendAvatar'
 
 interface ChatMessageItemProps {
   message: ChatMessage
   friend: Friend
+  playingText?: string | null
+  onPlayText?: (text: string) => void
+  onStopText?: () => void
 }
 
-export function ChatMessageItem({ message, friend }: ChatMessageItemProps) {
+export function ChatMessageItem({
+  message,
+  friend,
+  playingText,
+  onPlayText,
+  onStopText,
+}: ChatMessageItemProps) {
   const [showCorrection, setShowCorrection] = useState(true)
 
   if (message.role === 'user') {
@@ -27,6 +36,27 @@ export function ChatMessageItem({ message, friend }: ChatMessageItemProps) {
   const correction = message.correction
   const vocabulary = message.vocabulary || []
 
+  const isPlayingMain = reply && playingText === reply.zh
+  const isPlayingCorrection = correction?.suggested && playingText === correction.suggested
+
+  const handleTogglePlayMain = () => {
+    if (!reply) return
+    if (isPlayingMain) {
+      onStopText?.()
+    } else {
+      onPlayText?.(reply.zh)
+    }
+  }
+
+  const handleTogglePlayCorrection = () => {
+    if (!correction?.suggested) return
+    if (isPlayingCorrection) {
+      onStopText?.()
+    } else {
+      onPlayText?.(correction.suggested)
+    }
+  }
+
   return (
     <div className="flex items-start gap-3 my-4">
       {/* Friend Avatar (顔拡大クリップ) */}
@@ -34,18 +64,45 @@ export function ChatMessageItem({ message, friend }: ChatMessageItemProps) {
 
       <div className="max-w-[88%] sm:max-w-[80%] space-y-2">
         {/* Reply Bubble */}
-        <div className="bg-white rounded-2xl rounded-tl-xs p-4 shadow-sm border border-rose-150/70 space-y-2.5">
+        <div className="bg-white rounded-2xl rounded-tl-xs p-4 shadow-sm border border-rose-150/70 space-y-2.5 relative group">
           {reply ? (
             <div>
-              {/* ピンイン常時表示（発音重視） */}
-              <p className="text-xs sm:text-sm text-rose-600 font-mono tracking-wide m-0 select-text leading-snug">
-                {reply.pinyin}
-              </p>
+              {/* 音声再生ボタン (右上) */}
+              <div className="flex items-center justify-between mb-1">
+                {/* ピンイン常時表示（発音重視） */}
+                <p className="text-xs sm:text-sm text-rose-600 font-mono tracking-wide m-0 select-text leading-snug">
+                  {reply.pinyin}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleTogglePlayMain}
+                  title={isPlayingMain ? '音声を停止' : '発音を聞く (TTS)'}
+                  aria-label={isPlayingMain ? '音声を停止' : '発音を聞く'}
+                  className={`p-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer select-none text-xs ${
+                    isPlayingMain
+                      ? 'bg-rose-500 text-white animate-pulse shadow-xs'
+                      : 'text-stone-400 hover:text-rose-600 hover:bg-rose-50'
+                  }`}
+                >
+                  {isPlayingMain ? (
+                    <>
+                      <StopCircleIcon className="w-3.5 h-3.5" />
+                      <span className="text-[10px] font-bold">停止</span>
+                    </>
+                  ) : (
+                    <>
+                      <SpeakerIcon className="w-3.5 h-3.5" />
+                      <span className="text-[10px] font-semibold hidden sm:inline">発音</span>
+                    </>
+                  )}
+                </button>
+              </div>
 
               {/* 中国語本文 */}
               <p
                 lang="zh-CN"
-                className="font-chinese text-base sm:text-lg font-bold text-stone-900 mt-1 mb-0 leading-relaxed select-text tracking-wide"
+                className="font-chinese text-base sm:text-lg font-bold text-stone-900 mt-0.5 mb-0 leading-relaxed select-text tracking-wide"
               >
                 {reply.zh}
               </p>
@@ -112,20 +169,39 @@ export function ChatMessageItem({ message, friend }: ChatMessageItemProps) {
                 )}
 
                 {correction.suggested && (
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-[10px] font-bold text-rose-500 uppercase w-12 flex-shrink-0">
-                      自然な中国語
-                    </span>
-                    <div>
-                      <span lang="zh-CN" className="font-chinese font-bold text-stone-900 text-sm">
-                        {correction.suggested}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[10px] font-bold text-rose-500 uppercase w-12 flex-shrink-0">
+                        自然な中国語
                       </span>
-                      {correction.pinyin && (
-                        <span className="text-[11px] text-rose-600 font-mono ml-2">
-                          ({correction.pinyin})
+                      <div>
+                        <span lang="zh-CN" className="font-chinese font-bold text-stone-900 text-sm">
+                          {correction.suggested}
                         </span>
-                      )}
+                        {correction.pinyin && (
+                          <span className="text-[11px] text-rose-600 font-mono ml-2">
+                            ({correction.pinyin})
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={handleTogglePlayCorrection}
+                      title={isPlayingCorrection ? '音声を停止' : '添削文の発音を聞く'}
+                      aria-label="添削文の発音を聞く"
+                      className={`p-1 rounded-md transition-colors cursor-pointer select-none ${
+                        isPlayingCorrection
+                          ? 'bg-rose-500 text-white animate-pulse'
+                          : 'text-stone-400 hover:text-rose-600 hover:bg-stone-200/50'
+                      }`}
+                    >
+                      {isPlayingCorrection ? (
+                        <StopCircleIcon className="w-3 h-3" />
+                      ) : (
+                        <SpeakerIcon className="w-3 h-3" />
+                      )}
+                    </button>
                   </div>
                 )}
 

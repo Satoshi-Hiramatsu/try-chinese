@@ -7,9 +7,19 @@ interface ChatMessageListProps {
   messages: ChatMessage[]
   friend: Friend
   isLoading: boolean
+  playingText?: string | null
+  onPlayText?: (text: string) => void
+  onStopText?: () => void
 }
 
-export function ChatMessageList({ messages, friend, isLoading }: ChatMessageListProps) {
+export function ChatMessageList({
+  messages,
+  friend,
+  isLoading,
+  playingText,
+  onPlayText,
+  onStopText,
+}: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -31,7 +41,14 @@ export function ChatMessageList({ messages, friend, isLoading }: ChatMessageList
         </div>
       ) : (
         messages.map((msg) => (
-          <ChatMessageItem key={msg.id} message={msg} friend={friend} />
+          <ChatMessageItem
+            key={msg.id}
+            message={msg}
+            friend={friend}
+            playingText={playingText}
+            onPlayText={onPlayText}
+            onStopText={onStopText}
+          />
         ))
       )}
 
