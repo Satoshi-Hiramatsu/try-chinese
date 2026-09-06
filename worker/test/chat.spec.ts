@@ -51,6 +51,21 @@ describe('T-01: POST /api/chat 実装テスト', () => {
       const promptHigh = buildChatSystemPrompt(mockFriend, 99)
       expect(promptHigh).toContain('HSK 6 級')
     })
+
+    it('完全な中国語返答の徹底（日本語混入禁止）の指示が含まれること', () => {
+      const prompt = buildChatSystemPrompt(mockFriend, 2)
+      expect(prompt).toContain('完全な中国語返答')
+      expect(prompt).toContain('100%中国語（簡体字）のみ')
+      expect(prompt).toContain('日本語（ひらがな、カタカナ、和製表現）は絶対に混ぜてはいけません')
+    })
+
+    it('学習者が日本語で話しかけた場合の2段階対話指示と添削ルールが含まれること', () => {
+      const prompt = buildChatSystemPrompt(mockFriend, 2)
+      expect(prompt).toContain('2段階対話')
+      expect(prompt).toContain('ステップ1（内容への回答）')
+      expect(prompt).toContain('ステップ2（中国語表現の案内・促し）')
+      expect(prompt).toContain('必ず "hasCorrection": true')
+    })
   })
 
   describe('parseChatResponse', () => {

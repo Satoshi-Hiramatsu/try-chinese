@@ -30,24 +30,60 @@ import {
   saveUserHobbies,
 } from './services/storage'
 
-const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => ({
-  id: `welcome-${friend.id || 'default'}-${Date.now()}`,
-  role: 'assistant',
-  reply: {
-    zh: `你好！我是${friend.name}。很高兴认识你！你想聊点什么？${friend.hobbies.slice(0, 3).join('、')}？`,
-    ja: `こんにちは！${friend.name}です。はじめまして！何について話したいですか？${friend.hobbies.slice(0, 3).join('、')}？`,
-    pinyin: 'Nǐ hǎo! Hěn gāoxìng rènshi nǐ! Nǐ xiǎng liáo diǎn shénme?',
-    hskLevel: level,
-  },
-  correction: {
-    hasCorrection: false,
-  },
-  vocabulary: [
-    { term: '高兴', pinyin: 'gāoxìng', ja: 'うれしい', hskLevel: 1 },
-    { term: '认识', pinyin: 'rènshi', ja: '知り合う', hskLevel: 2 },
-  ],
-  timestamp: Date.now(),
-})
+const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => {
+  if (friend.initialMessage) {
+    return {
+      id: `welcome-${friend.id || 'default'}-${Date.now()}`,
+      role: 'assistant',
+      reply: {
+        zh: friend.initialMessage.zh,
+        ja: friend.initialMessage.ja,
+        pinyin: friend.initialMessage.pinyin,
+        hskLevel: level,
+      },
+      correction: {
+        hasCorrection: false,
+      },
+      vocabulary: friend.initialMessage.vocabulary || [
+        { term: '高兴', pinyin: 'gāoxìng', ja: 'うれしい', hskLevel: 1 },
+        { term: '认识', pinyin: 'rènshi', ja: '知り合う', hskLevel: 2 },
+      ],
+      timestamp: Date.now(),
+    }
+  }
+
+  // 名前から英語表記や括弧を取り除いた簡潔な呼び名を取得（例: "王浩 (Wang Hao)" -> "王浩"）
+  const cleanName = friend.name.replace(/\s*\(.*?\)/g, '').trim() || friend.name
+
+  return {
+    id: `welcome-${friend.id || 'default'}-${Date.now()}`,
+    role: 'assistant',
+    reply: {
+      zh: `你好！我是${cleanName}。很高兴认识你！你想聊点什么？`,
+      ja: `こんにちは！${friend.name}です。はじめまして！何について話したいですか？`,
+      pinyin: `Nǐ hǎo! Hěn gāoxìng rènshi nǐ! Nǐ xiǎng liáo diǎn shénme?`,
+      hskLevel: level,
+    },
+    correction: {
+      hasCorrection: false,
+    },
+    vocabulary: [
+      { term: '高兴', pinyin: 'gāoxìng', ja: 'うれしい', hskLevel: 1 },
+      { term: '认识', pinyin: 'rènshi', ja: '知り合う', hskLevel: 2 },
+    ],
+    timestamp: Date.now(),
+  }
+}
+
+/**
+ * 過去に保存された古いウェルカムメッセージ（日本語が混入していたもの）を最新の完全中国語メッセージに更新する
+ */
+const sanitizeWelcomeHistory = (saved: ChatMessage[], friend: Friend, level: number): ChatMessage[] => {
+  if (saved.length === 1 && saved[0].id.startsWith('welcome-')) {
+    return [buildWelcomeMessage(friend, level)]
+  }
+  return saved
+}
 
 export default function App() {
   const [hskLevel, setHskLevel] = useState<number>(() => loadHskLevel(2))
@@ -80,7 +116,8 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const friendId = currentFriend.id || 'friend-meiling'
     const saved = loadFriendMessages(friendId)
-    return saved.length > 0 ? saved : [buildWelcomeMessage(currentFriend, loadHskLevel(2))]
+    const initial = saved.length > 0 ? saved : [buildWelcomeMessage(currentFriend, loadHskLevel(2))]
+    return sanitizeWelcomeHistory(initial, currentFriend, loadHskLevel(2))
   })
 
   // メッセージの保存（現在の友達のセッション）
@@ -111,7 +148,8 @@ export default function App() {
 
     const newFriendId = newFriend.id || 'friend-meiling'
     const saved = loadFriendMessages(newFriendId)
-    const nextMessages = saved.length > 0 ? saved : [buildWelcomeMessage(newFriend, hskLevel)]
+    const initial = saved.length > 0 ? saved : [buildWelcomeMessage(newFriend, hskLevel)]
+    const nextMessages = sanitizeWelcomeHistory(initial, newFriend, hskLevel)
 
     setCurrentFriend(newFriend)
     setMessages(nextMessages)

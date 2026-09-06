@@ -8,6 +8,16 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '親しみやすく好奇心旺盛、上海在住の大学生。日本のサブカルチャーや歴史にも詳しい。',
     hobbies: ['三国志', '映画鑑賞', '台湾料理'],
     tone: '明るくフランクな同年代の友達言葉',
+    initialMessage: {
+      zh: '你好！我是陈美玲。很高兴认识你！你想聊点什么？三国志、看电影，还是台湾美食？',
+      ja: 'こんにちは！陳美玲です。はじめまして！何について話したい？三国志、映画、それとも台湾グルメ？',
+      pinyin: 'Nǐ hǎo! Wǒ shì Chén Měilíng. Hěn gāoxìng rènshi nǐ! Nǐ xiǎng liáo diǎn shénme? Sānguózhì, kàn diànyǐng, háishi Táiwān měishí?',
+      vocabulary: [
+        { term: '高兴', pinyin: 'gāoxìng', ja: 'うれしい', hskLevel: 1 },
+        { term: '认识', pinyin: 'rènshi', ja: '知り合う', hskLevel: 2 },
+        { term: '电影', pinyin: 'diànyǐng', ja: '映画', hskLevel: 2 },
+      ],
+    },
   },
   {
     id: 'friend-wanghao',
@@ -16,6 +26,16 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '北京在住のITエンジニア。論理的で穏やか。最新テクノロジーやSF、街歩きカフェ巡りが好き。',
     hobbies: ['テクノロジー・AI', 'ゲーム', 'SF小説', 'カフェ巡り'],
     tone: '落ち着いて知的な、温かみのあるトーン',
+    initialMessage: {
+      zh: '你好！我是王浩。很高兴认识你！你想聊点什么？科技、游戏，还是科幻小说？',
+      ja: 'こんにちは！王浩です。はじめまして！何について話したいですか？テクノロジー、ゲーム、それともSF小説？',
+      pinyin: 'Nǐ hǎo! Wǒ shì Wáng Hào. Hěn gāoxìng rènshi nǐ! Nǐ xiǎng liáo diǎn shénme? Kējì, yóuxì, háishi kēhuàn xiǎoshuō?',
+      vocabulary: [
+        { term: '很高兴', pinyin: 'hěn gāoxìng', ja: 'うれしい・はじめまして', hskLevel: 1 },
+        { term: '科技', pinyin: 'kējì', ja: '科学技術・テクノロジー', hskLevel: 4 },
+        { term: '游戏', pinyin: 'yóuxì', ja: 'ゲーム', hskLevel: 3 },
+      ],
+    },
   },
   {
     id: 'friend-lixue',
@@ -24,6 +44,16 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '成都在住のグラフィックデザイナー。感性豊かでのんびり屋。四川の激辛グルメとアート、猫が大好き。',
     hobbies: ['四川料理・火鍋', 'アート・イラスト', '猫・ペット', '旅行'],
     tone: 'ゆったり優しく、愛嬌のある話し方',
+    initialMessage: {
+      zh: '你好呀！我是李雪。很高兴认识你！想聊聊四川火锅、画画，还是可爱的猫猫？',
+      ja: 'こんにちは！李雪だよ。はじめまして！四川火鍋やお絵描き、それとも可愛い猫ちゃんについて話す？',
+      pinyin: 'Nǐ hǎo ya! Wǒ shì Lǐ Xuě. Hěn gāoxìng rènshi nǐ! Xiǎng liáoliao Sìchuān huǒguō, huàhuà, háishi kě\'ài de māomāo?',
+      vocabulary: [
+        { term: '火锅', pinyin: 'huǒguō', ja: '火鍋', hskLevel: 3 },
+        { term: '画画', pinyin: 'huàhuà', ja: '絵を描く', hskLevel: 3 },
+        { term: '可爱', pinyin: 'kě\'ài', ja: '可愛い', hskLevel: 3 },
+      ],
+    },
   },
   {
     id: 'friend-zhangwei',
@@ -32,5 +62,15 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '広州在住のフィットネスインストラクター。エネルギッシュでポジティブ。広東飲茶とランニングが日課。',
     hobbies: ['アウトドア・ランニング', '広東飲茶', 'ポップミュージック', 'スポーツ観戦'],
     tone: '元気いっぱいで前向き、元気をくれるトーン',
+    initialMessage: {
+      zh: '你好！我是张伟。很高兴认识你！今天想聊点什么？跑步、广东早茶，还是看球赛？',
+      ja: 'こんにちは！張偉です。はじめまして！今日は何について話そうか？ランニング、広東飲茶、それとも球技観戦？',
+      pinyin: 'Nǐ hǎo! Wǒ shì Zhāng Wěi. Hěn gāoxìng rènshi nǐ! Jīntiān xiǎng liáo diǎn shénme? Pǎobù, Guǎngdōng zǎochá, háishi kàn qiúsài?',
+      vocabulary: [
+        { term: '跑步', pinyin: 'pǎobù', ja: 'ランニング', hskLevel: 2 },
+        { term: '早茶', pinyin: 'zǎochá', ja: '飲茶・朝茶', hskLevel: 3 },
+        { term: '比赛', pinyin: 'bǐsài', ja: '試合', hskLevel: 3 },
+      ],
+    },
   },
 ]

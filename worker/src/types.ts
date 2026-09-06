@@ -10,6 +10,12 @@ export interface Friend {
   personality: string
   hobbies: string[]
   tone?: string
+  initialMessage?: {
+    zh: string
+    ja: string
+    pinyin: string
+    vocabulary?: HobbyVocabulary[]
+  }
 }
 
 export interface BilingualReply {
