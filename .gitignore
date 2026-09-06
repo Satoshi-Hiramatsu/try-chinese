@@ -19,6 +19,7 @@ dist-ssr/
 *.key
 *.pem
 *.secret
+.dev.vars*
 openrouter*.txt
 *sk-*.txt
 
