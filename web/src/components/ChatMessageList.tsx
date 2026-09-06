@@ -10,6 +10,7 @@ interface ChatMessageListProps {
 
 export function ChatMessageList({ messages, friend, isLoading }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
+  const isImageAvatar = friend.avatar.startsWith('/') || friend.avatar.startsWith('http') || friend.avatar.startsWith('data:')
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -19,11 +20,23 @@ export function ChatMessageList({ messages, friend, isLoading }: ChatMessageList
     <div className="flex-1 overflow-y-auto px-1 sm:px-2 py-4 space-y-2">
       {messages.length === 0 ? (
         <div className="h-full flex flex-col items-center justify-center text-center p-6 text-stone-400">
-          <div className="text-5xl mb-3 select-none">{friend.avatar}</div>
-          <p className="font-semibold text-stone-600 text-sm sm:text-base">
-            {friend.name} と会話を始めましょう！
+          <div className="w-20 h-20 rounded-3xl overflow-hidden shadow-md border-2 border-rose-200/80 mb-4 bg-rose-50">
+            {isImageAvatar ? (
+              <img
+                src={friend.avatar}
+                alt={friend.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-rose-500">
+                {friend.name.charAt(0)}
+              </div>
+            )}
+          </div>
+          <p className="font-semibold text-stone-700 text-sm sm:text-base">
+            <span lang="zh-CN" className="font-chinese font-bold text-stone-900">{friend.name}</span> と会話を始めましょう！
           </p>
-          <p className="text-xs text-stone-400 mt-1 max-w-sm">
+          <p className="text-xs text-stone-400 mt-1.5 max-w-sm leading-relaxed">
             趣味の「{friend.hobbies.join('・')}」についてや、今日の出来事など、何でも気軽に話しかけてみてください。
             日本語や片言でも大丈夫です。
           </p>
@@ -37,8 +50,18 @@ export function ChatMessageList({ messages, friend, isLoading }: ChatMessageList
       {/* Loading indicator */}
       {isLoading && (
         <div className="flex items-start gap-3 my-4">
-          <div className="text-2xl mt-1 select-none flex-shrink-0">
-            {friend.avatar}
+          <div className="mt-1 flex-shrink-0">
+            {isImageAvatar ? (
+              <img
+                src={friend.avatar}
+                alt={friend.name}
+                className="w-9 h-9 rounded-full object-cover shadow-xs border border-rose-200"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-rose-100 flex items-center justify-center text-xs font-bold text-rose-600 border border-rose-200">
+                {friend.name.charAt(0)}
+              </div>
+            )}
           </div>
           <div className="bg-white rounded-2xl rounded-tl-xs p-4 shadow-sm border border-rose-150/70">
             <div className="flex items-center gap-1.5 py-1">

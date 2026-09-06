@@ -1,3 +1,5 @@
+import { UsersIcon, SparklesIcon, SettingsIcon, TrashIcon } from './Icons'
+
 interface HeaderProps {
   hskLevel: number
   onHskChange: (level: number) => void
@@ -21,7 +23,7 @@ export function Header({
     <header className="w-full max-w-3xl flex items-center justify-between py-3 px-2 sm:px-0 border-b border-rose-200/60">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white font-bold text-xl shadow-md shadow-rose-500/20">
-          中
+          <span className="font-chinese">中</span>
         </div>
         <div>
           <h1 className="text-xl font-bold tracking-tight text-stone-900 m-0 flex items-center gap-2">
@@ -52,32 +54,35 @@ export function Header({
         {/* Friend List Modal Button */}
         {onOpenFriendList && (
           <button
+            type="button"
             onClick={onOpenFriendList}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium bg-white/90 text-stone-700 border border-stone-200 hover:bg-stone-50 transition-colors shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white/90 text-stone-700 border border-stone-200 hover:bg-stone-50 transition-colors shadow-xs cursor-pointer"
             title="友達を切り替え・作成"
           >
-            <span>👥</span>
+            <UsersIcon className="w-3.5 h-3.5 text-stone-500" />
             <span className="hidden md:inline">友達切替</span>
           </button>
         )}
 
         {/* Onboarding Wizard Button */}
         <button
+          type="button"
           onClick={onOpenOnboarding}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium bg-white/90 text-stone-700 border border-stone-200 hover:bg-stone-50 transition-colors shadow-xs"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white/90 text-stone-700 border border-stone-200 hover:bg-stone-50 transition-colors shadow-xs cursor-pointer"
           title="趣味とHSK設定ウィザード"
         >
-          <span>✨</span>
+          <SparklesIcon className="w-3.5 h-3.5 text-amber-500" />
           <span className="hidden md:inline">趣味設定</span>
         </button>
 
         {/* Settings Button */}
         <button
+          type="button"
           onClick={onOpenApiKeyModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white/90 text-stone-700 border-stone-200 hover:bg-stone-50 transition-colors shadow-xs"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white/90 text-stone-700 border-stone-200 hover:bg-stone-50 transition-colors shadow-xs cursor-pointer"
           title="AIモデル・キー設定"
         >
-          <span>⚙️</span>
+          <SettingsIcon className="w-3.5 h-3.5 text-stone-500" />
           <span className="hidden sm:inline">AI設定</span>
           {hasApiKey && (
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="ブラウザAPIキー設定済み" />
@@ -86,11 +91,12 @@ export function Header({
 
         {/* Clear History Button */}
         <button
+          type="button"
           onClick={onClearHistory}
-          className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full hover:bg-rose-50 transition-colors"
+          className="p-2 text-stone-400 hover:text-rose-500 rounded-full hover:bg-rose-50 transition-colors cursor-pointer flex items-center justify-center"
           title="会話履歴をクリア"
         >
-          🗑️
+          <TrashIcon className="w-4 h-4 text-stone-400 hover:text-rose-500 transition-colors" />
         </button>
       </div>
     </header>

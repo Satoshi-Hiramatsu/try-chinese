@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ChatMessage, Friend } from '../types'
+import { BulbIcon } from './Icons'
 
 interface ChatMessageItemProps {
   message: ChatMessage
@@ -25,11 +26,23 @@ export function ChatMessageItem({ message, friend }: ChatMessageItemProps) {
   const correction = message.correction
   const vocabulary = message.vocabulary || []
 
+  const isImageAvatar = friend.avatar.startsWith('/') || friend.avatar.startsWith('http') || friend.avatar.startsWith('data:')
+
   return (
     <div className="flex items-start gap-3 my-4">
       {/* Friend Avatar */}
-      <div className="text-2xl mt-1 select-none flex-shrink-0">
-        {friend.avatar}
+      <div className="mt-1 flex-shrink-0">
+        {isImageAvatar ? (
+          <img
+            src={friend.avatar}
+            alt={friend.name}
+            className="w-9 h-9 rounded-full object-cover shadow-xs border border-rose-200"
+          />
+        ) : (
+          <div className="w-9 h-9 rounded-full bg-rose-100 flex items-center justify-center text-xs font-bold text-rose-600 border border-rose-200">
+            {friend.name.charAt(0)}
+          </div>
+        )}
       </div>
 
       <div className="max-w-[88%] sm:max-w-[80%] space-y-2">
@@ -43,7 +56,10 @@ export function ChatMessageItem({ message, friend }: ChatMessageItemProps) {
               </p>
 
               {/* 中国語本文 */}
-              <p className="text-base sm:text-lg font-bold text-stone-900 mt-1 mb-0 leading-relaxed select-text">
+              <p
+                lang="zh-CN"
+                className="font-chinese text-base sm:text-lg font-bold text-stone-900 mt-1 mb-0 leading-relaxed select-text tracking-wide"
+              >
                 {reply.zh}
               </p>
 
@@ -65,7 +81,7 @@ export function ChatMessageItem({ message, friend }: ChatMessageItemProps) {
                   key={idx}
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50/80 border border-amber-200/60 text-stone-700 text-xs"
                 >
-                  <span className="font-bold text-amber-900">{vocab.term}</span>
+                  <span lang="zh-CN" className="font-chinese font-bold text-amber-900">{vocab.term}</span>
                   <span className="text-[10px] text-amber-700 font-mono">({vocab.pinyin})</span>
                   <span className="text-[10px] text-stone-500">{vocab.ja}</span>
                   {vocab.hskLevel && (
@@ -87,11 +103,11 @@ export function ChatMessageItem({ message, friend }: ChatMessageItemProps) {
               onClick={() => setShowCorrection(!showCorrection)}
             >
               <span className="font-semibold text-stone-600 flex items-center gap-1.5">
-                <span>💡</span>
+                <BulbIcon className="w-3.5 h-3.5 text-amber-500" />
                 <span>添削アドバイス</span>
               </span>
               <span className="text-[10px] text-stone-400">
-                {showCorrection ? '閉じる ▲' : '見る ▼'}
+                {showCorrection ? '閉じる' : '詳細を見る'}
               </span>
             </div>
 
@@ -99,10 +115,10 @@ export function ChatMessageItem({ message, friend }: ChatMessageItemProps) {
               <div className="mt-2.5 pt-2 border-t border-stone-200/60 space-y-1.5 text-stone-600">
                 {correction.original && (
                   <div className="flex items-baseline gap-2">
-                    <span className="text-[10px] font-medium text-stone-400 uppercase w-10 flex-shrink-0">
+                    <span className="text-[10px] font-medium text-stone-400 uppercase w-12 flex-shrink-0">
                       あなたの文
                     </span>
-                    <span className="text-stone-500 line-through decoration-rose-400/50">
+                    <span lang="zh-CN" className="font-chinese text-stone-500 line-through decoration-rose-400/50">
                       {correction.original}
                     </span>
                   </div>
@@ -110,11 +126,11 @@ export function ChatMessageItem({ message, friend }: ChatMessageItemProps) {
 
                 {correction.suggested && (
                   <div className="flex items-baseline gap-2">
-                    <span className="text-[10px] font-bold text-rose-500 uppercase w-10 flex-shrink-0">
+                    <span className="text-[10px] font-bold text-rose-500 uppercase w-12 flex-shrink-0">
                       自然な中国語
                     </span>
                     <div>
-                      <span className="font-bold text-stone-900 text-sm">
+                      <span lang="zh-CN" className="font-chinese font-bold text-stone-900 text-sm">
                         {correction.suggested}
                       </span>
                       {correction.pinyin && (
@@ -127,7 +143,7 @@ export function ChatMessageItem({ message, friend }: ChatMessageItemProps) {
                 )}
 
                 {correction.ja && (
-                  <p className="text-[11px] text-stone-500 leading-normal pl-12 m-0">
+                  <p className="text-[11px] text-stone-500 leading-normal pl-14 m-0">
                     {correction.ja}
                   </p>
                 )}

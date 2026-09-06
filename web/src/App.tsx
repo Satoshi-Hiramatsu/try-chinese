@@ -8,6 +8,7 @@ import { ChatInput } from './components/ChatInput'
 import { SettingsModal } from './components/SettingsModal'
 import { OnboardingModal } from './components/OnboardingModal'
 import { FriendListModal } from './components/FriendListModal'
+import { AlertIcon, CloseIcon } from './components/Icons'
 import { sendMessageToChatApi } from './services/api'
 import {
   loadApiKey,
@@ -212,12 +213,17 @@ export default function App() {
         {/* Error Alert Banner */}
         {errorMessage && (
           <div className="bg-rose-100 border border-rose-300 text-rose-800 px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center justify-between shadow-xs">
-            <span>⚠️ {errorMessage}</span>
+            <span className="flex items-center gap-1.5">
+              <AlertIcon className="w-4 h-4 text-rose-700 flex-shrink-0" />
+              <span>{errorMessage}</span>
+            </span>
             <button
+              type="button"
               onClick={() => setErrorMessage(null)}
-              className="text-rose-600 hover:text-rose-800 font-bold ml-2"
+              className="text-rose-600 hover:text-rose-800 p-1 rounded-md cursor-pointer ml-2"
+              aria-label="エラーを閉じる"
             >
-              ✕
+              <CloseIcon className="w-4 h-4" />
             </button>
           </div>
         )}

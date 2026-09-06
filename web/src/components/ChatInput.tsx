@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
+import { SendIcon } from './Icons'
 
 interface ChatInputProps {
   onSendMessage: (content: string) => void
@@ -61,7 +62,7 @@ export function ChatInput({ onSendMessage, isLoading, disabled = false }: ChatIn
           onClick={handleSend}
           disabled={!text.trim() || isLoading || disabled}
           aria-label="送信"
-          className={`px-4 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center transition-all ${
+          className={`px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-1.5 justify-center transition-all ${
             text.trim() && !isLoading && !disabled
               ? 'bg-rose-500 text-white hover:bg-rose-600 shadow-sm cursor-pointer'
               : 'bg-stone-100 text-stone-300 cursor-not-allowed'
@@ -70,7 +71,10 @@ export function ChatInput({ onSendMessage, isLoading, disabled = false }: ChatIn
           {isLoading ? (
             <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
           ) : (
-            <span>送信</span>
+            <>
+              <SendIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">送信</span>
+            </>
           )}
         </button>
       </div>

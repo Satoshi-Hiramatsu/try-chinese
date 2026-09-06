@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Friend } from '../types'
+import { CheckIcon, PlusIcon } from './Icons'
 
 interface OnboardingModalProps {
   isOpen: boolean
@@ -46,6 +47,8 @@ export function OnboardingModal({
   const [hskLevel, setHskLevel] = useState<number>(currentHskLevel || 2)
 
   if (!isOpen) return null
+
+  const isImageAvatar = initialFriend.avatar.startsWith('/') || initialFriend.avatar.startsWith('http') || initialFriend.avatar.startsWith('data:')
 
   const toggleHobby = (hobby: string) => {
     setSelectedHobbies((prev) =>
@@ -116,14 +119,14 @@ export function OnboardingModal({
                     key={hobby}
                     type="button"
                     onClick={() => toggleHobby(hobby)}
-                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition-all ${
+                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center gap-1 cursor-pointer ${
                       isSelected
                         ? 'bg-rose-500 text-white shadow-xs scale-102'
                         : 'bg-stone-100 text-stone-700 hover:bg-stone-200/80 border border-stone-200/60'
                     }`}
                   >
-                    {isSelected ? '✓ ' : '+ '}
-                    {hobby}
+                    {isSelected ? <CheckIcon className="w-3.5 h-3.5" /> : <PlusIcon className="w-3.5 h-3.5" />}
+                    <span>{hobby}</span>
                   </button>
                 )
               })}
@@ -141,13 +144,13 @@ export function OnboardingModal({
                     handleAddCustomHobby()
                   }
                 }}
-                placeholder="他の趣味を自由に入力（例: 乃木坂46、麻婆豆腐）"
+                placeholder="他の趣味を自由に入力（例: サッカー、麻婆豆腐）"
                 className="flex-1 px-3 py-2 text-xs sm:text-sm border border-stone-300 rounded-xl focus:border-rose-500 focus:outline-none"
               />
               <button
                 type="button"
                 onClick={handleAddCustomHobby}
-                className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold"
+                className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold cursor-pointer"
               >
                 追加
               </button>
@@ -186,7 +189,10 @@ export function OnboardingModal({
                       </span>
                     </div>
                     {isSelected && (
-                      <span className="text-rose-600 text-sm font-bold">✓ 選択中</span>
+                      <span className="text-rose-600 text-xs font-bold flex items-center gap-1">
+                        <CheckIcon className="w-3.5 h-3.5" />
+                        <span>選択中</span>
+                      </span>
                     )}
                   </div>
                   <p className="text-xs text-stone-500 mt-1 m-0 leading-relaxed">
@@ -202,8 +208,20 @@ export function OnboardingModal({
         {step === 3 && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-rose-50 via-amber-50 to-orange-50 rounded-2xl p-5 border border-rose-200/60 shadow-inner text-center">
-              <div className="text-5xl mb-2 select-none">{initialFriend.avatar}</div>
-              <h3 className="text-lg font-bold text-stone-900 m-0">
+              <div className="w-20 h-20 rounded-3xl overflow-hidden shadow-md border-2 border-rose-200/80 mx-auto mb-3 bg-rose-50">
+                {isImageAvatar ? (
+                  <img
+                    src={initialFriend.avatar}
+                    alt={initialFriend.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-rose-500">
+                    {initialFriend.name.charAt(0)}
+                  </div>
+                )}
+              </div>
+              <h3 lang="zh-CN" className="font-chinese text-lg font-bold text-stone-900 m-0">
                 {initialFriend.name}
               </h3>
               <p className="text-xs text-stone-600 mt-1 mb-3">
@@ -246,15 +264,15 @@ export function OnboardingModal({
             <button
               type="button"
               onClick={() => setStep((s) => (s - 1) as 1 | 2)}
-              className="px-4 py-2 text-xs sm:text-sm font-semibold text-stone-500 hover:text-stone-800 rounded-xl hover:bg-stone-100 transition-colors"
+              className="px-4 py-2 text-xs sm:text-sm font-semibold text-stone-500 hover:text-stone-800 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
             >
-              ← 戻る
+              戻る
             </button>
           ) : (
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs sm:text-sm font-medium text-stone-400 hover:text-stone-600 rounded-xl"
+              className="px-4 py-2 text-xs sm:text-sm font-medium text-stone-400 hover:text-stone-600 rounded-xl cursor-pointer"
             >
               スキップ
             </button>
@@ -264,15 +282,15 @@ export function OnboardingModal({
             <button
               type="button"
               onClick={() => setStep((s) => (s + 1) as 2 | 3)}
-              className="px-6 py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs transition-all"
+              className="px-6 py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs transition-all cursor-pointer"
             >
-              次へ →
+              次へ
             </button>
           ) : (
             <button
               type="button"
               onClick={handleFinish}
-              className="px-6 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md shadow-rose-500/20 transition-all scale-102"
+              className="px-6 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md shadow-rose-500/20 transition-all scale-102 cursor-pointer"
             >
               会話をスタートする！
             </button>

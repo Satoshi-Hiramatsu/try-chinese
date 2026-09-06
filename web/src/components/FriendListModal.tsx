@@ -1,5 +1,12 @@
 import { useState } from 'react'
 import type { Friend } from '../types'
+import {
+  UsersIcon,
+  CloseIcon,
+  PlusIcon,
+  AlertIcon,
+  TrashIcon,
+} from './Icons'
 
 interface FriendListModalProps {
   isOpen: boolean
@@ -11,7 +18,12 @@ interface FriendListModalProps {
   onDeleteFriend?: (id: string) => void
 }
 
-const PRESET_AVATARS = ['👩🏻‍🦰', '🧑🏻‍💻', '👩🏻‍🎨', '🏃🏻‍♂️', '🧑🏻‍🏫', '👩🏻‍⚕️', '🧑🏻‍🍳', '👩🏻‍🎓', '🧑🏻‍🎤', '🧋', '🐼', '🐱']
+const PRESET_AVATARS = [
+  { path: '/avatars/meiling.jpg', label: '美玲' },
+  { path: '/avatars/wanghao.jpg', label: '王浩' },
+  { path: '/avatars/lixue.jpg', label: '李雪' },
+  { path: '/avatars/zhangwei.jpg', label: '張偉' },
+]
 
 export function FriendListModal({
   isOpen,
@@ -26,7 +38,7 @@ export function FriendListModal({
 
   // 新規友達作成フォーム状態
   const [name, setName] = useState('')
-  const [avatar, setAvatar] = useState('👩🏻‍🦰')
+  const [avatar, setAvatar] = useState('/avatars/meiling.jpg')
   const [personality, setPersonality] = useState('')
   const [hobbiesInput, setHobbiesInput] = useState('')
   const [tone, setTone] = useState('')
@@ -53,7 +65,7 @@ export function FriendListModal({
     const newFriend: Friend = {
       id: `custom-${Date.now()}`,
       name: name.trim(),
-      avatar: avatar || '🧑🏻',
+      avatar: avatar || '/avatars/meiling.jpg',
       personality: personality.trim(),
       hobbies: hobbies.length > 0 ? hobbies : ['日常会話'],
       tone: tone.trim() || undefined,
@@ -77,7 +89,7 @@ export function FriendListModal({
         <div className="flex items-center justify-between pb-3 border-b border-stone-100">
           <div>
             <h3 className="text-xl font-bold text-stone-900 m-0 flex items-center gap-2">
-              <span>👥</span>
+              <UsersIcon className="w-5 h-5 text-rose-500" />
               <span>外国人の友達（Friend）</span>
             </h3>
             <p className="text-xs text-stone-500 m-0 mt-0.5">
@@ -85,10 +97,12 @@ export function FriendListModal({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-stone-400 hover:text-stone-600 text-2xl font-bold p-1 leading-none"
+            aria-label="閉じる"
+            className="text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
           >
-            ×
+            <CloseIcon className="w-5 h-5" />
           </button>
         </div>
 
@@ -97,7 +111,7 @@ export function FriendListModal({
           <button
             type="button"
             onClick={() => setActiveTab('list')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'list'
                 ? 'bg-white text-stone-900 shadow-xs'
                 : 'text-stone-500 hover:text-stone-800'
@@ -108,13 +122,14 @@ export function FriendListModal({
           <button
             type="button"
             onClick={() => setActiveTab('create')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
               activeTab === 'create'
                 ? 'bg-white text-stone-900 shadow-xs'
                 : 'text-stone-500 hover:text-stone-800'
             }`}
           >
-            ＋ 新しい友達を作る
+            <PlusIcon className="w-3.5 h-3.5" />
+            <span>新しい友達を作る</span>
           </button>
         </div>
 
@@ -124,6 +139,7 @@ export function FriendListModal({
             {friends.map((friend) => {
               const isSelected = friend.id === currentFriendId
               const isCustom = friend.id?.startsWith('custom-')
+              const isImageAvatar = friend.avatar.startsWith('/') || friend.avatar.startsWith('http') || friend.avatar.startsWith('data:')
 
               return (
                 <div
@@ -135,12 +151,22 @@ export function FriendListModal({
                   }`}
                 >
                   <div className="flex items-start gap-3 min-w-0">
-                    <div className="text-3xl p-2 bg-gradient-to-br from-rose-100/60 to-amber-100/60 rounded-xl select-none flex-shrink-0">
-                      {friend.avatar}
+                    <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-xs border border-rose-200/80 flex-shrink-0 bg-rose-50">
+                      {isImageAvatar ? (
+                        <img
+                          src={friend.avatar}
+                          alt={friend.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center font-bold text-sm text-rose-500">
+                          {friend.name.charAt(0)}
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-stone-900 m-0 truncate">
+                        <h4 lang="zh-CN" className="font-chinese text-sm font-bold text-stone-900 m-0 truncate">
                           {friend.name}
                         </h4>
                         {isCustom && (
@@ -178,7 +204,7 @@ export function FriendListModal({
                           onSelectFriend(friend)
                           onClose()
                         }}
-                        className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-xl shadow-2xs transition-colors"
+                        className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-xl shadow-2xs transition-colors cursor-pointer"
                       >
                         話す
                       </button>
@@ -196,10 +222,11 @@ export function FriendListModal({
                             onDeleteFriend(friend.id!)
                           }
                         }}
-                        className="text-[11px] text-stone-400 hover:text-rose-500 transition-colors"
+                        className="text-[11px] text-stone-400 hover:text-rose-500 transition-colors p-1 flex items-center gap-1 cursor-pointer"
                         title="友達を削除"
                       >
-                        削除
+                        <TrashIcon className="w-3 h-3" />
+                        <span>削除</span>
                       </button>
                     )}
                   </div>
@@ -213,32 +240,35 @@ export function FriendListModal({
         {activeTab === 'create' && (
           <form onSubmit={handleCreate} className="space-y-4">
             {formError && (
-              <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold">
-                ⚠️ {formError}
+              <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold flex items-center gap-1.5">
+                <AlertIcon className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                <span>{formError}</span>
               </div>
             )}
 
             {/* アバター選択 */}
             <div>
               <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                アバターアイコン:
+                アバター画像（アニメ調）:
               </label>
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-2xl p-2 bg-stone-100 rounded-xl select-none mr-2">
-                  {avatar}
-                </span>
-                {PRESET_AVATARS.map((emoji) => (
+              <div className="flex flex-wrap gap-2.5 items-center">
+                {PRESET_AVATARS.map((item) => (
                   <button
-                    key={emoji}
+                    key={item.path}
                     type="button"
-                    onClick={() => setAvatar(emoji)}
-                    className={`text-xl p-1.5 rounded-lg border transition-all ${
-                      avatar === emoji
-                        ? 'border-rose-500 bg-rose-50 scale-110'
-                        : 'border-stone-200 hover:border-stone-300'
+                    onClick={() => setAvatar(item.path)}
+                    className={`w-14 h-14 rounded-2xl overflow-hidden border-2 transition-all cursor-pointer p-0.5 ${
+                      avatar === item.path
+                        ? 'border-rose-500 ring-2 ring-rose-400/40 scale-105 shadow-sm'
+                        : 'border-stone-200 hover:border-stone-400 opacity-75 hover:opacity-100'
                     }`}
+                    title={item.label}
                   >
-                    {emoji}
+                    <img
+                      src={item.path}
+                      alt={item.label}
+                      className="w-full h-full object-cover rounded-xl"
+                    />
                   </button>
                 ))}
               </div>
@@ -254,7 +284,7 @@ export function FriendListModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="例: 林小雨 (Lin Xiaoyu)"
-                className="w-full px-3 py-2 text-xs sm:text-sm border border-stone-300 rounded-xl focus:border-rose-500 focus:outline-none"
+                className="w-full px-3 py-2 text-xs sm:text-sm border border-stone-300 rounded-xl focus:border-rose-500 focus:outline-none font-chinese"
               />
             </div>
 
@@ -304,13 +334,13 @@ export function FriendListModal({
               <button
                 type="button"
                 onClick={() => setActiveTab('list')}
-                className="px-4 py-2 text-xs font-medium text-stone-500 hover:text-stone-800 rounded-xl hover:bg-stone-100"
+                className="px-4 py-2 text-xs font-medium text-stone-500 hover:text-stone-800 rounded-xl hover:bg-stone-100 cursor-pointer"
               >
                 戻る
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+                className="px-5 py-2 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
               >
                 作成して会話する！
               </button>

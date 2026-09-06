@@ -1,4 +1,13 @@
 import { useState, useEffect } from 'react'
+import {
+  SettingsIcon,
+  CloseIcon,
+  CpuIcon,
+  ExternalLinkIcon,
+  CheckIcon,
+  KeyIcon,
+  SparklesIcon,
+} from './Icons'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -45,7 +54,7 @@ export function SettingsModal({
         <div className="flex items-center justify-between pb-3 border-b border-stone-100">
           <div>
             <h3 className="text-xl font-bold text-stone-900 m-0 flex items-center gap-2">
-              <span>⚙️</span>
+              <SettingsIcon className="w-5 h-5 text-rose-500" />
               <span>AI 設定 & プロバイダ (BYO-AI)</span>
             </h3>
             <p className="text-xs text-stone-500 m-0 mt-0.5">
@@ -53,27 +62,33 @@ export function SettingsModal({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-stone-400 hover:text-stone-600 text-2xl font-bold p-1 leading-none"
+            aria-label="閉じる"
+            className="text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
           >
-            ×
+            <CloseIcon className="w-5 h-5" />
           </button>
         </div>
 
         <div className="mt-4 space-y-5 text-sm text-stone-600">
           {/* Section 1: 文章生成モデルの選定 */}
           <div>
-            <label className="block text-xs font-bold text-stone-800 mb-1.5 flex items-center justify-between">
-              <span>📝 文章生成 (LLM) モデル:</span>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                <CpuIcon className="w-4 h-4 text-stone-600" />
+                <span>文章生成 (LLM) モデル:</span>
+              </label>
               <a
                 href="https://openrouter.ai/models"
                 target="_blank"
                 rel="noreferrer"
-                className="text-[11px] text-rose-600 hover:underline font-normal"
+                className="text-[11px] text-rose-600 hover:underline font-normal flex items-center gap-1"
               >
-                OpenRouter モデル一覧 ↗
+                <span>OpenRouter モデル一覧</span>
+                <ExternalLinkIcon className="w-3 h-3" />
               </a>
-            </label>
+            </div>
 
             {/* プリセットモデル選択ボタン */}
             <div className="space-y-1.5 mb-2.5 max-h-44 overflow-y-auto pr-1">
@@ -101,7 +116,10 @@ export function SettingsModal({
                       </p>
                     </div>
                     {isSelected && (
-                      <span className="text-rose-600 text-xs font-bold flex-shrink-0 ml-2">✓ 選択</span>
+                      <span className="text-rose-600 text-xs font-bold flex-shrink-0 ml-2 flex items-center gap-1">
+                        <CheckIcon className="w-3.5 h-3.5" />
+                        <span>選択中</span>
+                      </span>
                     )}
                   </div>
                 )
@@ -123,8 +141,9 @@ export function SettingsModal({
 
           {/* Section 2: OpenRouter API キー */}
           <div className="pt-3 border-t border-stone-100">
-            <label className="block text-xs font-bold text-stone-800 mb-1">
-              🔑 OpenRouter API Key (ブラウザ保持):
+            <label className="block text-xs font-bold text-stone-800 mb-1 flex items-center gap-1.5">
+              <KeyIcon className="w-4 h-4 text-stone-600" />
+              <span>OpenRouter API Key (ブラウザ保持):</span>
             </label>
             <input
               type="password"
@@ -140,8 +159,8 @@ export function SettingsModal({
 
           {/* Section 3: トークン効率についての案内 */}
           <div className="bg-amber-50/70 p-3.5 rounded-2xl border border-amber-200/60 text-xs space-y-1 text-stone-700">
-            <p className="font-bold text-amber-900 m-0 flex items-center gap-1">
-              <span>⚡</span>
+            <p className="font-bold text-amber-900 m-0 flex items-center gap-1.5">
+              <SparklesIcon className="w-4 h-4 text-amber-600" />
               <span>トークン効率最適化について</span>
             </p>
             <p className="m-0 leading-relaxed text-[11px] text-stone-600">
@@ -156,14 +175,14 @@ export function SettingsModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-medium text-stone-500 hover:text-stone-800 rounded-xl hover:bg-stone-100 transition-colors"
+            className="px-4 py-2 text-xs font-medium text-stone-500 hover:text-stone-800 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
           >
             キャンセル
           </button>
           <button
             type="button"
             onClick={handleSave}
-            className="px-5 py-2 text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-xl shadow-xs transition-colors"
+            className="px-5 py-2 text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-xl shadow-xs transition-colors cursor-pointer"
           >
             設定を保存
           </button>
