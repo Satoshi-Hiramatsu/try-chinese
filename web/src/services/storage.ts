@@ -4,6 +4,8 @@ const STORAGE_KEYS = {
   API_KEY: 'shabe_china_api_key',
   HSK_LEVEL: 'shabe_china_hsk_level',
   CHAT_MESSAGES: 'shabe_china_chat_messages',
+  ONBOARDING_COMPLETED: 'shabe_china_onboarding_completed',
+  USER_HOBBIES: 'shabe_china_user_hobbies',
 } as const
 
 export function loadApiKey(): string {
@@ -71,3 +73,39 @@ export function clearChatMessages(): void {
     // ignore
   }
 }
+
+export function isOnboardingCompleted(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETED) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function setOnboardingCompleted(completed: boolean): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.ONBOARDING_COMPLETED, String(completed))
+  } catch {
+    // ignore
+  }
+}
+
+export function loadUserHobbies(): string[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.USER_HOBBIES)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function saveUserHobbies(hobbies: string[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.USER_HOBBIES, JSON.stringify(hobbies))
+  } catch {
+    // ignore
+  }
+}
+

@@ -4,6 +4,8 @@ interface HeaderProps {
   hasApiKey: boolean
   onOpenApiKeyModal: () => void
   onClearHistory: () => void
+  onOpenOnboarding: () => void
+  onOpenFriendList?: () => void
 }
 
 export function Header({
@@ -12,6 +14,8 @@ export function Header({
   hasApiKey,
   onOpenApiKeyModal,
   onClearHistory,
+  onOpenOnboarding,
+  onOpenFriendList,
 }: HeaderProps) {
   return (
     <header className="w-full max-w-3xl flex items-center justify-between py-3 px-2 sm:px-0 border-b border-rose-200/60">
@@ -44,6 +48,28 @@ export function Header({
             ))}
           </select>
         </div>
+
+        {/* Friend List Modal Button */}
+        {onOpenFriendList && (
+          <button
+            onClick={onOpenFriendList}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium bg-white/90 text-stone-700 border border-stone-200 hover:bg-stone-50 transition-colors shadow-xs"
+            title="友達を切り替え・作成"
+          >
+            <span>👥</span>
+            <span className="hidden md:inline">友達切替</span>
+          </button>
+        )}
+
+        {/* Onboarding Wizard Button */}
+        <button
+          onClick={onOpenOnboarding}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium bg-white/90 text-stone-700 border border-stone-200 hover:bg-stone-50 transition-colors shadow-xs"
+          title="趣味とHSK設定ウィザード"
+        >
+          <span>✨</span>
+          <span className="hidden md:inline">趣味設定</span>
+        </button>
 
         {/* API Key Button */}
         <button

@@ -5,6 +5,7 @@ import { FriendCard } from './components/FriendCard'
 import { ChatMessageList } from './components/ChatMessageList'
 import { ChatInput } from './components/ChatInput'
 import { ApiKeyModal } from './components/ApiKeyModal'
+import { OnboardingModal } from './components/OnboardingModal'
 import { sendMessageToChatApi } from './services/api'
 import {
   loadApiKey,
@@ -14,44 +15,49 @@ import {
   loadChatMessages,
   saveChatMessages,
   clearChatMessages,
+  isOnboardingCompleted,
+  setOnboardingCompleted,
+  saveUserHobbies,
 } from './services/storage'
 
-const CURRENT_FRIEND: Friend = {
+const DEFAULT_FRIEND: Friend = {
   name: '陈美玲 (Chen Meiling)',
   avatar: '👩🏻‍🦰',
   personality: '親しみやすく好奇心旺盛、上海在住の大学生',
   hobbies: ['三国志', '映画鑑賞', '台湾料理'],
 }
 
-const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
-  id: 'welcome-0',
+const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => ({
+  id: `welcome-${Date.now()}`,
   role: 'assistant',
   reply: {
-    zh: '你好！我是陈美玲。很高兴认识你！你想聊点什么？三国志、电影还是中国菜？',
-    ja: 'こんにちは！陳美玲（チェン・メイリン）です。はじめまして！何について話したいですか？三国志、映画、それとも中華料理？',
-    pinyin: 'Nǐ hǎo! Wǒ shì Chén Měilíng. Hěn gāoxìng rènshi nǐ! Nǐ xiǎng liáo diǎn shénme? Sānguózhì, diànyǐng háishi Zhōngguócài?',
-    hskLevel: 2,
+    zh: `你好！我是${friend.name}。很高兴认识你！你想聊点什么？${friend.hobbies.slice(0, 3).join('、')}？`,
+    ja: `こんにちは！${friend.name}です。はじめまして！何について話したいですか？${friend.hobbies.slice(0, 3).join('、')}？`,
+    pinyin: 'Nǐ hǎo! Hěn gāoxìng rènshi nǐ! Nǐ xiǎng liáo diǎn shénme?',
+    hskLevel: level,
   },
   correction: {
     hasCorrection: false,
   },
   vocabulary: [
     { term: '高兴', pinyin: 'gāoxìng', ja: 'うれしい', hskLevel: 1 },
-    { term: '聊', pinyin: 'liáo', ja: 'おしゃべりする', hskLevel: 3 },
+    { term: '认识', pinyin: 'rènshi', ja: '知り合う', hskLevel: 2 },
   ],
   timestamp: Date.now(),
-}
+})
 
 export default function App() {
   const [hskLevel, setHskLevel] = useState<number>(() => loadHskLevel(2))
   const [apiKey, setApiKey] = useState<string>(() => loadApiKey())
+  const [currentFriend, setCurrentFriend] = useState<Friend>(DEFAULT_FRIEND)
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false)
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => !isOnboardingCompleted())
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const saved = loadChatMessages()
-    return saved.length > 0 ? saved : [DEFAULT_WELCOME_MESSAGE]
+    return saved.length > 0 ? saved : [buildWelcomeMessage(DEFAULT_FRIEND, loadHskLevel(2))]
   })
 
   // ストレージ同期
@@ -73,7 +79,7 @@ export default function App() {
   const handleClearHistory = () => {
     if (confirm('会話履歴をリセットしますか？')) {
       clearChatMessages()
-      setMessages([DEFAULT_WELCOME_MESSAGE])
+      setMessages([buildWelcomeMessage(currentFriend, hskLevel)])
     }
   }
 
@@ -94,7 +100,7 @@ export default function App() {
     try {
       const response = await sendMessageToChatApi({
         message: text,
-        friend: CURRENT_FRIEND,
+        friend: currentFriend,
         hskLevel,
         history: nextMessages,
         apiKey: apiKey || undefined,
@@ -132,12 +138,13 @@ export default function App() {
         hasApiKey={Boolean(apiKey)}
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
         onClearHistory={handleClearHistory}
+        onOpenOnboarding={() => setIsOnboardingOpen(true)}
       />
 
       {/* Main Chat Container */}
       <main className="w-full max-w-3xl flex-1 flex flex-col py-3 sm:py-4 gap-3 min-h-0 h-[calc(100vh-140px)]">
         {/* Friend Profile Card */}
-        <FriendCard friend={CURRENT_FRIEND} />
+        <FriendCard friend={currentFriend} />
 
         {/* Error Alert Banner */}
         {errorMessage && (
@@ -156,7 +163,7 @@ export default function App() {
         <div className="flex-1 min-h-0 bg-stone-50/60 backdrop-blur-xs rounded-2xl border border-rose-100/80 flex flex-col shadow-inner">
           <ChatMessageList
             messages={messages}
-            friend={CURRENT_FRIEND}
+            friend={currentFriend}
             isLoading={isLoading}
           />
         </div>
@@ -174,6 +181,23 @@ export default function App() {
         onClose={() => setIsApiKeyModalOpen(false)}
         currentApiKey={apiKey}
         onSaveApiKey={handleSaveApiKey}
+      />
+
+      {/* Onboarding Modal */}
+      <OnboardingModal
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+        currentHskLevel={hskLevel}
+        initialFriend={currentFriend}
+        onComplete={(hobbies, level, friend) => {
+          saveUserHobbies(hobbies)
+          handleHskChange(level)
+          setCurrentFriend(friend)
+          setOnboardingCompleted(true)
+          if (messages.length <= 1) {
+            setMessages([buildWelcomeMessage(friend, level)])
+          }
+        }}
       />
     </div>
   )
