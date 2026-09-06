@@ -1,4 +1,4 @@
-import type { ChatMessage } from '../types'
+import type { ChatMessage, Friend } from '../types'
 
 const STORAGE_KEYS = {
   API_KEY: 'shabe_china_api_key',
@@ -6,6 +6,9 @@ const STORAGE_KEYS = {
   CHAT_MESSAGES: 'shabe_china_chat_messages',
   ONBOARDING_COMPLETED: 'shabe_china_onboarding_completed',
   USER_HOBBIES: 'shabe_china_user_hobbies',
+  CUSTOM_FRIENDS: 'shabe_china_custom_friends',
+  SELECTED_FRIEND_ID: 'shabe_china_selected_friend_id',
+  SESSION_PREFIX: 'shabe_china_session_',
 } as const
 
 export function loadApiKey(): string {
@@ -24,7 +27,7 @@ export function saveApiKey(key: string): void {
       localStorage.removeItem(STORAGE_KEYS.API_KEY)
     }
   } catch {
-    // localStorage エラー無視
+    // ignore
   }
 }
 
@@ -109,3 +112,87 @@ export function saveUserHobbies(hobbies: string[]): void {
   }
 }
 
+// --- 友達（ペルソナ）管理 & 友達別会話セッション ---
+
+export function loadCustomFriends(): Friend[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.CUSTOM_FRIENDS)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function saveCustomFriend(friend: Friend): void {
+  try {
+    const current = loadCustomFriends()
+    const index = current.findIndex((f) => f.id === friend.id)
+    if (index >= 0) {
+      current[index] = friend
+    } else {
+      current.push(friend)
+    }
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_FRIENDS, JSON.stringify(current))
+  } catch {
+    // ignore
+  }
+}
+
+export function deleteCustomFriend(id: string): void {
+  try {
+    const current = loadCustomFriends()
+    const filtered = current.filter((f) => f.id !== id)
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_FRIENDS, JSON.stringify(filtered))
+    localStorage.removeItem(`${STORAGE_KEYS.SESSION_PREFIX}${id}`)
+  } catch {
+    // ignore
+  }
+}
+
+export function loadSelectedFriendId(defaultId = 'friend-meiling'): string {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.SELECTED_FRIEND_ID) || defaultId
+  } catch {
+    return defaultId
+  }
+}
+
+export function saveSelectedFriendId(id: string): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.SELECTED_FRIEND_ID, id)
+  } catch {
+    // ignore
+  }
+}
+
+export function loadFriendMessages(friendId: string): ChatMessage[] {
+  try {
+    const key = `${STORAGE_KEYS.SESSION_PREFIX}${friendId}`
+    const raw = localStorage.getItem(key)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function saveFriendMessages(friendId: string, messages: ChatMessage[]): void {
+  try {
+    const key = `${STORAGE_KEYS.SESSION_PREFIX}${friendId}`
+    localStorage.setItem(key, JSON.stringify(messages))
+  } catch {
+    // ignore
+  }
+}
+
+export function clearFriendMessages(friendId: string): void {
+  try {
+    const key = `${STORAGE_KEYS.SESSION_PREFIX}${friendId}`
+    localStorage.removeItem(key)
+  } catch {
+    // ignore
+  }
+}

@@ -1,34 +1,34 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { Friend, ChatMessage } from './types'
+import { PRESET_FRIENDS } from './data/presetFriends'
 import { Header } from './components/Header'
 import { FriendCard } from './components/FriendCard'
 import { ChatMessageList } from './components/ChatMessageList'
 import { ChatInput } from './components/ChatInput'
 import { ApiKeyModal } from './components/ApiKeyModal'
 import { OnboardingModal } from './components/OnboardingModal'
+import { FriendListModal } from './components/FriendListModal'
 import { sendMessageToChatApi } from './services/api'
 import {
   loadApiKey,
   saveApiKey,
   loadHskLevel,
   saveHskLevel,
-  loadChatMessages,
-  saveChatMessages,
-  clearChatMessages,
+  loadCustomFriends,
+  saveCustomFriend,
+  deleteCustomFriend,
+  loadSelectedFriendId,
+  saveSelectedFriendId,
+  loadFriendMessages,
+  saveFriendMessages,
+  clearFriendMessages,
   isOnboardingCompleted,
   setOnboardingCompleted,
   saveUserHobbies,
 } from './services/storage'
 
-const DEFAULT_FRIEND: Friend = {
-  name: '陈美玲 (Chen Meiling)',
-  avatar: '👩🏻‍🦰',
-  personality: '親しみやすく好奇心旺盛、上海在住の大学生',
-  hobbies: ['三国志', '映画鑑賞', '台湾料理'],
-}
-
 const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => ({
-  id: `welcome-${Date.now()}`,
+  id: `welcome-${friend.id || 'default'}-${Date.now()}`,
   role: 'assistant',
   reply: {
     zh: `你好！我是${friend.name}。很高兴认识你！你想聊点什么？${friend.hobbies.slice(0, 3).join('、')}？`,
@@ -49,21 +49,41 @@ const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => ({
 export default function App() {
   const [hskLevel, setHskLevel] = useState<number>(() => loadHskLevel(2))
   const [apiKey, setApiKey] = useState<string>(() => loadApiKey())
-  const [currentFriend, setCurrentFriend] = useState<Friend>(DEFAULT_FRIEND)
+  const [customFriends, setCustomFriends] = useState<Friend[]>(() => loadCustomFriends())
+
+  // 全友達リスト（プリセット＋カスタム）
+  const allFriends = useMemo(() => {
+    return [...PRESET_FRIENDS, ...customFriends]
+  }, [customFriends])
+
+  // 現在の友達
+  const [currentFriend, setCurrentFriend] = useState<Friend>(() => {
+    const savedId = loadSelectedFriendId('friend-meiling')
+    return (
+      allFriends.find((f) => f.id === savedId) ||
+      PRESET_FRIENDS[0]
+    )
+  })
+
+  // モーダル状態
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false)
   const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => !isOnboardingCompleted())
+  const [isFriendListOpen, setIsFriendListOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  // 友達別の会話履歴
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const saved = loadChatMessages()
-    return saved.length > 0 ? saved : [buildWelcomeMessage(DEFAULT_FRIEND, loadHskLevel(2))]
+    const friendId = currentFriend.id || 'friend-meiling'
+    const saved = loadFriendMessages(friendId)
+    return saved.length > 0 ? saved : [buildWelcomeMessage(currentFriend, loadHskLevel(2))]
   })
 
-  // ストレージ同期
+  // メッセージの保存（現在の友達のセッション）
   useEffect(() => {
-    saveChatMessages(messages)
-  }, [messages])
+    const friendId = currentFriend.id || 'friend-meiling'
+    saveFriendMessages(friendId, messages)
+  }, [messages, currentFriend.id])
 
   const handleHskChange = (level: number) => {
     setHskLevel(level)
@@ -76,9 +96,45 @@ export default function App() {
     setErrorMessage(null)
   }
 
+  // 友達切り替え
+  const handleSelectFriend = (newFriend: Friend) => {
+    if (newFriend.id === currentFriend.id) return
+
+    // 現在の友達のメッセージを即時保存
+    const oldFriendId = currentFriend.id || 'friend-meiling'
+    saveFriendMessages(oldFriendId, messages)
+
+    // 新しい友達のメッセージを読み込み
+    const newFriendId = newFriend.id || 'friend-meiling'
+    const saved = loadFriendMessages(newFriendId)
+    const nextMessages = saved.length > 0 ? saved : [buildWelcomeMessage(newFriend, hskLevel)]
+
+    setCurrentFriend(newFriend)
+    setMessages(nextMessages)
+    saveSelectedFriendId(newFriendId)
+    setErrorMessage(null)
+  }
+
+  // 新規友達作成
+  const handleCreateFriend = (newFriend: Friend) => {
+    saveCustomFriend(newFriend)
+    setCustomFriends((prev) => [...prev, newFriend])
+    handleSelectFriend(newFriend)
+  }
+
+  // 友達削除
+  const handleDeleteFriend = (id: string) => {
+    deleteCustomFriend(id)
+    setCustomFriends((prev) => prev.filter((f) => f.id !== id))
+    if (currentFriend.id === id) {
+      handleSelectFriend(PRESET_FRIENDS[0])
+    }
+  }
+
   const handleClearHistory = () => {
-    if (confirm('会話履歴をリセットしますか？')) {
-      clearChatMessages()
+    if (confirm(`「${currentFriend.name}」との会話履歴をリセットしますか？`)) {
+      const friendId = currentFriend.id || 'friend-meiling'
+      clearFriendMessages(friendId)
       setMessages([buildWelcomeMessage(currentFriend, hskLevel)])
     }
   }
@@ -120,7 +176,6 @@ export default function App() {
       const msg = err instanceof Error ? err.message : '予期せぬエラーが発生しました'
       setErrorMessage(msg)
 
-      // APIキー未設定の可能性がある場合
       if (msg.includes('APIキー') || msg.includes('401')) {
         setIsApiKeyModalOpen(true)
       }
@@ -139,12 +194,16 @@ export default function App() {
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
         onClearHistory={handleClearHistory}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
+        onOpenFriendList={() => setIsFriendListOpen(true)}
       />
 
       {/* Main Chat Container */}
       <main className="w-full max-w-3xl flex-1 flex flex-col py-3 sm:py-4 gap-3 min-h-0 h-[calc(100vh-140px)]">
         {/* Friend Profile Card */}
-        <FriendCard friend={currentFriend} />
+        <FriendCard
+          friend={currentFriend}
+          onOpenFriendList={() => setIsFriendListOpen(true)}
+        />
 
         {/* Error Alert Banner */}
         {errorMessage && (
@@ -198,6 +257,17 @@ export default function App() {
             setMessages([buildWelcomeMessage(friend, level)])
           }
         }}
+      />
+
+      {/* Friend List / Create Modal */}
+      <FriendListModal
+        isOpen={isFriendListOpen}
+        onClose={() => setIsFriendListOpen(false)}
+        friends={allFriends}
+        currentFriendId={currentFriend.id}
+        onSelectFriend={handleSelectFriend}
+        onCreateFriend={handleCreateFriend}
+        onDeleteFriend={handleDeleteFriend}
       />
     </div>
   )
