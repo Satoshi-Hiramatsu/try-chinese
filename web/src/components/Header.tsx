@@ -71,18 +71,17 @@ export function Header({
           <span className="hidden md:inline">趣味設定</span>
         </button>
 
-        {/* API Key Button */}
+        {/* Settings Button */}
         <button
           onClick={onOpenApiKeyModal}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors shadow-xs ${
-            hasApiKey
-              ? 'bg-white/90 text-stone-700 border-stone-200 hover:bg-stone-50'
-              : 'bg-rose-500 text-white border-rose-600 hover:bg-rose-600 animate-pulse'
-          }`}
-          title="APIキー設定"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white/90 text-stone-700 border-stone-200 hover:bg-stone-50 transition-colors shadow-xs"
+          title="AIモデル・キー設定"
         >
-          <span>🔑</span>
-          <span className="hidden sm:inline">{hasApiKey ? 'キー設定済' : 'キー未設定'}</span>
+          <span>⚙️</span>
+          <span className="hidden sm:inline">AI設定</span>
+          {hasApiKey && (
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="ブラウザAPIキー設定済み" />
+          )}
         </button>
 
         {/* Clear History Button */}

@@ -132,13 +132,14 @@ export async function callChatLLM(options: CallLLMOptions): Promise<ChatResponse
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
       'HTTP-Referer': 'https://shabe-china.pages.dev',
-      'X-Title': 'しゃべチャイナ',
+      'X-Title': 'ShabeChina',
     },
     body: JSON.stringify({
       model,
       messages,
       response_format: { type: 'json_object' },
       temperature: 0.7,
+      max_tokens: 1000,
     }),
   })
 

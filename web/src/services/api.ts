@@ -6,6 +6,7 @@ export interface SendMessageOptions {
   hskLevel: number
   history: ChatMessage[]
   apiKey?: string
+  model?: string
 }
 
 export interface SendMessageResponse {
@@ -18,7 +19,7 @@ export interface SendMessageResponse {
  * /api/chat にメッセージを送信し、構造化返答を取得する
  */
 export async function sendMessageToChatApi(options: SendMessageOptions): Promise<SendMessageResponse> {
-  const { message, friend, hskLevel, history, apiKey } = options
+  const { message, friend, hskLevel, history, apiKey, model } = options
 
   // 直近6件程度の履歴をフォーマット
   const recentHistory = history
@@ -45,10 +46,11 @@ export async function sendMessageToChatApi(options: SendMessageOptions): Promise
     friend,
     hskLevel,
     history: recentHistory,
-    config: apiKey
+    config: (apiKey || model)
       ? {
           llm: {
-            apiKey,
+            apiKey: apiKey || undefined,
+            model: model || undefined,
           },
         }
       : undefined,

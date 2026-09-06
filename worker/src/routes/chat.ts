@@ -5,6 +5,7 @@ import { callChatLLM } from '../lib/llm'
 export interface ChatEnv {
   OPENROUTER_API_KEY?: string
   OPENAI_API_KEY?: string
+  OPENROUTER_MODEL?: string
 }
 
 const chatRoute = new Hono<{ Bindings: ChatEnv }>()
@@ -46,9 +47,10 @@ chatRoute.post('/chat', async (c) => {
     }, 401)
   }
 
-  const model = config?.llm?.model
+  // 3. モデルの解決（リクエスト指定 > Workers 環境変数 > デフォルト値）
+  const resolvedModel = config?.llm?.model || c.env?.OPENROUTER_MODEL || undefined
 
-  // 3. LLM 呼び出し
+  // 4. LLM 呼び出し
   try {
     const result: ChatResponse = await callChatLLM({
       message,
@@ -56,7 +58,7 @@ chatRoute.post('/chat', async (c) => {
       hskLevel: levelNum,
       history,
       apiKey: resolvedApiKey,
-      model,
+      model: resolvedModel,
     })
 
     return c.json(result)

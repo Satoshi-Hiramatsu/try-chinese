@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
   CUSTOM_FRIENDS: 'shabe_china_custom_friends',
   SELECTED_FRIEND_ID: 'shabe_china_selected_friend_id',
   SESSION_PREFIX: 'shabe_china_session_',
+  SELECTED_MODEL: 'shabe_china_selected_model',
 } as const
 
 export function loadApiKey(): string {
@@ -196,3 +197,24 @@ export function clearFriendMessages(friendId: string): void {
     // ignore
   }
 }
+
+export function loadSelectedModel(defaultModel = 'google/gemini-2.5-flash'): string {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL) || defaultModel
+  } catch {
+    return defaultModel
+  }
+}
+
+export function saveSelectedModel(model: string): void {
+  try {
+    if (model.trim()) {
+      localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL, model.trim())
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.SELECTED_MODEL)
+    }
+  } catch {
+    // ignore
+  }
+}
+

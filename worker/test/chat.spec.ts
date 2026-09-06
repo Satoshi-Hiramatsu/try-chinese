@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { SELF } from 'cloudflare:test'
+import { SELF, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
+import worker from '../src'
 import { parseChatResponse } from '../src/lib/llm'
 import { buildChatSystemPrompt } from '../src/lib/prompt'
 import type { Friend } from '../src/types'
@@ -158,7 +159,7 @@ describe('T-01: POST /api/chat 実装テスト', () => {
     })
 
     it('APIキーが存在しない場合は 401 を返すこと', async () => {
-      const res = await SELF.fetch('http://example.com/api/chat', {
+      const request = new Request('http://example.com/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -167,6 +168,11 @@ describe('T-01: POST /api/chat 実装テスト', () => {
           hskLevel: 2,
         }),
       })
+
+      // .dev.vars の有無に関わらず、空の env で 401 を検証
+      const ctx = createExecutionContext()
+      const res = await worker.fetch(request, {} as unknown as Parameters<typeof worker.fetch>[1], ctx)
+      await waitOnExecutionContext(ctx)
 
       expect(res.status).toBe(401)
       const data = (await res.json()) as { error: string }

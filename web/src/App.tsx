@@ -5,7 +5,7 @@ import { Header } from './components/Header'
 import { FriendCard } from './components/FriendCard'
 import { ChatMessageList } from './components/ChatMessageList'
 import { ChatInput } from './components/ChatInput'
-import { ApiKeyModal } from './components/ApiKeyModal'
+import { SettingsModal } from './components/SettingsModal'
 import { OnboardingModal } from './components/OnboardingModal'
 import { FriendListModal } from './components/FriendListModal'
 import { sendMessageToChatApi } from './services/api'
@@ -14,6 +14,8 @@ import {
   saveApiKey,
   loadHskLevel,
   saveHskLevel,
+  loadSelectedModel,
+  saveSelectedModel,
   loadCustomFriends,
   saveCustomFriend,
   deleteCustomFriend,
@@ -49,6 +51,7 @@ const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => ({
 export default function App() {
   const [hskLevel, setHskLevel] = useState<number>(() => loadHskLevel(2))
   const [apiKey, setApiKey] = useState<string>(() => loadApiKey())
+  const [model, setModel] = useState<string>(() => loadSelectedModel('google/gemini-2.5-flash'))
   const [customFriends, setCustomFriends] = useState<Friend[]>(() => loadCustomFriends())
 
   // 全友達リスト（プリセット＋カスタム）
@@ -66,7 +69,7 @@ export default function App() {
   })
 
   // モーダル状態
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false)
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
   const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => !isOnboardingCompleted())
   const [isFriendListOpen, setIsFriendListOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -90,9 +93,11 @@ export default function App() {
     saveHskLevel(level)
   }
 
-  const handleSaveApiKey = (key: string) => {
-    setApiKey(key)
-    saveApiKey(key)
+  const handleSaveSettings = (newKey: string, newModel: string) => {
+    setApiKey(newKey)
+    saveApiKey(newKey)
+    setModel(newModel)
+    saveSelectedModel(newModel)
     setErrorMessage(null)
   }
 
@@ -100,11 +105,9 @@ export default function App() {
   const handleSelectFriend = (newFriend: Friend) => {
     if (newFriend.id === currentFriend.id) return
 
-    // 現在の友達のメッセージを即時保存
     const oldFriendId = currentFriend.id || 'friend-meiling'
     saveFriendMessages(oldFriendId, messages)
 
-    // 新しい友達のメッセージを読み込み
     const newFriendId = newFriend.id || 'friend-meiling'
     const saved = loadFriendMessages(newFriendId)
     const nextMessages = saved.length > 0 ? saved : [buildWelcomeMessage(newFriend, hskLevel)]
@@ -160,6 +163,7 @@ export default function App() {
         hskLevel,
         history: nextMessages,
         apiKey: apiKey || undefined,
+        model: model || undefined,
       })
 
       const assistantMessage: ChatMessage = {
@@ -177,7 +181,7 @@ export default function App() {
       setErrorMessage(msg)
 
       if (msg.includes('APIキー') || msg.includes('401')) {
-        setIsApiKeyModalOpen(true)
+        setIsSettingsModalOpen(true)
       }
     } finally {
       setIsLoading(false)
@@ -191,7 +195,7 @@ export default function App() {
         hskLevel={hskLevel}
         onHskChange={handleHskChange}
         hasApiKey={Boolean(apiKey)}
-        onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+        onOpenApiKeyModal={() => setIsSettingsModalOpen(true)}
         onClearHistory={handleClearHistory}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
         onOpenFriendList={() => setIsFriendListOpen(true)}
@@ -234,12 +238,13 @@ export default function App() {
         />
       </main>
 
-      {/* API Key Modal */}
-      <ApiKeyModal
-        isOpen={isApiKeyModalOpen}
-        onClose={() => setIsApiKeyModalOpen(false)}
+      {/* Settings Modal (BYO-AI & Model Selection) */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
         currentApiKey={apiKey}
-        onSaveApiKey={handleSaveApiKey}
+        currentModel={model}
+        onSave={handleSaveSettings}
       />
 
       {/* Onboarding Modal */}
