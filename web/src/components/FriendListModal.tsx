@@ -7,6 +7,7 @@ import {
   AlertIcon,
   TrashIcon,
 } from './Icons'
+import { FriendAvatar } from './FriendAvatar'
 
 interface FriendListModalProps {
   isOpen: boolean
@@ -139,7 +140,6 @@ export function FriendListModal({
             {friends.map((friend) => {
               const isSelected = friend.id === currentFriendId
               const isCustom = friend.id?.startsWith('custom-')
-              const isImageAvatar = friend.avatar.startsWith('/') || friend.avatar.startsWith('http') || friend.avatar.startsWith('data:')
 
               return (
                 <div
@@ -151,19 +151,7 @@ export function FriendListModal({
                   }`}
                 >
                   <div className="flex items-start gap-3 min-w-0">
-                    <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-xs border border-rose-200/80 flex-shrink-0 bg-rose-50">
-                      {isImageAvatar ? (
-                        <img
-                          src={friend.avatar}
-                          alt={friend.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center font-bold text-sm text-rose-500">
-                          {friend.name.charAt(0)}
-                        </div>
-                      )}
-                    </div>
+                    <FriendAvatar friend={friend} size="md" shape="rounded" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <h4 lang="zh-CN" className="font-chinese text-sm font-bold text-stone-900 m-0 truncate">
@@ -267,7 +255,7 @@ export function FriendListModal({
                     <img
                       src={item.path}
                       alt={item.label}
-                      className="w-full h-full object-cover rounded-xl"
+                      className="w-full h-full object-cover rounded-xl scale-[2.1] origin-[50%_36%]"
                     />
                   </button>
                 ))}

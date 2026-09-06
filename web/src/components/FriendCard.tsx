@@ -1,5 +1,6 @@
 import type { Friend } from '../types'
 import { UsersIcon } from './Icons'
+import { FriendAvatar } from './FriendAvatar'
 
 interface FriendCardProps {
   friend: Friend
@@ -7,24 +8,10 @@ interface FriendCardProps {
 }
 
 export function FriendCard({ friend, onOpenFriendList }: FriendCardProps) {
-  const isImageAvatar = friend.avatar.startsWith('/') || friend.avatar.startsWith('http') || friend.avatar.startsWith('data:')
-
   return (
     <div className="w-full bg-white/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-sm border border-rose-150/80 transition-all">
       <div className="flex items-start gap-4">
-        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden shadow-sm border-2 border-rose-200/80 flex-shrink-0 bg-rose-50">
-          {isImageAvatar ? (
-            <img
-              src={friend.avatar}
-              alt={friend.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center font-bold text-lg text-rose-500">
-              {friend.name.charAt(0)}
-            </div>
-          )}
-        </div>
+        <FriendAvatar friend={friend} size="lg" shape="rounded" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 truncate">

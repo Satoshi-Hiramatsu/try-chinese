@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Friend } from '../types'
 import { CheckIcon, PlusIcon } from './Icons'
+import { FriendAvatar } from './FriendAvatar'
 
 interface OnboardingModalProps {
   isOpen: boolean
@@ -47,8 +48,6 @@ export function OnboardingModal({
   const [hskLevel, setHskLevel] = useState<number>(currentHskLevel || 2)
 
   if (!isOpen) return null
-
-  const isImageAvatar = initialFriend.avatar.startsWith('/') || initialFriend.avatar.startsWith('http') || initialFriend.avatar.startsWith('data:')
 
   const toggleHobby = (hobby: string) => {
     setSelectedHobbies((prev) =>
@@ -208,19 +207,7 @@ export function OnboardingModal({
         {step === 3 && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-rose-50 via-amber-50 to-orange-50 rounded-2xl p-5 border border-rose-200/60 shadow-inner text-center">
-              <div className="w-20 h-20 rounded-3xl overflow-hidden shadow-md border-2 border-rose-200/80 mx-auto mb-3 bg-rose-50">
-                {isImageAvatar ? (
-                  <img
-                    src={initialFriend.avatar}
-                    alt={initialFriend.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-rose-500">
-                    {initialFriend.name.charAt(0)}
-                  </div>
-                )}
-              </div>
+              <FriendAvatar friend={initialFriend} size="xl" shape="rounded" className="mx-auto mb-3" />
               <h3 lang="zh-CN" className="font-chinese text-lg font-bold text-stone-900 m-0">
                 {initialFriend.name}
               </h3>

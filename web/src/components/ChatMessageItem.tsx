@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ChatMessage, Friend } from '../types'
 import { BulbIcon } from './Icons'
+import { FriendAvatar } from './FriendAvatar'
 
 interface ChatMessageItemProps {
   message: ChatMessage
@@ -26,24 +27,10 @@ export function ChatMessageItem({ message, friend }: ChatMessageItemProps) {
   const correction = message.correction
   const vocabulary = message.vocabulary || []
 
-  const isImageAvatar = friend.avatar.startsWith('/') || friend.avatar.startsWith('http') || friend.avatar.startsWith('data:')
-
   return (
     <div className="flex items-start gap-3 my-4">
-      {/* Friend Avatar */}
-      <div className="mt-1 flex-shrink-0">
-        {isImageAvatar ? (
-          <img
-            src={friend.avatar}
-            alt={friend.name}
-            className="w-9 h-9 rounded-full object-cover shadow-xs border border-rose-200"
-          />
-        ) : (
-          <div className="w-9 h-9 rounded-full bg-rose-100 flex items-center justify-center text-xs font-bold text-rose-600 border border-rose-200">
-            {friend.name.charAt(0)}
-          </div>
-        )}
-      </div>
+      {/* Friend Avatar (顔拡大クリップ) */}
+      <FriendAvatar friend={friend} size="sm" shape="circle" className="mt-1" />
 
       <div className="max-w-[88%] sm:max-w-[80%] space-y-2">
         {/* Reply Bubble */}
