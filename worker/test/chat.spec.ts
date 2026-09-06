@@ -11,7 +11,7 @@ const mockFriend: Friend = {
 }
 
 describe('T-01: POST /api/chat 実装テスト', () => {
-  describe('buildChatSystemPrompt', () => {
+  describe('buildChatSystemPrompt (T-02: HSK 級別制御)', () => {
     it('HSKレベルとフレンドの情報がプロンプトに含まれること', () => {
       const prompt = buildChatSystemPrompt(mockFriend, 2)
       expect(prompt).toContain('陈美玲')
@@ -19,6 +19,36 @@ describe('T-01: POST /api/chat 実装テスト', () => {
       expect(prompt).toContain('三国志')
       expect(prompt).toContain('バイリンガル返答')
       expect(prompt).toContain('発話添削')
+      expect(prompt).toContain('趣味語彙の例外')
+    })
+
+    it('HSK 1級の場合、超基本文型と約150語の制御指示が含まれること', () => {
+      const prompt = buildChatSystemPrompt(mockFriend, 1)
+      expect(prompt).toContain('HSK 1 級')
+      expect(prompt).toContain('約150語')
+      expect(prompt).toContain('基本語順（SVO）')
+    })
+
+    it('HSK 4級の場合、把構文や受身文などの複文制御指示が含まれること', () => {
+      const prompt = buildChatSystemPrompt(mockFriend, 4)
+      expect(prompt).toContain('HSK 4 級')
+      expect(prompt).toContain('約1200語')
+      expect(prompt).toContain('把構文')
+    })
+
+    it('HSK 6級の場合、高度な表現や成語の制御指示が含まれること', () => {
+      const prompt = buildChatSystemPrompt(mockFriend, 6)
+      expect(prompt).toContain('HSK 6 級')
+      expect(prompt).toContain('5000語以上')
+      expect(prompt).toContain('成語・故事')
+    })
+
+    it('範囲外のHSKレベルが指定された場合、1〜6の範囲に正規化されること', () => {
+      const promptLow = buildChatSystemPrompt(mockFriend, 0)
+      expect(promptLow).toContain('HSK 1 級')
+
+      const promptHigh = buildChatSystemPrompt(mockFriend, 99)
+      expect(promptHigh).toContain('HSK 6 級')
     })
   })
 
