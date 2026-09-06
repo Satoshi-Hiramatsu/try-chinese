@@ -1,0 +1,38 @@
+import {
+	env,
+	createExecutionContext,
+	waitOnExecutionContext,
+	SELF,
+} from "cloudflare:test";
+import { describe, it, expect } from "vitest";
+import worker from "../src";
+
+describe("Worker API", () => {
+	describe("GET /", () => {
+		it('responds with title (unit style)', async () => {
+			const request = new Request<unknown, IncomingRequestCfProperties>(
+				"http://example.com/"
+			);
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, env, ctx);
+			await waitOnExecutionContext(ctx);
+			expect(await response.text()).toBe("しゃべチャイナ API Worker");
+		});
+
+		it('responds with title (integration style)', async () => {
+			const request = new Request("http://example.com/");
+			const response = await SELF.fetch(request);
+			expect(await response.text()).toBe("しゃべチャイナ API Worker");
+		});
+	});
+
+	describe("GET /api/health", () => {
+		it("responds with health status", async () => {
+			const request = new Request("http://example.com/api/health");
+			const response = await SELF.fetch(request);
+			expect(response.status).toBe(200);
+			const data = (await response.json()) as { status: string };
+			expect(data.status).toBe("ok");
+		});
+	});
+});
