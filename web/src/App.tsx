@@ -10,6 +10,7 @@ import { OnboardingModal } from './components/OnboardingModal'
 import { FriendListModal } from './components/FriendListModal'
 import { VoiceSettingsModal } from './components/VoiceSettingsModal'
 import { VocabularyModal } from './components/VocabularyModal'
+import { ReviewModal } from './components/ReviewModal'
 import { AlertIcon, CloseIcon } from './components/Icons'
 import { sendMessageToChatApi } from './services/api'
 import { speakChinese, stopSpeaking } from './services/speech'
@@ -135,6 +136,7 @@ export default function App() {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => !isOnboardingCompleted())
   const [isFriendListOpen, setIsFriendListOpen] = useState(false)
   const [isVocabularyModalOpen, setIsVocabularyModalOpen] = useState(false)
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
   const [vocabularyList, setVocabularyList] = useState<VocabularyItem[]>(() => loadVocabularyList())
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -468,8 +470,16 @@ export default function App() {
         onAddItem={handleAddVocabulary}
         onStartReview={() => {
           setIsVocabularyModalOpen(false)
-          // 復習モーダルを開く（T-16で接続）
+          setIsReviewModalOpen(true)
         }}
+      />
+
+      {/* Review Modal (復習: カード＆クイズ) */}
+      <ReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        vocabularyList={vocabularyList}
+        onToggleMastered={handleToggleVocabularyMastered}
       />
     </div>
   )
