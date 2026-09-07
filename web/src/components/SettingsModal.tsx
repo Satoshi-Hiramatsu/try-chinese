@@ -8,6 +8,9 @@ import {
   KeyIcon,
   SparklesIcon,
   SpeakerIcon,
+  GlobeIcon,
+  ChinaFlagIcon,
+  JapanFlagIcon,
 } from './Icons'
 
 export const PRESET_TTS_MODELS = [
@@ -274,7 +277,10 @@ export function SettingsModal({
                       : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-100'
                   }`}
                 >
-                  <div>🌐 ブラウザ / Edge</div>
+                  <div className="flex items-center gap-1.5">
+                    <GlobeIcon className="w-3.5 h-3.5 text-sky-600" />
+                    <span>ブラウザ / Edge</span>
+                  </div>
                   <div className="text-[10px] text-stone-400 font-normal mt-0.5">
                     完全無料・ローカル音声
                   </div>
@@ -369,24 +375,26 @@ export function SettingsModal({
                 <button
                   type="button"
                   onClick={() => setInputLang('zh-CN')}
-                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                     inputLang === 'zh-CN'
                       ? 'bg-rose-500 text-white shadow-2xs'
                       : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-100'
                   }`}
                 >
-                  🇨🇳 中国語
+                  <ChinaFlagIcon className="w-3.5 h-3.5" />
+                  <span>中国語</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setInputLang('ja-JP')}
-                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                     inputLang === 'ja-JP'
                       ? 'bg-rose-500 text-white shadow-2xs'
                       : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-100'
                   }`}
                 >
-                  🇯🇵 日本語
+                  <JapanFlagIcon className="w-3.5 h-3.5" />
+                  <span>日本語</span>
                 </button>
               </div>
             </div>

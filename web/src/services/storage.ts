@@ -1,4 +1,5 @@
 import type { ChatMessage, Friend, Voice, VocabularyItem } from '../types'
+import type { CharacterVoiceOption } from '../data/characterVoices'
 
 const STORAGE_KEYS = {
   API_KEY: 'shabe_china_api_key',
@@ -18,6 +19,7 @@ const STORAGE_KEYS = {
   OPENAI_API_KEY: 'shabe_china_openai_api_key',
   TTS_PROVIDER: 'shabe_china_tts_provider',
   TTS_MODEL: 'shabe_china_tts_model',
+  CUSTOM_VOICES: 'shabe_china_custom_voices',
 } as const
 
 export function loadApiKey(): string {
@@ -444,4 +446,43 @@ export function saveTtsModel(model: string): void {
     // ignore
   }
 }
+
+// --- ユーザー作成のカスタム声質管理 ---
+
+export function loadCustomVoices(): CharacterVoiceOption[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.CUSTOM_VOICES)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function saveCustomVoice(voice: CharacterVoiceOption): void {
+  try {
+    const current = loadCustomVoices()
+    const index = current.findIndex((v) => v.id === voice.id)
+    if (index >= 0) {
+      current[index] = voice
+    } else {
+      current.push(voice)
+    }
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_VOICES, JSON.stringify(current))
+  } catch {
+    // ignore
+  }
+}
+
+export function deleteCustomVoice(id: string): void {
+  try {
+    const current = loadCustomVoices()
+    const filtered = current.filter((v) => v.id !== id)
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_VOICES, JSON.stringify(filtered))
+  } catch {
+    // ignore
+  }
+}
+
 

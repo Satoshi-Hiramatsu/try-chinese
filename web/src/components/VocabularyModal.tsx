@@ -175,9 +175,10 @@ export function VocabularyModal({
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 text-xs"
+                  aria-label="検索クリア"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5 rounded cursor-pointer"
                 >
-                  ✕
+                  <CloseIcon className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>

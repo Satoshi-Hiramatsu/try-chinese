@@ -313,6 +313,23 @@ export default function App() {
     handleSelectFriend(newFriend)
   }
 
+  // 友達更新
+  const handleUpdateFriend = (updatedFriend: Friend) => {
+    saveCustomFriend(updatedFriend)
+    setCustomFriends((prev) => {
+      const idx = prev.findIndex((f) => f.id === updatedFriend.id)
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = updatedFriend
+        return next
+      }
+      return [...prev, updatedFriend]
+    })
+    if (currentFriend.id === updatedFriend.id) {
+      setCurrentFriend(updatedFriend)
+    }
+  }
+
   // 友達削除
   const handleDeleteFriend = (id: string) => {
     deleteCustomFriend(id)
@@ -505,6 +522,7 @@ export default function App() {
         currentFriendId={currentFriend.id}
         onSelectFriend={handleSelectFriend}
         onCreateFriend={handleCreateFriend}
+        onUpdateFriend={handleUpdateFriend}
         onDeleteFriend={handleDeleteFriend}
       />
 

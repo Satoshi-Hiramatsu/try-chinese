@@ -282,3 +282,66 @@ export function ChevronDownIcon(props: IconProps) {
   )
 }
 
+export function MaleIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="9.5" cy="14.5" r="5" />
+      <line x1="19" y1="5" x2="13.2" y2="10.8" />
+      <polyline points="14.5 5 19 5 19 9.5" />
+    </svg>
+  )
+}
+
+export function FemaleIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="9" r="5" />
+      <line x1="12" y1="14" x2="12" y2="21" />
+      <line x1="8.5" y1="18" x2="15.5" y2="18" />
+    </svg>
+  )
+}
+
+export function GlobeIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  )
+}
+
+export function StarIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  )
+}
+
+export function ChinaFlagIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <rect width="24" height="24" rx="6" fill="#DE2910" />
+      <polygon points="6,4.5 7.2,8.2 3.8,5.8 8.2,5.8 4.8,8.2" fill="#FFDE00" />
+      <circle cx="10" cy="4" r="0.7" fill="#FFDE00" />
+      <circle cx="11.5" cy="5.8" r="0.7" fill="#FFDE00" />
+      <circle cx="11.5" cy="8" r="0.7" fill="#FFDE00" />
+      <circle cx="10" cy="9.8" r="0.7" fill="#FFDE00" />
+    </svg>
+  )
+}
+
+export function JapanFlagIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <rect x="0.5" y="0.5" width="23" height="23" rx="5.5" fill="#FFFFFF" stroke="#E5E7EB" />
+      <circle cx="12" cy="12" r="5" fill="#BC002D" />
+    </svg>
+  )
+}
+
+
+
+

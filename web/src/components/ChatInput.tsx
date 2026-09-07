@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
-import { SendIcon, MicIcon, StopCircleIcon } from './Icons'
+import { SendIcon, MicIcon, StopCircleIcon, ChinaFlagIcon, JapanFlagIcon } from './Icons'
 import {
   createSpeechRecognizer,
   isSpeechRecognitionSupported,
@@ -194,9 +194,19 @@ export function ChatInput({
             onSpeechLangChange?.(nextLang)
           }}
           title={`音声入力言語の切替: 現在 ${speechLang === 'zh-CN' ? '中国語 (zh-CN)' : '日本語 (ja-JP)'}`}
-          className="px-2 py-2 text-xs font-bold rounded-xl border border-stone-200 hover:bg-stone-100 text-stone-600 transition-colors flex items-center gap-1 cursor-pointer select-none"
+          className="px-2.5 py-2 text-xs font-bold rounded-xl border border-stone-200 hover:bg-stone-100 text-stone-600 transition-colors flex items-center gap-1.5 cursor-pointer select-none"
         >
-          <span>{speechLang === 'zh-CN' ? '🇨🇳 中' : '🇯🇵 日'}</span>
+          {speechLang === 'zh-CN' ? (
+            <>
+              <ChinaFlagIcon className="w-3.5 h-3.5" />
+              <span>中</span>
+            </>
+          ) : (
+            <>
+              <JapanFlagIcon className="w-3.5 h-3.5" />
+              <span>日</span>
+            </>
+          )}
         </button>
 
         {/* テキスト入力エリア */}
