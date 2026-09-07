@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ChatMessage, Friend } from '../types'
-import { BulbIcon, SpeakerIcon, StopCircleIcon } from './Icons'
+import { BulbIcon, SpeakerIcon, StopCircleIcon, BookmarkIcon, BookmarkFilledIcon } from './Icons'
 import { FriendAvatar } from './FriendAvatar'
 
 interface ChatMessageItemProps {
@@ -9,6 +9,14 @@ interface ChatMessageItemProps {
   playingText?: string | null
   onPlayText?: (text: string) => void
   onStopText?: () => void
+  savedTerms?: Set<string>
+  onSaveVocabulary?: (item: {
+    term: string
+    pinyin: string
+    ja: string
+    hskLevel?: number
+    source: 'chat_vocabulary' | 'chat_correction'
+  }) => void
 }
 
 export function ChatMessageItem({
@@ -17,6 +25,8 @@ export function ChatMessageItem({
   playingText,
   onPlayText,
   onStopText,
+  savedTerms,
+  onSaveVocabulary,
 }: ChatMessageItemProps) {
   const [showCorrection, setShowCorrection] = useState(true)
 
@@ -120,21 +130,53 @@ export function ChatMessageItem({
           {vocabulary.length > 0 && (
             <div className="pt-2 border-t border-stone-100 flex flex-wrap gap-1.5 items-center">
               <span className="text-[10px] font-semibold text-stone-400 mr-1">新出表現:</span>
-              {vocabulary.map((vocab, idx) => (
-                <div
-                  key={idx}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50/80 border border-amber-200/60 text-stone-700 text-xs"
-                >
-                  <span lang="zh-CN" className="font-chinese font-bold text-amber-900">{vocab.term}</span>
-                  <span className="text-[10px] text-amber-700 font-mono">({vocab.pinyin})</span>
-                  <span className="text-[10px] text-stone-500">{vocab.ja}</span>
-                  {vocab.hskLevel && (
-                    <span className="text-[9px] px-1 bg-amber-200/60 text-amber-800 rounded font-semibold">
-                      H{vocab.hskLevel}
+              {vocabulary.map((vocab, idx) => {
+                const isSaved = savedTerms?.has(vocab.term.trim().toLowerCase())
+                return (
+                  <div
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50/80 border border-amber-200/60 text-stone-700 text-xs shadow-2xs"
+                  >
+                    <span lang="zh-CN" className="font-chinese font-bold text-amber-900">
+                      {vocab.term}
                     </span>
-                  )}
-                </div>
-              ))}
+                    <span className="text-[10px] text-amber-700 font-mono">({vocab.pinyin})</span>
+                    <span className="text-[10px] text-stone-500">{vocab.ja}</span>
+                    {vocab.hskLevel && (
+                      <span className="text-[9px] px-1 bg-amber-200/60 text-amber-800 rounded font-semibold">
+                        H{vocab.hskLevel}
+                      </span>
+                    )}
+
+                    {onSaveVocabulary && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onSaveVocabulary({
+                            term: vocab.term,
+                            pinyin: vocab.pinyin,
+                            ja: vocab.ja,
+                            hskLevel: vocab.hskLevel,
+                            source: 'chat_vocabulary',
+                          })
+                        }
+                        title={isSaved ? '語彙帳に保存済み' : '語彙帳に保存'}
+                        className={`p-0.5 rounded transition-all cursor-pointer ${
+                          isSaved
+                            ? 'text-amber-600 hover:text-amber-800'
+                            : 'text-stone-300 hover:text-amber-600'
+                        }`}
+                      >
+                        {isSaved ? (
+                          <BookmarkFilledIcon className="w-3.5 h-3.5 text-amber-500" />
+                        ) : (
+                          <BookmarkIcon className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
@@ -185,23 +227,50 @@ export function ChatMessageItem({
                         )}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleTogglePlayCorrection}
-                      title={isPlayingCorrection ? '音声を停止' : '添削文の発音を聞く'}
-                      aria-label="添削文の発音を聞く"
-                      className={`p-1 rounded-md transition-colors cursor-pointer select-none ${
-                        isPlayingCorrection
-                          ? 'bg-rose-500 text-white animate-pulse'
-                          : 'text-stone-400 hover:text-rose-600 hover:bg-stone-200/50'
-                      }`}
-                    >
-                      {isPlayingCorrection ? (
-                        <StopCircleIcon className="w-3 h-3" />
-                      ) : (
-                        <SpeakerIcon className="w-3 h-3" />
+                    <div className="flex items-center gap-1">
+                      {onSaveVocabulary && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onSaveVocabulary({
+                              term: correction.suggested!,
+                              pinyin: correction.pinyin || '',
+                              ja: correction.ja || '自然な表現',
+                              source: 'chat_correction',
+                            })
+                          }
+                          title={
+                            savedTerms?.has(correction.suggested.trim().toLowerCase())
+                              ? '語彙帳に保存済み'
+                              : 'この添削表現を語彙帳に保存'
+                          }
+                          className="p-1 rounded-md text-stone-400 hover:text-rose-600 hover:bg-stone-200/50 transition-colors cursor-pointer"
+                        >
+                          {savedTerms?.has(correction.suggested.trim().toLowerCase()) ? (
+                            <BookmarkFilledIcon className="w-3.5 h-3.5 text-rose-500" />
+                          ) : (
+                            <BookmarkIcon className="w-3.5 h-3.5" />
+                          )}
+                        </button>
                       )}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={handleTogglePlayCorrection}
+                        title={isPlayingCorrection ? '音声を停止' : '添削文の発音を聞く'}
+                        aria-label="添削文の発音を聞く"
+                        className={`p-1 rounded-md transition-colors cursor-pointer select-none ${
+                          isPlayingCorrection
+                            ? 'bg-rose-500 text-white animate-pulse'
+                            : 'text-stone-400 hover:text-rose-600 hover:bg-stone-200/50'
+                        }`}
+                      >
+                        {isPlayingCorrection ? (
+                          <StopCircleIcon className="w-3 h-3" />
+                        ) : (
+                          <SpeakerIcon className="w-3 h-3" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
 

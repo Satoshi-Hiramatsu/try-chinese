@@ -10,6 +10,14 @@ interface ChatMessageListProps {
   playingText?: string | null
   onPlayText?: (text: string) => void
   onStopText?: () => void
+  savedTerms?: Set<string>
+  onSaveVocabulary?: (item: {
+    term: string
+    pinyin: string
+    ja: string
+    hskLevel?: number
+    source: 'chat_vocabulary' | 'chat_correction'
+  }) => void
 }
 
 export function ChatMessageList({
@@ -19,6 +27,8 @@ export function ChatMessageList({
   playingText,
   onPlayText,
   onStopText,
+  savedTerms,
+  onSaveVocabulary,
 }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -48,6 +58,8 @@ export function ChatMessageList({
             playingText={playingText}
             onPlayText={onPlayText}
             onStopText={onStopText}
+            savedTerms={savedTerms}
+            onSaveVocabulary={onSaveVocabulary}
           />
         ))
       )}

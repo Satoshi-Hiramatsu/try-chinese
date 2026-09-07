@@ -59,9 +59,23 @@ export interface ChatMessage {
   timestamp: number
 }
 
+export interface VocabularyItem {
+  id: string
+  term: string
+  pinyin: string
+  ja: string
+  hskLevel?: number
+  source?: 'chat_vocabulary' | 'chat_correction' | 'manual'
+  friendId?: string
+  mastered?: boolean
+  notes?: string
+  createdAt: number
+}
+
 export interface AppConfig {
   apiKey?: string
   model?: string
   autoPlayTts?: boolean
   speechInputLang?: 'zh-CN' | 'ja-JP'
+  toneColoring?: boolean
 }

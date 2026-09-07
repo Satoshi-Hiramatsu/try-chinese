@@ -1,4 +1,4 @@
-import type { ChatMessage, Friend, Voice } from '../types'
+import type { ChatMessage, Friend, Voice, VocabularyItem } from '../types'
 
 const STORAGE_KEYS = {
   API_KEY: 'shabe_china_api_key',
@@ -13,6 +13,8 @@ const STORAGE_KEYS = {
   AUTO_PLAY_TTS: 'shabe_china_auto_play_tts',
   SPEECH_INPUT_LANG: 'shabe_china_speech_input_lang',
   FRIEND_VOICE_PREFIX: 'shabe_china_voice_',
+  VOCABULARY_LIST: 'shabe_china_vocabulary_list',
+  TONE_COLORING: 'shabe_china_tone_coloring',
 } as const
 
 export function loadApiKey(): string {
@@ -270,6 +272,101 @@ export function loadFriendVoice(friendId: string): Voice | null {
 export function saveFriendVoice(friendId: string, voice: Voice): void {
   try {
     localStorage.setItem(`${STORAGE_KEYS.FRIEND_VOICE_PREFIX}${friendId}`, JSON.stringify(voice))
+  } catch {
+    // ignore
+  }
+}
+
+// --- 語彙帳 (VocabularyBook) ---
+
+export function loadVocabularyList(): VocabularyItem[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.VOCABULARY_LIST)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function saveVocabularyList(items: VocabularyItem[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.VOCABULARY_LIST, JSON.stringify(items))
+  } catch {
+    // ignore
+  }
+}
+
+export function addVocabularyItem(
+  item: Omit<VocabularyItem, 'id' | 'createdAt'>
+): VocabularyItem {
+  const current = loadVocabularyList()
+  // 重複チェック（term が同一なら既存を更新、なければ新規作成）
+  const existingIndex = current.findIndex(
+    (v) => v.term.trim().toLowerCase() === item.term.trim().toLowerCase()
+  )
+
+  const newItem: VocabularyItem = {
+    ...item,
+    id: existingIndex >= 0 ? current[existingIndex].id : `vocab-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    createdAt: existingIndex >= 0 ? current[existingIndex].createdAt : Date.now(),
+    mastered: existingIndex >= 0 ? current[existingIndex].mastered : false,
+  }
+
+  let nextList: VocabularyItem[]
+  if (existingIndex >= 0) {
+    nextList = [...current]
+    nextList[existingIndex] = newItem
+  } else {
+    nextList = [newItem, ...current]
+  }
+
+  saveVocabularyList(nextList)
+  return newItem
+}
+
+export function deleteVocabularyItem(id: string): void {
+  const current = loadVocabularyList()
+  const nextList = current.filter((v) => v.id !== id)
+  saveVocabularyList(nextList)
+}
+
+export function toggleVocabularyMastered(id: string): boolean {
+  const current = loadVocabularyList()
+  let isMastered = false
+  const nextList = current.map((v) => {
+    if (v.id === id) {
+      isMastered = !v.mastered
+      return { ...v, mastered: isMastered }
+    }
+    return v
+  })
+  saveVocabularyList(nextList)
+  return isMastered
+}
+
+export function isVocabularySaved(term: string): boolean {
+  const current = loadVocabularyList()
+  const target = term.trim().toLowerCase()
+  return current.some((v) => v.term.trim().toLowerCase() === target)
+}
+
+// --- ピンイン声調の色分け設定 ---
+
+export function loadToneColoring(defaultValue = true): boolean {
+  try {
+    const val = localStorage.getItem(STORAGE_KEYS.TONE_COLORING)
+    if (val === null) return defaultValue
+    return val === 'true'
+  } catch {
+    return defaultValue
+  }
+}
+
+export function saveToneColoring(enabled: boolean): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.TONE_COLORING, String(enabled))
   } catch {
     // ignore
   }

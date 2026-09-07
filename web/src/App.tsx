@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import type { Friend, ChatMessage, Voice } from './types'
+import type { Friend, ChatMessage, Voice, VocabularyItem } from './types'
 import { PRESET_FRIENDS } from './data/presetFriends'
 import { Header } from './components/Header'
 import { FriendCard } from './components/FriendCard'
@@ -9,6 +9,7 @@ import { SettingsModal } from './components/SettingsModal'
 import { OnboardingModal } from './components/OnboardingModal'
 import { FriendListModal } from './components/FriendListModal'
 import { VoiceSettingsModal } from './components/VoiceSettingsModal'
+import { VocabularyModal } from './components/VocabularyModal'
 import { AlertIcon, CloseIcon } from './components/Icons'
 import { sendMessageToChatApi } from './services/api'
 import { speakChinese, stopSpeaking } from './services/speech'
@@ -36,6 +37,10 @@ import {
   saveSpeechInputLang,
   loadFriendVoice,
   saveFriendVoice,
+  loadVocabularyList,
+  addVocabularyItem,
+  deleteVocabularyItem,
+  toggleVocabularyMastered,
 } from './services/storage'
 
 const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => {
@@ -129,8 +134,40 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
   const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => !isOnboardingCompleted())
   const [isFriendListOpen, setIsFriendListOpen] = useState(false)
+  const [isVocabularyModalOpen, setIsVocabularyModalOpen] = useState(false)
+  const [vocabularyList, setVocabularyList] = useState<VocabularyItem[]>(() => loadVocabularyList())
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  // 語彙帳に保存済みの単語セット（高速判定用）
+  const savedTermsSet = useMemo(() => {
+    return new Set(vocabularyList.map((v) => v.term.trim().toLowerCase()))
+  }, [vocabularyList])
+
+  const handleAddVocabulary = (item: Omit<VocabularyItem, 'id' | 'createdAt'>) => {
+    const saved = addVocabularyItem(item)
+    setVocabularyList((prev) => {
+      const idx = prev.findIndex((v) => v.id === saved.id)
+      if (idx >= 0) {
+        const copy = [...prev]
+        copy[idx] = saved
+        return copy
+      }
+      return [saved, ...prev]
+    })
+  }
+
+  const handleDeleteVocabulary = (id: string) => {
+    deleteVocabularyItem(id)
+    setVocabularyList((prev) => prev.filter((v) => v.id !== id))
+  }
+
+  const handleToggleVocabularyMastered = (id: string) => {
+    toggleVocabularyMastered(id)
+    setVocabularyList((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, mastered: !v.mastered } : v))
+    )
+  }
 
   // 友達別の会話履歴
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -319,6 +356,8 @@ export default function App() {
         onClearHistory={handleClearHistory}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
         onOpenFriendList={() => setIsFriendListOpen(true)}
+        onOpenVocabulary={() => setIsVocabularyModalOpen(true)}
+        vocabularyCount={vocabularyList.length}
       />
 
       {/* Main Chat Container */}
@@ -357,6 +396,8 @@ export default function App() {
             playingText={playingText}
             onPlayText={handlePlayText}
             onStopText={handleStopText}
+            savedTerms={savedTermsSet}
+            onSaveVocabulary={handleAddVocabulary}
           />
         </div>
 
@@ -415,6 +456,20 @@ export default function App() {
         onSelectFriend={handleSelectFriend}
         onCreateFriend={handleCreateFriend}
         onDeleteFriend={handleDeleteFriend}
+      />
+
+      {/* Vocabulary Modal (語彙帳) */}
+      <VocabularyModal
+        isOpen={isVocabularyModalOpen}
+        onClose={() => setIsVocabularyModalOpen(false)}
+        vocabularyList={vocabularyList}
+        onDeleteItem={handleDeleteVocabulary}
+        onToggleMastered={handleToggleVocabularyMastered}
+        onAddItem={handleAddVocabulary}
+        onStartReview={() => {
+          setIsVocabularyModalOpen(false)
+          // 復習モーダルを開く（T-16で接続）
+        }}
       />
     </div>
   )

@@ -1,4 +1,4 @@
-import { UsersIcon, SparklesIcon, SettingsIcon, TrashIcon } from './Icons'
+import { UsersIcon, SparklesIcon, SettingsIcon, TrashIcon, BookOpenIcon } from './Icons'
 
 interface HeaderProps {
   hskLevel: number
@@ -8,6 +8,8 @@ interface HeaderProps {
   onClearHistory: () => void
   onOpenOnboarding: () => void
   onOpenFriendList?: () => void
+  onOpenVocabulary?: () => void
+  vocabularyCount?: number
 }
 
 export function Header({
@@ -18,6 +20,8 @@ export function Header({
   onClearHistory,
   onOpenOnboarding,
   onOpenFriendList,
+  onOpenVocabulary,
+  vocabularyCount = 0,
 }: HeaderProps) {
   return (
     <header className="w-full max-w-3xl flex items-center justify-between py-3 px-2 sm:px-0 border-b border-rose-200/60">
@@ -61,6 +65,24 @@ export function Header({
           >
             <UsersIcon className="w-3.5 h-3.5 text-stone-500" />
             <span className="hidden md:inline">友達切替</span>
+          </button>
+        )}
+
+        {/* Vocabulary Modal Button */}
+        {onOpenVocabulary && (
+          <button
+            type="button"
+            onClick={onOpenVocabulary}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white/90 text-stone-700 border border-stone-200 hover:bg-stone-50 transition-colors shadow-xs cursor-pointer relative"
+            title="語彙帳・復習"
+          >
+            <BookOpenIcon className="w-3.5 h-3.5 text-rose-500" />
+            <span className="hidden md:inline">語彙帳</span>
+            {vocabularyCount > 0 && (
+              <span className="px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[10px] font-bold leading-tight">
+                {vocabularyCount}
+              </span>
+            )}
           </button>
         )}
 
