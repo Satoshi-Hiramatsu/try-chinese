@@ -9,20 +9,25 @@ import worker from "../src";
 
 describe("Worker API", () => {
 	describe("GET /", () => {
-		it('responds with title (unit style)', async () => {
+		it('responds with SPA index.html (unit style)', async () => {
 			const request = new Request<unknown, IncomingRequestCfProperties>(
 				"http://example.com/"
 			);
 			const ctx = createExecutionContext();
 			const response = await worker.fetch(request, env, ctx);
 			await waitOnExecutionContext(ctx);
-			expect(await response.text()).toBe("しゃべチャイナ API Worker");
+			expect(response.status).toBe(200);
+			const text = await response.text();
+			expect(text).toContain("しゃべチャイナ");
+			expect(text).toContain("<!doctype html>");
 		});
 
-		it('responds with title (integration style)', async () => {
+		it('responds with SPA index.html (integration style)', async () => {
 			const request = new Request("http://example.com/");
 			const response = await SELF.fetch(request);
-			expect(await response.text()).toBe("しゃべチャイナ API Worker");
+			expect(response.status).toBe(200);
+			const text = await response.text();
+			expect(text).toContain("しゃべチャイナ");
 		});
 	});
 

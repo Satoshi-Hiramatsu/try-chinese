@@ -4,16 +4,23 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "worker",
+	"name": "try-chinese",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-09-03",
 	"compatibility_flags": [
 		"global_fetch_strictly_public"
 	],
 	"assets": {
-		// The path to the directory containing the `index.html` file to be served at `/`
-		"directory": "./public"
+		"directory": "../web/dist",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application"
 	},
+	"routes": [
+		{
+			"pattern": "try-chinese.molkz.com",
+			"custom_domain": true
+		}
+	],
 	"observability": {
 		"enabled": true
 	},
