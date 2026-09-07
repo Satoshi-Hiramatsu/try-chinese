@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { Friend, Voice } from '../types'
 import {
   CloseIcon,
@@ -121,6 +121,7 @@ export function VoiceSettingsModal({
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
   const [isPlayingPreview, setIsPlayingPreview] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const hasApiKey = Boolean(loadApiKey())
   const currentTtsModel = loadTtsModel()
@@ -217,11 +218,27 @@ export function VoiceSettingsModal({
     onClose()
   }
 
+  const handleCardWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (scrollRef.current && !scrollRef.current.contains(e.target as Node)) {
+      scrollRef.current.scrollTop += e.deltaY
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-rose-100 animate-in fade-in zoom-in duration-150">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-xs animate-fade-in"
+      onClick={() => {
+        stopSpeaking()
+        onClose()
+      }}
+    >
+      <div
+        className="bg-white rounded-3xl max-w-lg w-full max-h-[88vh] flex flex-col shadow-2xl border border-rose-100 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        onWheel={handleCardWheel}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+        <div className="px-5 sm:px-6 pt-5 pb-3 border-b border-stone-100 flex items-center justify-between flex-shrink-0 bg-white">
           <div className="flex items-center gap-3">
             <FriendAvatar friend={friend} size="sm" shape="circle" />
             <div>
@@ -246,7 +263,10 @@ export function VoiceSettingsModal({
           </button>
         </div>
 
-        <div className="mt-4 space-y-5 text-sm text-stone-700 max-h-[70vh] overflow-y-auto pr-1">
+        <div
+          ref={scrollRef}
+          className="px-5 sm:px-6 py-4 space-y-5 text-sm text-stone-700 flex-1 overflow-y-auto overscroll-contain"
+        >
           {/* TTS エンジン選択タブ */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -443,7 +463,7 @@ export function VoiceSettingsModal({
         </div>
 
         {/* Footer */}
-        <div className="mt-6 flex items-center justify-between pt-3 border-t border-stone-100">
+        <div className="px-5 sm:px-6 py-3.5 border-t border-stone-100 bg-stone-50/80 flex-shrink-0 flex items-center justify-between">
           <button
             type="button"
             onClick={() => handlePreview()}

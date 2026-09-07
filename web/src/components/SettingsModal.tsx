@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   SettingsIcon,
   CloseIcon,
@@ -89,6 +89,7 @@ export function SettingsModal({
   const [autoPlay, setAutoPlay] = useState(autoPlayTts)
   const [inputLang, setInputLang] = useState<'zh-CN' | 'ja-JP'>(speechInputLang)
   const [enableToneColor, setEnableToneColor] = useState(toneColoring)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setApiKey(currentApiKey)
@@ -107,11 +108,25 @@ export function SettingsModal({
     onClose()
   }
 
+  const handleCardWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    // ヘッダーやフッター、余白にカーソルがある場合でも、設定リストをスムーズにスクロールさせる
+    if (scrollRef.current && !scrollRef.current.contains(e.target as Node)) {
+      scrollRef.current.scrollTop += e.deltaY
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-stone-200/80 my-8">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-xs animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl max-w-lg w-full max-h-[88vh] flex flex-col shadow-2xl border border-stone-200/80 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        onWheel={handleCardWheel}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+        <div className="px-5 sm:px-6 pt-5 pb-3 border-b border-stone-100 flex items-center justify-between flex-shrink-0 bg-white">
           <div className="flex items-center gap-2 text-stone-800">
             <SettingsIcon className="w-5 h-5 text-rose-500" />
             <h2 className="text-base sm:text-lg font-bold m-0">AIモデル・音声・APIキー設定</h2>
@@ -127,7 +142,10 @@ export function SettingsModal({
         </div>
 
         {/* Content */}
-        <div className="mt-4 space-y-4 text-left max-h-[65vh] overflow-y-auto pr-1">
+        <div
+          ref={scrollRef}
+          className="px-5 sm:px-6 py-4 space-y-4 text-left flex-1 overflow-y-auto overscroll-contain"
+        >
           {/* Section 1: OpenRouter API キー (一本化) */}
           <div>
             <label className="block text-xs font-bold text-stone-800 mb-1 flex items-center gap-1.5">
@@ -416,11 +434,11 @@ export function SettingsModal({
         </div>
 
         {/* Footer */}
-        <div className="mt-6 flex justify-end gap-2 pt-3 border-t border-stone-100">
+        <div className="px-5 sm:px-6 py-3.5 border-t border-stone-100 bg-stone-50/80 flex-shrink-0 flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-medium text-stone-500 hover:text-stone-800 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+            className="px-4 py-2 text-xs font-medium text-stone-500 hover:text-stone-800 rounded-xl hover:bg-stone-200/60 transition-colors cursor-pointer"
           >
             キャンセル
           </button>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { Friend } from '../types'
 import {
   UsersIcon,
@@ -91,11 +91,26 @@ export function FriendListModal({
     onClose()
   }
 
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const handleCardWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (scrollRef.current && !scrollRef.current.contains(e.target as Node)) {
+      scrollRef.current.scrollTop += e.deltaY
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-rose-100 animate-in fade-in zoom-in duration-150">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-xs animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl max-w-xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-rose-100 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        onWheel={handleCardWheel}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+        <div className="px-5 sm:px-6 pt-5 pb-3 border-b border-stone-100 flex items-center justify-between flex-shrink-0 bg-white">
           <div>
             <h3 className="text-xl font-bold text-stone-900 m-0 flex items-center gap-2">
               <UsersIcon className="w-5 h-5 text-rose-500" />
@@ -116,35 +131,42 @@ export function FriendListModal({
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 my-4 p-1 bg-stone-100/80 rounded-xl">
-          <button
-            type="button"
-            onClick={() => setActiveTab('list')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'list'
-                ? 'bg-white text-stone-900 shadow-xs'
-                : 'text-stone-500 hover:text-stone-800'
-            }`}
-          >
-            友達一覧 ({friends.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('create')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-              activeTab === 'create'
-                ? 'bg-white text-stone-900 shadow-xs'
-                : 'text-stone-500 hover:text-stone-800'
-            }`}
-          >
-            <PlusIcon className="w-3.5 h-3.5" />
-            <span>新しい友達を作る</span>
-          </button>
+        <div className="px-5 sm:px-6 pt-3 pb-1 flex-shrink-0 bg-white">
+          <div className="flex gap-2 p-1 bg-stone-100/80 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setActiveTab('list')}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'list'
+                  ? 'bg-white text-stone-900 shadow-xs'
+                  : 'text-stone-500 hover:text-stone-800'
+              }`}
+            >
+              友達一覧 ({friends.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('create')}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                activeTab === 'create'
+                  ? 'bg-white text-stone-900 shadow-xs'
+                  : 'text-stone-500 hover:text-stone-800'
+              }`}
+            >
+              <PlusIcon className="w-3.5 h-3.5" />
+              <span>新しい友達を作る</span>
+            </button>
+          </div>
         </div>
 
-        {/* Tab 1: 友達一覧 */}
-        {activeTab === 'list' && (
-          <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+        {/* Content Container */}
+        <div
+          ref={scrollRef}
+          className="px-5 sm:px-6 py-3 flex-1 overflow-y-auto overscroll-contain"
+        >
+          {/* Tab 1: 友達一覧 */}
+          {activeTab === 'list' && (
+            <div className="space-y-3">
             {friends.map((friend) => {
               const isSelected = friend.id === currentFriendId
               const isCustom = friend.id?.startsWith('custom-')
@@ -377,6 +399,7 @@ export function FriendListModal({
             </div>
           </form>
         )}
+        </div>
       </div>
     </div>
   )
