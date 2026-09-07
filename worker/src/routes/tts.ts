@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 
 export interface TtsEnv {
+  OPENROUTER_API_KEY?: string
   OPENAI_API_KEY?: string
 }
 
@@ -9,7 +10,18 @@ interface TtsRequestBody {
   voice?: string
   speed?: number
   apiKey?: string
+  model?: string
 }
+
+// 許可する高品質・高コスパTTSモデル（高額なMiniMax等は除外）
+const ALLOWED_TTS_MODELS = [
+  'qwen/qwen-audio-3.0-tts-flash',
+  'qwen/qwen-audio-3.0-tts-plus',
+  'hexgrad/kokoro-82m',
+  'fish-audio/s2.1-pro-free:free',
+  'fish-audio/s2.1-pro',
+]
+const DEFAULT_TTS_MODEL = 'qwen/qwen-audio-3.0-tts-flash'
 
 const ttsRoute = new Hono<{ Bindings: TtsEnv }>()
 
@@ -21,7 +33,7 @@ ttsRoute.post('/tts', async (c) => {
     return c.json({ error: 'リクエストボディが有効な JSON ではありません。' }, 400)
   }
 
-  const { text, voice = 'alloy', speed = 1.0, apiKey } = body
+  const { text, voice, speed = 1.0, apiKey, model } = body
 
   if (!text || typeof text !== 'string' || text.trim() === '') {
     return c.json({ error: 'text は必須の文字列です。' }, 400)
@@ -29,37 +41,44 @@ ttsRoute.post('/tts', async (c) => {
 
   // APIキーの解決（リクエスト指定 > ヘッダー > 環境変数）
   const headerKey =
-    c.req.header('x-openai-key') ||
+    c.req.header('x-openrouter-key') ||
     c.req.header('x-api-key') ||
     c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
 
-  const resolvedApiKey = apiKey || headerKey || c.env?.OPENAI_API_KEY
+  const resolvedApiKey = apiKey || headerKey || c.env?.OPENROUTER_API_KEY || c.env?.OPENAI_API_KEY
 
   if (!resolvedApiKey) {
     return c.json(
       {
         error:
-          'OpenAI APIキーが見つかりません。設定画面でOpenAI APIキーを設定するか、ブラウザ標準音声をご利用ください。',
+          'OpenRouter APIキーが見つかりません。設定画面でOpenRouter APIキーを設定するか、ブラウザ標準音声をご利用ください。',
       },
       401
     )
   }
 
-  // 有効な声質モデル
-  const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
-  const selectedVoice = validVoices.includes(voice.toLowerCase()) ? voice.toLowerCase() : 'alloy'
+  // 使用モデルの検証（許可リスト外または未指定の場合は高コスパなデフォルトを使用）
+  const targetModel = model && ALLOWED_TTS_MODELS.includes(model) ? model : DEFAULT_TTS_MODEL
 
+  // モデルごとのデフォルト声質
+  const defaultVoice = targetModel.includes('qwen')
+    ? 'longanhuan_v3.6'
+    : targetModel.includes('kokoro')
+      ? 'zf_xiaobei'
+      : 'alloy'
+
+  const selectedVoice = voice && voice.trim() !== '' ? voice.trim() : defaultVoice
   const clampedSpeed = Math.max(0.25, Math.min(4.0, Number(speed) || 1.0))
 
   try {
-    const openaiRes = await fetch('https://api.openai.com/v1/audio/speech', {
+    const ttsRes = await fetch('https://openrouter.ai/api/v1/audio/speech', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${resolvedApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'tts-1',
+        model: targetModel,
         input: text.trim(),
         voice: selectedVoice,
         speed: clampedSpeed,
@@ -67,24 +86,24 @@ ttsRoute.post('/tts', async (c) => {
       }),
     })
 
-    if (!openaiRes.ok) {
+    if (!ttsRes.ok) {
       let errDetail = ''
       try {
-        const errJson = await openaiRes.json()
+        const errJson = await ttsRes.json()
         errDetail = JSON.stringify(errJson)
       } catch {
-        errDetail = await openaiRes.text()
+        errDetail = await ttsRes.text()
       }
       return c.json(
         {
-          error: `OpenAI TTS API エラー (${openaiRes.status}): ${errDetail}`,
+          error: `OpenRouter TTS API エラー (${ttsRes.status}): ${errDetail}`,
         },
-        openaiRes.status as any
+        ttsRes.status as any
       )
     }
 
     // 音声バイナリ (audio/mpeg) をクライアントへストリーミング返却
-    const audioBuffer = await openaiRes.arrayBuffer()
+    const audioBuffer = await ttsRes.arrayBuffer()
     return new Response(audioBuffer, {
       status: 200,
       headers: {
@@ -93,9 +112,10 @@ ttsRoute.post('/tts', async (c) => {
       },
     })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'OpenAI TTS通信エラーが発生しました'
+    const msg = err instanceof Error ? err.message : 'OpenRouter TTS通信エラーが発生しました'
     return c.json({ error: msg }, 500)
   }
 })
 
 export default ttsRoute
+

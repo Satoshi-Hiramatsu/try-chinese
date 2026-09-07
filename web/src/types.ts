@@ -7,8 +7,8 @@ export interface Voice {
   quality: 'standard' | 'natural' | 'high'
   gender: 'male' | 'female'
   voiceName?: string // ブラウザ/Edge音声名 (例: Microsoft Yunxi Online (Natural))
-  voiceModel?: string // AI音声モデル名 (例: onyx, echo, nova, shimmer)
-  ttsProvider?: 'browser' | 'openai'
+  voiceModel?: string // 話者キャラクターID (例: longanhuan_v3.6, loongjohn, zf_xiaobei, zm_yunxi 等)
+  ttsProvider?: 'browser' | 'openrouter'
   rate?: number
   pitch?: number
 }
@@ -77,8 +77,8 @@ export interface VocabularyItem {
 export interface AppConfig {
   apiKey?: string
   model?: string
-  openaiApiKey?: string
-  ttsProvider?: 'browser' | 'openai'
+  ttsModel?: string
+  ttsProvider?: 'browser' | 'openrouter'
   autoPlayTts?: boolean
   speechInputLang?: 'zh-CN' | 'ja-JP'
   toneColoring?: boolean

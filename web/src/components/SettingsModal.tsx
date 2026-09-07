@@ -10,13 +10,44 @@ import {
   SpeakerIcon,
 } from './Icons'
 
+export const PRESET_TTS_MODELS = [
+  {
+    id: 'qwen/qwen-audio-3.0-tts-flash',
+    name: 'Qwen Audio 3.0 TTS Flash',
+    tag: '推奨・中国語最高峰',
+    price: '$15 / 100万tok',
+    desc: 'アリババ製。中国語の四声や抑揚が圧倒的に自然。低遅延で会話に最適',
+  },
+  {
+    id: 'qwen/qwen-audio-3.0-tts-plus',
+    name: 'Qwen Audio 3.0 TTS Plus',
+    tag: '最高品質',
+    price: '$20 / 100万tok',
+    desc: 'Qwenの上位モデル。豊かな表現力と細やかなニュアンス',
+  },
+  {
+    id: 'hexgrad/kokoro-82m',
+    name: 'Kokoro 82M',
+    tag: '超爆安・高コスパ',
+    price: '$4 / 100万tok',
+    desc: '破格の低価格オープンTTS。トークン消費を最小限に抑えたい場合に最適',
+  },
+  {
+    id: 'fish-audio/s2.1-pro-free:free',
+    name: 'Fish Audio S2.1 Pro (Free)',
+    tag: '完全無料枠',
+    price: '$0 (無料)',
+    desc: 'Fish Audioが提供する無料利用枠。テストやコストゼロ運用に最適',
+  },
+]
+
 interface SettingsModalProps {
   isOpen: boolean
   onClose: () => void
   currentApiKey: string
   currentModel: string
-  currentOpenAiKey?: string
-  currentTtsProvider?: 'browser' | 'openai'
+  currentTtsModel?: string
+  currentTtsProvider?: 'browser' | 'openrouter'
   autoPlayTts?: boolean
   speechInputLang?: 'zh-CN' | 'ja-JP'
   toneColoring?: boolean
@@ -26,8 +57,8 @@ interface SettingsModalProps {
     autoPlayTts: boolean,
     speechInputLang: 'zh-CN' | 'ja-JP',
     toneColoring: boolean,
-    openAiKey?: string,
-    ttsProvider?: 'browser' | 'openai'
+    ttsModel?: string,
+    ttsProvider?: 'browser' | 'openrouter'
   ) => void
 }
 
@@ -44,8 +75,8 @@ export function SettingsModal({
   onClose,
   currentApiKey,
   currentModel,
-  currentOpenAiKey = '',
-  currentTtsProvider = 'browser',
+  currentTtsModel = 'qwen/qwen-audio-3.0-tts-flash',
+  currentTtsProvider = 'openrouter',
   autoPlayTts = false,
   speechInputLang = 'zh-CN',
   toneColoring = false,
@@ -53,8 +84,8 @@ export function SettingsModal({
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey)
   const [model, setModel] = useState(currentModel || 'google/gemini-2.5-flash')
-  const [openAiKey, setOpenAiKey] = useState(currentOpenAiKey)
-  const [ttsProvider, setTtsProvider] = useState<'browser' | 'openai'>(currentTtsProvider)
+  const [ttsModel, setTtsModel] = useState(currentTtsModel)
+  const [ttsProvider, setTtsProvider] = useState<'browser' | 'openrouter'>(currentTtsProvider)
   const [autoPlay, setAutoPlay] = useState(autoPlayTts)
   const [inputLang, setInputLang] = useState<'zh-CN' | 'ja-JP'>(speechInputLang)
   const [enableToneColor, setEnableToneColor] = useState(toneColoring)
@@ -62,91 +93,109 @@ export function SettingsModal({
   useEffect(() => {
     setApiKey(currentApiKey)
     setModel(currentModel || 'google/gemini-2.5-flash')
-    setOpenAiKey(currentOpenAiKey)
+    setTtsModel(currentTtsModel || 'qwen/qwen-audio-3.0-tts-flash')
     setTtsProvider(currentTtsProvider)
     setAutoPlay(autoPlayTts)
     setInputLang(speechInputLang)
     setEnableToneColor(toneColoring)
-  }, [currentApiKey, currentModel, currentOpenAiKey, currentTtsProvider, autoPlayTts, speechInputLang, toneColoring, isOpen])
+  }, [currentApiKey, currentModel, currentTtsModel, currentTtsProvider, autoPlayTts, speechInputLang, toneColoring, isOpen])
 
   if (!isOpen) return null
 
   const handleSave = () => {
-    onSave(apiKey, model, autoPlay, inputLang, enableToneColor, openAiKey, ttsProvider)
+    onSave(apiKey, model, autoPlay, inputLang, enableToneColor, ttsModel, ttsProvider)
     onClose()
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-rose-100 animate-in fade-in zoom-in duration-150">
+      <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-stone-200/80 my-8">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-          <div>
-            <h3 className="text-xl font-bold text-stone-900 m-0 flex items-center gap-2">
-              <SettingsIcon className="w-5 h-5 text-rose-500" />
-              <span>AI 設定 & プロバイダ (BYO-AI)</span>
-            </h3>
-            <p className="text-xs text-stone-500 m-0 mt-0.5">
-              文章生成モデルの選定や API キーを設定できます
-            </p>
+          <div className="flex items-center gap-2 text-stone-800">
+            <SettingsIcon className="w-5 h-5 text-rose-500" />
+            <h2 className="text-base sm:text-lg font-bold m-0">AIモデル・音声・APIキー設定</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
+            className="p-1.5 text-stone-400 hover:text-stone-700 rounded-full hover:bg-stone-100 transition-colors cursor-pointer"
             aria-label="閉じる"
-            className="text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
           >
-            <CloseIcon className="w-5 h-5" />
+            <CloseIcon className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="mt-4 space-y-5 text-sm text-stone-600">
-          {/* Section 1: 文章生成モデルの選定 */}
+        {/* Content */}
+        <div className="mt-4 space-y-4 text-left max-h-[65vh] overflow-y-auto pr-1">
+          {/* Section 1: OpenRouter API キー (一本化) */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+            <label className="block text-xs font-bold text-stone-800 mb-1 flex items-center gap-1.5">
+              <KeyIcon className="w-4 h-4 text-rose-500" />
+              <span>OpenRouter API Key (会話生成 & 音声合成):</span>
+            </label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="sk-or-v1-..."
+              className="w-full px-3 py-2 border border-stone-300 rounded-xl text-xs font-mono focus:border-rose-500 focus:outline-none"
+            />
+            <p className="text-[11px] text-stone-400 mt-1 m-0">
+              ※ 本アプリは OpenRouter 契約者向けです。キーはブラウザ（IndexedDB）内にのみ安全に保持されます。
+            </p>
+          </div>
+
+          {/* Section 2: 会話LLMモデル選択 */}
+          <div className="pt-3 border-t border-stone-100 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-stone-800 flex items-center gap-1.5">
                 <CpuIcon className="w-4 h-4 text-stone-600" />
-                <span>文章生成 (LLM) モデル:</span>
+                <span>会話用 AI モデル (LLM):</span>
               </label>
               <a
                 href="https://openrouter.ai/models"
                 target="_blank"
                 rel="noreferrer"
-                className="text-[11px] text-rose-600 hover:underline font-normal flex items-center gap-1"
+                className="text-[11px] text-rose-600 hover:underline flex items-center gap-0.5"
               >
-                <span>OpenRouter モデル一覧</span>
+                <span>モデル一覧</span>
                 <ExternalLinkIcon className="w-3 h-3" />
               </a>
             </div>
 
-            {/* プリセットモデル選択ボタン */}
-            <div className="space-y-1.5 mb-2.5 max-h-44 overflow-y-auto pr-1">
+            {/* プリセット一覧 */}
+            <div className="grid grid-cols-1 gap-1.5">
               {PRESET_MODELS.map((m) => {
                 const isSelected = model === m.id
                 return (
                   <div
                     key={m.id}
                     onClick={() => setModel(m.id)}
-                    className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                    className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between ${
                       isSelected
-                        ? 'bg-rose-50/90 border-rose-400 shadow-2xs'
-                        : 'bg-white border-stone-200/80 hover:border-stone-300'
+                        ? 'border-rose-400 bg-rose-50/60 shadow-2xs font-semibold'
+                        : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50 text-stone-700'
                     }`}
                   >
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-xs text-stone-900">{m.name}</span>
-                        <span className="text-[9px] px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded font-semibold">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-stone-900">{m.name}</span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.2 rounded-md ${
+                            isSelected
+                              ? 'bg-rose-200 text-rose-800 font-bold'
+                              : 'bg-stone-100 text-stone-600'
+                          }`}
+                        >
                           {m.tag}
                         </span>
                       </div>
-                      <p className="text-[11px] text-stone-400 m-0 leading-tight mt-0.5">
-                        {m.desc}
-                      </p>
+                      <p className="text-[11px] text-stone-500 m-0 mt-0.5">{m.desc}</p>
                     </div>
                     {isSelected && (
-                      <span className="text-rose-600 text-xs font-bold flex-shrink-0 ml-2 flex items-center gap-1">
-                        <CheckIcon className="w-3.5 h-3.5" />
+                      <span className="flex items-center gap-1 text-rose-600 text-xs font-bold flex-shrink-0">
+                        <CheckIcon className="w-4 h-4" />
                         <span>選択中</span>
                       </span>
                     )}
@@ -168,55 +217,36 @@ export function SettingsModal({
             </div>
           </div>
 
-          {/* Section 2: OpenRouter API キー */}
-          <div className="pt-3 border-t border-stone-100">
-            <label className="block text-xs font-bold text-stone-800 mb-1 flex items-center gap-1.5">
-              <KeyIcon className="w-4 h-4 text-stone-600" />
-              <span>OpenRouter API Key (文章生成用・ブラウザ保持):</span>
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-or-v1-..."
-              className="w-full px-3 py-2 border border-stone-300 rounded-xl text-xs font-mono focus:border-rose-500 focus:outline-none"
-            />
-            <p className="text-[11px] text-stone-400 mt-1 m-0">
-              ※ 空欄の場合は、Worker 側の環境変数（<code>.dev.vars</code>）に設定されたキーが自動適用されます。
-            </p>
-          </div>
-
-          {/* Section 3: OpenAI API キー (TTS / AI音声用) */}
-          <div className="pt-3 border-t border-stone-100">
-            <label className="block text-xs font-bold text-stone-800 mb-1 flex items-center gap-1.5">
-              <SparklesIcon className="w-4 h-4 text-amber-500" />
-              <span>OpenAI API Key (AI音声合成用・任意):</span>
-            </label>
-            <input
-              type="password"
-              value={openAiKey}
-              onChange={(e) => setOpenAiKey(e.target.value)}
-              placeholder="sk-proj-... (OpenAI TTSを利用する場合に入力)"
-              className="w-full px-3 py-2 border border-stone-300 rounded-xl text-xs font-mono focus:border-rose-500 focus:outline-none"
-            />
-            <p className="text-[11px] text-stone-400 mt-1 m-0">
-              ※ OpenAI TTS（Onyx, Nova等の超リアルAI音声）を利用したい場合に設定します。未入力でもブラウザ・Edgeの自然音声を無料で利用できます。
-            </p>
-          </div>
-
-          {/* Section 4: 音声（TTS / STT）設定 */}
+          {/* Section 3: 音声合成 (TTS) エンジン & モデル設定 */}
           <div className="pt-3 border-t border-stone-100 space-y-3">
             <label className="block text-xs font-bold text-stone-800 flex items-center gap-1.5">
               <SpeakerIcon className="w-4 h-4 text-stone-600" />
-              <span>音声機能設定 (TTS / STT):</span>
+              <span>中国語 音声合成 (TTS) エンジン設定:</span>
             </label>
 
             {/* TTSプロバイダ切り替え */}
             <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80 space-y-2">
               <span className="text-xs font-bold text-stone-800 block">
-                中国語の音声合成 (TTS) エンジン
+                読み上げエンジン
               </span>
               <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTtsProvider('openrouter')}
+                  className={`py-2 px-3 text-xs font-bold rounded-xl border text-left cursor-pointer transition-all ${
+                    ttsProvider === 'openrouter'
+                      ? 'border-rose-400 bg-rose-50 text-rose-800 shadow-2xs'
+                      : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <SparklesIcon className="w-3 h-3 text-amber-500" />
+                    <span>OpenRouter AI音声</span>
+                  </div>
+                  <div className="text-[10px] text-stone-400 font-normal mt-0.5">
+                    推奨・ネイティブ四声 (要キー)
+                  </div>
+                </button>
                 <button
                   type="button"
                   onClick={() => setTtsProvider('browser')}
@@ -228,27 +258,56 @@ export function SettingsModal({
                 >
                   <div>🌐 ブラウザ / Edge</div>
                   <div className="text-[10px] text-stone-400 font-normal mt-0.5">
-                    無料・キー不要 (Edge推奨)
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTtsProvider('openai')}
-                  className={`py-2 px-3 text-xs font-bold rounded-xl border text-left cursor-pointer transition-all ${
-                    ttsProvider === 'openai'
-                      ? 'border-rose-400 bg-rose-50 text-rose-800 shadow-2xs'
-                      : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-100'
-                  }`}
-                >
-                  <div className="flex items-center gap-1">
-                    <SparklesIcon className="w-3 h-3 text-amber-500" />
-                    <span>OpenAI TTS</span>
-                  </div>
-                  <div className="text-[10px] text-stone-400 font-normal mt-0.5">
-                    最高品質AI音声 (要キー)
+                    完全無料・ローカル音声
                   </div>
                 </button>
               </div>
+
+              {/* OpenRouter TTS モデル一覧 (OpenRouter選択時) */}
+              {ttsProvider === 'openrouter' && (
+                <div className="mt-3 pt-2 border-t border-stone-200/60 space-y-1.5">
+                  <span className="text-[11px] font-bold text-stone-700 block">
+                    使用するTTS音声モデル（高コスパ厳選・高額モデル除外済み）:
+                  </span>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {PRESET_TTS_MODELS.map((m) => {
+                      const isSelected = ttsModel === m.id
+                      return (
+                        <div
+                          key={m.id}
+                          onClick={() => setTtsModel(m.id)}
+                          className={`p-2 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between ${
+                            isSelected
+                              ? 'border-rose-400 bg-white shadow-2xs font-semibold'
+                              : 'border-stone-200 bg-white/70 hover:border-stone-300 hover:bg-white text-stone-700'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-stone-900 text-xs">{m.name}</span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-rose-100 text-rose-700 font-bold">
+                                {m.tag}
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-stone-100 text-stone-600 font-mono">
+                                {m.price}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-stone-500 m-0 mt-0.5 leading-tight">{m.desc}</p>
+                          </div>
+                          {isSelected && (
+                            <span className="flex items-center gap-1 text-rose-600 text-xs font-bold flex-shrink-0 ml-2">
+                              <CheckIcon className="w-3.5 h-3.5" />
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[10px] text-stone-400 mt-1 m-0">
+                    ※ 各友達キャラクター（美玲や王浩など）の「声のトーン・話者」は、友達カードの「声質」ボタンから個別にカスタマイズ可能です。
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* 自動読み上げトグル */}
@@ -342,15 +401,16 @@ export function SettingsModal({
             </div>
           </div>
 
-          {/* Section 4: トークン効率についての案内 */}
+          {/* Section 4: トークン効率・コストについての案内 */}
           <div className="bg-amber-50/70 p-3.5 rounded-2xl border border-amber-200/60 text-xs space-y-1 text-stone-700">
             <p className="font-bold text-amber-900 m-0 flex items-center gap-1.5">
               <SparklesIcon className="w-4 h-4 text-amber-600" />
-              <span>トークン効率最適化について</span>
+              <span>OpenRouter 1本化と低コスト運用について</span>
             </p>
             <p className="m-0 leading-relaxed text-[11px] text-stone-600">
-              • <strong>文章生成</strong>: <code>max_tokens: 1000</code> および直近6ターンの履歴制限により、トークン浪費を徹底抑制しています。<br />
-              • <strong>聞き取り (STT) ＆ 読み上げ (TTS)</strong>: ブラウザ標準エンジン（Web Speech API）を使用するため、<strong>API トークン消費はゼロ（完全無料）</strong> です。
+              • <strong>API一本化</strong>: OpenRouter APIキー 1つで、会話文生成から自然な音声合成（TTS）まで完結します。<br />
+              • <strong>高コスパ厳選</strong>: 単価の高いMiniMax等は除外し、中国語最高峰のQwen Flash（$15/1M）や超爆安のKokoro（$4/1M）、完全無料枠（$0）のみを採用しています。<br />
+              • <strong>ブラウザ標準音声</strong>: キー不要で端末内蔵音声（完全無料）もいつでも選択可能です。
             </p>
           </div>
         </div>

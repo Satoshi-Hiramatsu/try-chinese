@@ -15,7 +15,7 @@ import {
   stopSpeaking,
   getAvailableVoices,
 } from '../services/speech'
-import { loadOpenAiKey, loadTtsProvider, saveTtsProvider } from '../services/storage'
+import { loadApiKey, loadTtsProvider, saveTtsProvider, loadTtsModel } from '../services/storage'
 
 interface VoiceSettingsModalProps {
   isOpen: boolean
@@ -32,7 +32,8 @@ interface CharacterVoiceOption {
   recommendFor: string
   desc: string
   edgeVoiceName: string
-  openAiVoiceModel: string
+  qwenVoice: string
+  kokoroVoice: string
   defaultRate: number
   defaultPitch: number
 }
@@ -40,61 +41,66 @@ interface CharacterVoiceOption {
 const CHARACTER_VOICE_OPTIONS: CharacterVoiceOption[] = [
   {
     id: 'char-yunxi',
-    name: '青年男性・知性的で温かみのある声 (Yunxi / Onyx)',
+    name: '青年男性・知性的で温かみのある声 (Yunxi / loongjohn)',
     gender: 'male',
     character: '落ち着き・論理的',
     recommendFor: '王浩 (ITエンジニア)',
-    desc: '20代の落ち着いた爽やかなトーン。明瞭で聞き取りやすい発音。',
+    desc: '20代の落ち着いた爽やかなトーン。明瞭で聞き取りやすいネイティブ発音。',
     edgeVoiceName: 'Microsoft Yunxi Online (Natural) - Chinese (Mainland)',
-    openAiVoiceModel: 'onyx',
+    qwenVoice: 'loongjohn',
+    kokoroVoice: 'zm_yunxi',
     defaultRate: 0.95,
     defaultPitch: 0.85,
   },
   {
     id: 'char-yunjian',
-    name: '男性・快活でエネルギッシュな声 (Yunjian / Echo)',
+    name: '男性・快活でエネルギッシュな声 (Yunjian / zm_yunjian)',
     gender: 'male',
     character: '元気・前向き',
     recommendFor: '張偉 (フィットネス)',
     desc: 'ハキハキと力強いトーン。スポーツや日常のテンポ良い会話に最適。',
     edgeVoiceName: 'Microsoft Yunjian Online (Natural) - Chinese (Mainland)',
-    openAiVoiceModel: 'echo',
+    qwenVoice: 'loongjohn',
+    kokoroVoice: 'zm_yunjian',
     defaultRate: 1.05,
     defaultPitch: 0.95,
   },
   {
     id: 'char-xiaoxiao',
-    name: '女性・明るく親しみやすい友達声 (Xiaoxiao / Nova)',
+    name: '女性・明るく親しみやすい友達声 (Xiaoxiao / longanhuan)',
     gender: 'female',
     character: '明るい・フランク',
     recommendFor: '陳美玲 (上海大学生)',
     desc: '同年代の友達と雑談しているような自然で生き生きとしたトーン。',
     edgeVoiceName: 'Microsoft Xiaoxiao Online (Natural) - Chinese (Mainland)',
-    openAiVoiceModel: 'nova',
+    qwenVoice: 'longanhuan_v3.6',
+    kokoroVoice: 'zf_xiaobei',
     defaultRate: 0.96,
     defaultPitch: 1.05,
   },
   {
     id: 'char-xiaoyi',
-    name: '女性・優しく愛らしいのんびり声 (Xiaoyi / Shimmer)',
+    name: '女性・優しく愛らしいのんびり声 (Xiaoyi / zf_xiaoxiao)',
     gender: 'female',
     character: '愛嬌・癒やし',
     recommendFor: '李雪 (成都デザイナー)',
     desc: '柔らかく優しいニュアンス。初心者の聞き取りにも最適な心地よい声。',
     edgeVoiceName: 'Microsoft Xiaoyi Online (Natural) - Chinese (Mainland)',
-    openAiVoiceModel: 'shimmer',
+    qwenVoice: 'longanhuan_v3.6',
+    kokoroVoice: 'zf_xiaoxiao',
     defaultRate: 0.88,
     defaultPitch: 1.18,
   },
   {
     id: 'char-xiaochen',
-    name: '女性・穏やかで上品な大人の声 (Xiaochen / Alloy)',
+    name: '女性・穏やかで上品な大人の声 (Xiaochen / zf_xiaoyi)',
     gender: 'female',
     character: '上品・穏やか',
     recommendFor: '林子涵 (杭州写真家)',
     desc: '品格があり旅情を感じさせる、クリアで落ち着きのある発音。',
     edgeVoiceName: 'Microsoft Xiaochen Online (Natural) - Chinese (Mainland)',
-    openAiVoiceModel: 'alloy',
+    qwenVoice: 'longanhuan_v3.6',
+    kokoroVoice: 'zf_xiaoyi',
     defaultRate: 0.92,
     defaultPitch: 0.96,
   },
@@ -106,26 +112,27 @@ export function VoiceSettingsModal({
   friend,
   onSaveVoice,
 }: VoiceSettingsModalProps) {
-  const [provider, setProvider] = useState<'browser' | 'openai'>(() => loadTtsProvider('browser'))
+  const [provider, setProvider] = useState<'browser' | 'openrouter'>(() => loadTtsProvider('openrouter'))
   const [gender, setGender] = useState<'female' | 'male'>(friend.voice?.gender || 'female')
   const [rate, setRate] = useState<number>(friend.voice?.rate ?? 0.95)
   const [pitch, setPitch] = useState<number>(friend.voice?.pitch ?? 1.0)
   const [voiceName, setVoiceName] = useState<string>(friend.voice?.voiceName || '')
-  const [voiceModel, setVoiceModel] = useState<string>(friend.voice?.voiceModel || 'alloy')
+  const [voiceModel, setVoiceModel] = useState<string>(friend.voice?.voiceModel || 'longanhuan_v3.6')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
   const [isPlayingPreview, setIsPlayingPreview] = useState(false)
 
-  const hasOpenAiKey = Boolean(loadOpenAiKey())
+  const hasApiKey = Boolean(loadApiKey())
+  const currentTtsModel = loadTtsModel()
 
   useEffect(() => {
     if (isOpen) {
-      setProvider(friend.voice?.ttsProvider || loadTtsProvider('browser'))
+      setProvider(friend.voice?.ttsProvider || loadTtsProvider('openrouter'))
       setGender(friend.voice?.gender || 'female')
       setRate(friend.voice?.rate ?? 0.95)
       setPitch(friend.voice?.pitch ?? 1.0)
       setVoiceName(friend.voice?.voiceName || '')
-      setVoiceModel(friend.voice?.voiceModel || 'alloy')
+      setVoiceModel(friend.voice?.voiceModel || 'longanhuan_v3.6')
 
       getAvailableVoices().then(() => {
         setAvailableVoices(getChineseVoices())
@@ -169,11 +176,15 @@ export function VoiceSettingsModal({
   }
 
   const handleApplyCharacterPreset = (preset: CharacterVoiceOption) => {
+    const selectedVoiceModel = currentTtsModel.includes('kokoro')
+      ? preset.kokoroVoice
+      : preset.qwenVoice
+
     setGender(preset.gender)
     setRate(preset.defaultRate)
     setPitch(preset.defaultPitch)
     setVoiceName(preset.edgeVoiceName)
-    setVoiceModel(preset.openAiVoiceModel)
+    setVoiceModel(selectedVoiceModel)
 
     // その声質で試聴
     handlePreview({
@@ -181,7 +192,7 @@ export function VoiceSettingsModal({
       rate: preset.defaultRate,
       pitch: preset.defaultPitch,
       voiceName: preset.edgeVoiceName,
-      voiceModel: preset.openAiVoiceModel,
+      voiceModel: selectedVoiceModel,
       ttsProvider: provider,
     })
   }
@@ -218,7 +229,7 @@ export function VoiceSettingsModal({
                 <span>{friend.name} の声質カスタマイズ</span>
               </h3>
               <p className="text-xs text-stone-500 m-0 mt-0.5">
-                声質モデル（キャラクター）や声のトーンを変更できます
+                友達キャラクターごとの声のトーンや話者を個別に設定できます
               </p>
             </div>
           </div>
@@ -238,10 +249,36 @@ export function VoiceSettingsModal({
         <div className="mt-4 space-y-5 text-sm text-stone-700 max-h-[70vh] overflow-y-auto pr-1">
           {/* TTS エンジン選択タブ */}
           <div>
-            <label className="text-xs font-bold text-stone-700 block mb-1.5">
-              音声合成 (TTS) エンジン:
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-stone-700 block">
+                音声合成 (TTS) エンジン:
+              </label>
+              <span className="text-[10px] text-stone-400">
+                モデル: <span className="font-mono text-stone-600 font-semibold">{currentTtsModel.split('/')[1] || currentTtsModel}</span>
+              </span>
+            </div>
             <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setProvider('openrouter')}
+                className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                  provider === 'openrouter'
+                    ? 'border-rose-400 bg-rose-50/80 text-rose-900 shadow-2xs font-semibold'
+                    : 'border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-600'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold flex items-center gap-1">
+                    <SparklesIcon className="w-3 h-3 text-amber-500" />
+                    <span>OpenRouter AI音声</span>
+                  </span>
+                  {provider === 'openrouter' && <CheckIcon className="w-3.5 h-3.5 text-rose-600" />}
+                </div>
+                <p className="text-[10px] text-stone-500 m-0 mt-0.5">
+                  {hasApiKey ? '推奨・ネイティブ四声 (設定済み)' : '要APIキー (設定で入力)'}
+                </p>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setProvider('browser')}
@@ -256,28 +293,7 @@ export function VoiceSettingsModal({
                   {provider === 'browser' && <CheckIcon className="w-3.5 h-3.5 text-rose-600" />}
                 </div>
                 <p className="text-[10px] text-stone-500 m-0 mt-0.5">
-                  無料・キー不要 (EdgeでNeural音声)
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setProvider('openai')}
-                className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                  provider === 'openai'
-                    ? 'border-rose-400 bg-rose-50/80 text-rose-900 shadow-2xs font-semibold'
-                    : 'border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-600'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold flex items-center gap-1">
-                    <SparklesIcon className="w-3 h-3 text-amber-500" />
-                    <span>OpenAI TTS</span>
-                  </span>
-                  {provider === 'openai' && <CheckIcon className="w-3.5 h-3.5 text-rose-600" />}
-                </div>
-                <p className="text-[10px] text-stone-500 m-0 mt-0.5">
-                  {hasOpenAiKey ? '超高音質AI音声 (設定済み)' : '要OpenAIキー (設定で入力)'}
+                  完全無料・キー不要 (端末内蔵音声)
                 </p>
               </button>
             </div>
@@ -287,15 +303,15 @@ export function VoiceSettingsModal({
           <div>
             <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5 mb-2">
               <SparklesIcon className="w-4 h-4 text-amber-500" />
-              <span>声質モデル（スピーカー）を選ぶ:</span>
+              <span>声質キャラクター（話者）を選ぶ:</span>
             </label>
             <div className="space-y-2">
               {CHARACTER_VOICE_OPTIONS.map((opt) => {
                 const isSelected =
                   gender === opt.gender &&
-                  (provider === 'openai'
-                    ? voiceModel === opt.openAiVoiceModel
-                    : voiceName === opt.edgeVoiceName || Math.abs(pitch - opt.defaultPitch) < 0.06)
+                  (provider === 'openrouter'
+                    ? (voiceModel === opt.qwenVoice || voiceModel === opt.kokoroVoice)
+                    : (voiceName === opt.edgeVoiceName || Math.abs(pitch - opt.defaultPitch) < 0.06))
 
                 return (
                   <div
@@ -322,8 +338,9 @@ export function VoiceSettingsModal({
                     <p className="text-[11px] text-stone-600 m-0 mt-1 leading-relaxed">
                       {opt.desc}
                     </p>
-                    <div className="mt-1 flex items-center gap-2 text-[10px] text-stone-400">
+                    <div className="mt-1 flex items-center justify-between text-[10px] text-stone-400">
                       <span>おすすめ: {opt.recommendFor}</span>
+                      <span className="font-mono text-stone-400">ID: {currentTtsModel.includes('kokoro') ? opt.kokoroVoice : opt.qwenVoice}</span>
                     </div>
                   </div>
                 )
@@ -400,20 +417,20 @@ export function VoiceSettingsModal({
                   </div>
                 </div>
 
-                {/* 特定のブラウザ音声選択 */}
-                {availableVoices.length > 0 && (
+                {/* ブラウザ固有の音声選択 (ブラウザ標準時) */}
+                {provider === 'browser' && availableVoices.length > 0 && (
                   <div>
-                    <label className="text-xs font-bold text-stone-700 block mb-1">
-                      ブラウザ内蔵の音声モデル (任意):
+                    <label className="block text-xs font-bold text-stone-700 mb-1">
+                      OS / ブラウザ内蔵の音声リスト:
                     </label>
                     <select
                       value={voiceName}
                       onChange={(e) => setVoiceName(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-rose-400 text-stone-700"
+                      className="w-full px-3 py-2 border border-stone-300 rounded-xl text-xs bg-white focus:border-rose-500 focus:outline-none"
                     >
-                      <option value="">自動選択 (推奨・キャラクター設定に合わせる)</option>
-                      {availableVoices.map((v, i) => (
-                        <option key={i} value={v.name}>
+                      <option value="">自動選択 (推奨)</option>
+                      {availableVoices.map((v) => (
+                        <option key={v.name} value={v.name}>
                           {v.name} ({v.lang})
                         </option>
                       ))}
@@ -423,34 +440,14 @@ export function VoiceSettingsModal({
               </div>
             )}
           </div>
-
-          {/* 音声に関する親切な案内 */}
-          <div className="p-3.5 bg-amber-50/80 border border-amber-200/80 rounded-2xl text-[11px] text-amber-900 space-y-1.5">
-            <div className="font-bold flex items-center gap-1.5 text-amber-800">
-              <span>💡 声質に関するアドバイス</span>
-            </div>
-            <p className="m-0 leading-relaxed text-stone-700">
-              <strong>【無料ですぐに最高音質で話す方法】</strong><br />
-              Windows標準の <strong>Microsoft Edge</strong> で本アプリを開くと、Microsoftの公式Neural音声（Yunxi、Xiaoxiao等）が標準で利用可能になり、ピッチ調整の違和感なく本物の中国語ネイティブの声で会話できます！
-            </p>
-            <p className="m-0 leading-relaxed text-stone-700">
-              <strong>【Chrome等で超高音質AI音声を使う方法】</strong><br />
-              OpenAI APIキーをお持ちの場合、上部の「OpenAI TTS」を選択すると、OnyxやNovaなどの極めて流暢なプロ声優級AI音声がご利用いただけます。
-            </p>
-          </div>
         </div>
 
-        {/* Footer: 試聴 & 保存 */}
-        <div className="mt-6 pt-4 border-t border-stone-100 flex items-center justify-between gap-3">
-          {/* 試聴ボタン */}
+        {/* Footer */}
+        <div className="mt-6 flex items-center justify-between pt-3 border-t border-stone-100">
           <button
             type="button"
             onClick={() => handlePreview()}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              isPlayingPreview
-                ? 'bg-rose-100 text-rose-700 animate-pulse border border-rose-200'
-                : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
-            }`}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors cursor-pointer"
           >
             {isPlayingPreview ? (
               <>

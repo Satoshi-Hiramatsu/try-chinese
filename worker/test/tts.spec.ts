@@ -25,11 +25,15 @@ describe('TTS API (/api/tts)', () => {
       body: JSON.stringify({ text: '你好' }),
     })
     const ctx = createExecutionContext()
-    const response = await worker.fetch(request, { ...env, OPENAI_API_KEY: undefined }, ctx)
+    const response = await worker.fetch(
+      request,
+      { ...env, OPENROUTER_API_KEY: undefined, OPENAI_API_KEY: undefined },
+      ctx
+    )
     await waitOnExecutionContext(ctx)
 
     expect(response.status).toBe(401)
     const json = (await response.json()) as { error: string }
-    expect(json.error).toContain('OpenAI APIキーが見つかりません')
+    expect(json.error).toContain('OpenRouter APIキーが見つかりません')
   })
 })

@@ -162,27 +162,34 @@ export function unlockSpeechSynthesis(): void {
   }
 }
 
-import { loadOpenAiKey, loadTtsProvider } from './storage'
+import { loadApiKey, loadTtsProvider, loadTtsModel } from './storage'
 
 // 再生中のオーディオオブジェクト
 let currentAudio: HTMLAudioElement | null = null
-// 生成済み音声Blobのメモリキャッシュ (key: model_speed_text -> objectUrl)
+// 生成済み音声Blobのメモリキャッシュ (key: model_voice_speed_text -> objectUrl)
 const audioBlobCache = new Map<string, string>()
 
 /**
- * OpenAI TTS API経由で音声を合成・再生する
+ * OpenRouter TTS API経由で音声を合成・再生する
  */
-async function speakWithOpenAiTts(
+async function speakWithOpenRouterTts(
   text: string,
   voice?: Voice,
   options?: SpeakOptions
 ): Promise<boolean> {
-  const openAiKey = loadOpenAiKey()
-  if (!openAiKey) return false
+  const apiKey = loadApiKey()
+  if (!apiKey) return false
 
-  const voiceModel = voice?.voiceModel || 'alloy'
+  const ttsModel = loadTtsModel()
+  const defaultVoice = ttsModel.includes('qwen')
+    ? (voice?.gender === 'male' ? 'loongjohn' : 'longanhuan_v3.6')
+    : ttsModel.includes('kokoro')
+      ? (voice?.gender === 'male' ? 'zm_yunjian' : 'zf_xiaobei')
+      : 'alloy'
+
+  const voiceModel = voice?.voiceModel || defaultVoice
   const speed = voice?.rate ?? 1.0
-  const cacheKey = `${voiceModel}_${speed}_${text}`
+  const cacheKey = `${ttsModel}_${voiceModel}_${speed}_${text}`
 
   try {
     let audioUrl = audioBlobCache.get(cacheKey)
@@ -192,17 +199,19 @@ async function speakWithOpenAiTts(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-openai-key': openAiKey,
+          'x-api-key': apiKey,
         },
         body: JSON.stringify({
           text,
+          model: ttsModel,
           voice: voiceModel,
           speed,
+          apiKey,
         }),
       })
 
       if (!res.ok) {
-        console.warn('OpenAI TTS API error, falling back to Web Speech API:', res.status)
+        console.warn('OpenRouter TTS API error, falling back to Web Speech API:', res.status)
         return false
       }
 
@@ -237,7 +246,7 @@ async function speakWithOpenAiTts(
     await audio.play()
     return true
   } catch (err) {
-    console.warn('OpenAI TTS execution error, falling back:', err)
+    console.warn('OpenRouter TTS execution error, falling back:', err)
     return false
   }
 }
@@ -251,12 +260,12 @@ export function speakChinese(text: string, voice?: Voice, options?: SpeakOptions
 
   if (!text.trim()) return
 
-  const effectiveProvider = voice?.ttsProvider || loadTtsProvider('browser')
-  const hasOpenAiKey = Boolean(loadOpenAiKey())
+  const effectiveProvider = voice?.ttsProvider || loadTtsProvider('openrouter')
+  const hasApiKey = Boolean(loadApiKey())
 
-  // 1. OpenAI TTS が有効でキーがある場合はAI音声を最優先試行
-  if (effectiveProvider === 'openai' && hasOpenAiKey) {
-    speakWithOpenAiTts(text, voice, {
+  // 1. OpenRouter TTS が有効でキーがある場合はAI音声を最優先試行
+  if (effectiveProvider === 'openrouter' && hasApiKey) {
+    speakWithOpenRouterTts(text, voice, {
       ...options,
       onError: () => {
         // AI音声失敗時はシームレスにブラウザ標準TTSへフォールバック

@@ -17,6 +17,7 @@ const STORAGE_KEYS = {
   TONE_COLORING: 'shabe_china_tone_coloring',
   OPENAI_API_KEY: 'shabe_china_openai_api_key',
   TTS_PROVIDER: 'shabe_china_tts_provider',
+  TTS_MODEL: 'shabe_china_tts_model',
 } as const
 
 export function loadApiKey(): string {
@@ -396,21 +397,49 @@ export function saveOpenAiKey(key: string): void {
   }
 }
 
-// --- TTSプロバイダ設定 ('browser' | 'openai') ---
+// --- TTSプロバイダ設定 ('browser' | 'openrouter') ---
 
-export function loadTtsProvider(defaultProvider: 'browser' | 'openai' = 'browser'): 'browser' | 'openai' {
+export function loadTtsProvider(
+  defaultProvider: 'browser' | 'openrouter' = 'openrouter'
+): 'browser' | 'openrouter' {
   try {
     const val = localStorage.getItem(STORAGE_KEYS.TTS_PROVIDER)
-    if (val === 'openai' || val === 'browser') return val
+    if (val === 'openrouter' || val === 'browser') return val
+    if (val === 'openai') return 'openrouter' // 旧openai設定からの安全な自動マイグレーション
     return defaultProvider
   } catch {
     return defaultProvider
   }
 }
 
-export function saveTtsProvider(provider: 'browser' | 'openai'): void {
+export function saveTtsProvider(provider: 'browser' | 'openrouter'): void {
   try {
     localStorage.setItem(STORAGE_KEYS.TTS_PROVIDER, provider)
+  } catch {
+    // ignore
+  }
+}
+
+// --- TTS音声モデル設定 (OpenRouter) ---
+
+export const DEFAULT_TTS_MODEL = 'qwen/qwen-audio-3.0-tts-flash'
+
+export function loadTtsModel(defaultModel = DEFAULT_TTS_MODEL): string {
+  try {
+    const val = localStorage.getItem(STORAGE_KEYS.TTS_MODEL)
+    return val && val.trim() ? val.trim() : defaultModel
+  } catch {
+    return defaultModel
+  }
+}
+
+export function saveTtsModel(model: string): void {
+  try {
+    if (model.trim()) {
+      localStorage.setItem(STORAGE_KEYS.TTS_MODEL, model.trim())
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.TTS_MODEL)
+    }
   } catch {
     // ignore
   }

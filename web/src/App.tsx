@@ -44,8 +44,8 @@ import {
   toggleVocabularyMastered,
   loadToneColoring,
   saveToneColoring,
-  loadOpenAiKey,
-  saveOpenAiKey,
+  loadTtsModel,
+  saveTtsModel,
   loadTtsProvider,
   saveTtsProvider,
 } from './services/storage'
@@ -135,8 +135,8 @@ export default function App() {
     loadSpeechInputLang('zh-CN')
   )
   const [toneColoring, setToneColoring] = useState<boolean>(() => loadToneColoring(false))
-  const [openAiKey, setOpenAiKey] = useState<string>(() => loadOpenAiKey())
-  const [ttsProvider, setTtsProvider] = useState<'browser' | 'openai'>(() => loadTtsProvider('browser'))
+  const [ttsModel, setTtsModel] = useState<string>(() => loadTtsModel())
+  const [ttsProvider, setTtsProvider] = useState<'browser' | 'openrouter'>(() => loadTtsProvider('openrouter'))
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false)
   const [playingText, setPlayingText] = useState<string | null>(null)
 
@@ -212,8 +212,8 @@ export default function App() {
     newAutoPlay: boolean,
     newSpeechLang: 'zh-CN' | 'ja-JP',
     newToneColoring: boolean,
-    newOpenAiKey?: string,
-    newTtsProvider?: 'browser' | 'openai'
+    newTtsModel?: string,
+    newTtsProvider?: 'browser' | 'openrouter'
   ) => {
     setApiKey(newKey)
     saveApiKey(newKey)
@@ -225,9 +225,9 @@ export default function App() {
     saveSpeechInputLang(newSpeechLang)
     setToneColoring(newToneColoring)
     saveToneColoring(newToneColoring)
-    if (newOpenAiKey !== undefined) {
-      setOpenAiKey(newOpenAiKey)
-      saveOpenAiKey(newOpenAiKey)
+    if (newTtsModel !== undefined) {
+      setTtsModel(newTtsModel)
+      saveTtsModel(newTtsModel)
     }
     if (newTtsProvider !== undefined) {
       setTtsProvider(newTtsProvider)
@@ -464,7 +464,7 @@ export default function App() {
         onClose={() => setIsSettingsModalOpen(false)}
         currentApiKey={apiKey}
         currentModel={model}
-        currentOpenAiKey={openAiKey}
+        currentTtsModel={ttsModel}
         currentTtsProvider={ttsProvider}
         autoPlayTts={autoPlayTts}
         speechInputLang={speechInputLang}
