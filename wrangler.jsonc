@@ -1,0 +1,25 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "try-chinese",
+	"main": "worker/src/index.ts",
+	"compatibility_date": "2026-09-03",
+	"compatibility_flags": [
+		"global_fetch_strictly_public"
+	],
+	"assets": {
+		"directory": "web/dist",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application"
+	},
+	"routes": [
+		{
+			"pattern": "try-chinese.molkz.com",
+			"custom_domain": true
+		}
+	],
+	"workers_dev": true,
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true
+}
