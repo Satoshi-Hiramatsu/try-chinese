@@ -12,6 +12,7 @@ import {
   SparklesIcon,
 } from './Icons'
 import { speakChinese, stopSpeaking } from '../services/speech'
+import { TonePinyin } from './TonePinyin'
 
 interface VocabularyModalProps {
   isOpen: boolean
@@ -375,9 +376,10 @@ export function VocabularyModal({
                         {item.term}
                       </span>
                       {item.pinyin && (
-                        <span className="text-xs sm:text-sm text-rose-600 font-mono">
-                          {item.pinyin}
-                        </span>
+                        <TonePinyin
+                          pinyin={item.pinyin}
+                          className="text-xs sm:text-sm text-stone-600"
+                        />
                       )}
                       {item.hskLevel && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-amber-100 text-amber-800">

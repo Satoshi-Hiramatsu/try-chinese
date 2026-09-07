@@ -17,7 +17,14 @@ interface SettingsModalProps {
   currentModel: string
   autoPlayTts?: boolean
   speechInputLang?: 'zh-CN' | 'ja-JP'
-  onSave: (apiKey: string, model: string, autoPlayTts: boolean, speechInputLang: 'zh-CN' | 'ja-JP') => void
+  toneColoring?: boolean
+  onSave: (
+    apiKey: string,
+    model: string,
+    autoPlayTts: boolean,
+    speechInputLang: 'zh-CN' | 'ja-JP',
+    toneColoring: boolean
+  ) => void
 }
 
 const PRESET_MODELS = [
@@ -35,24 +42,27 @@ export function SettingsModal({
   currentModel,
   autoPlayTts = false,
   speechInputLang = 'zh-CN',
+  toneColoring = true,
   onSave,
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey)
   const [model, setModel] = useState(currentModel || 'google/gemini-2.5-flash')
   const [autoPlay, setAutoPlay] = useState(autoPlayTts)
   const [inputLang, setInputLang] = useState<'zh-CN' | 'ja-JP'>(speechInputLang)
+  const [enableToneColor, setEnableToneColor] = useState(toneColoring)
 
   useEffect(() => {
     setApiKey(currentApiKey)
     setModel(currentModel || 'google/gemini-2.5-flash')
     setAutoPlay(autoPlayTts)
     setInputLang(speechInputLang)
-  }, [currentApiKey, currentModel, autoPlayTts, speechInputLang, isOpen])
+    setEnableToneColor(toneColoring)
+  }, [currentApiKey, currentModel, autoPlayTts, speechInputLang, toneColoring, isOpen])
 
   if (!isOpen) return null
 
   const handleSave = () => {
-    onSave(apiKey, model, autoPlay, inputLang)
+    onSave(apiKey, model, autoPlay, inputLang, enableToneColor)
     onClose()
   }
 
@@ -234,6 +244,33 @@ export function SettingsModal({
                   🇯🇵 日本語
                 </button>
               </div>
+            </div>
+
+            {/* ピンイン声調の色分け表示 */}
+            <div className="flex items-center justify-between p-3 bg-stone-50 rounded-2xl border border-stone-200/80">
+              <div>
+                <span className="text-xs font-bold text-stone-800 block">
+                  ピンイン声調の色分け表示
+                </span>
+                <span className="text-[11px] text-stone-500 block mt-0.5">
+                  第1声(赤)・第2声(橙)・第3声(緑)・第4声(青)・軽声(灰)をハイライト
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEnableToneColor(!enableToneColor)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                  enableToneColor ? 'bg-rose-500' : 'bg-stone-300'
+                }`}
+                role="switch"
+                aria-checked={enableToneColor}
+              >
+                <span
+                  className={`block w-4 h-4 rounded-full bg-white transition-transform transform shadow-xs ${
+                    enableToneColor ? 'translate-x-6' : 'translate-x-1'
+                  } top-1`}
+                />
+              </button>
             </div>
           </div>
 

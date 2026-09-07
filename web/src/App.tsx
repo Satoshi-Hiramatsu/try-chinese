@@ -42,6 +42,8 @@ import {
   addVocabularyItem,
   deleteVocabularyItem,
   toggleVocabularyMastered,
+  loadToneColoring,
+  saveToneColoring,
 } from './services/storage'
 
 const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => {
@@ -128,6 +130,7 @@ export default function App() {
   const [speechInputLang, setSpeechInputLang] = useState<'zh-CN' | 'ja-JP'>(() =>
     loadSpeechInputLang('zh-CN')
   )
+  const [toneColoring, setToneColoring] = useState<boolean>(() => loadToneColoring(true))
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false)
   const [playingText, setPlayingText] = useState<string | null>(null)
 
@@ -201,7 +204,8 @@ export default function App() {
     newKey: string,
     newModel: string,
     newAutoPlay: boolean,
-    newSpeechLang: 'zh-CN' | 'ja-JP'
+    newSpeechLang: 'zh-CN' | 'ja-JP',
+    newToneColoring: boolean
   ) => {
     setApiKey(newKey)
     saveApiKey(newKey)
@@ -211,6 +215,8 @@ export default function App() {
     saveAutoPlayTts(newAutoPlay)
     setSpeechInputLang(newSpeechLang)
     saveSpeechInputLang(newSpeechLang)
+    setToneColoring(newToneColoring)
+    saveToneColoring(newToneColoring)
     setErrorMessage(null)
   }
 
@@ -399,6 +405,7 @@ export default function App() {
             onPlayText={handlePlayText}
             onStopText={handleStopText}
             savedTerms={savedTermsSet}
+            enableToneColoring={toneColoring}
             onSaveVocabulary={handleAddVocabulary}
           />
         </div>
@@ -421,6 +428,7 @@ export default function App() {
         currentModel={model}
         autoPlayTts={autoPlayTts}
         speechInputLang={speechInputLang}
+        toneColoring={toneColoring}
         onSave={handleSaveSettings}
       />
 

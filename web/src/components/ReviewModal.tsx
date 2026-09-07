@@ -10,6 +10,7 @@ import {
   BookOpenIcon,
 } from './Icons'
 import { speakChinese, stopSpeaking } from '../services/speech'
+import { TonePinyin } from './TonePinyin'
 
 interface ReviewModalProps {
   isOpen: boolean
@@ -343,9 +344,12 @@ export function ReviewModal({
 
                 {/* ピンイン */}
                 {(showPinyinOnFront || isFlipped) && currentItem.pinyin && (
-                  <p className="text-sm sm:text-base text-rose-600 font-mono font-medium m-0 mb-2">
-                    {currentItem.pinyin}
-                  </p>
+                  <div className="mb-2">
+                    <TonePinyin
+                      pinyin={currentItem.pinyin}
+                      className="text-sm sm:text-base text-stone-600 font-medium"
+                    />
+                  </div>
                 )}
 
                 {/* 裏面の内容 */}
@@ -426,7 +430,12 @@ export function ReviewModal({
                   {currentItem.term}
                 </h3>
                 {currentItem.pinyin && (
-                  <p className="text-xs text-rose-600 font-mono mt-1 mb-0">{currentItem.pinyin}</p>
+                  <div className="mt-1">
+                    <TonePinyin
+                      pinyin={currentItem.pinyin}
+                      className="text-xs text-stone-600"
+                    />
+                  </div>
                 )}
               </div>
 

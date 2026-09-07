@@ -11,6 +11,7 @@ interface ChatMessageListProps {
   onPlayText?: (text: string) => void
   onStopText?: () => void
   savedTerms?: Set<string>
+  enableToneColoring?: boolean
   onSaveVocabulary?: (item: {
     term: string
     pinyin: string
@@ -28,6 +29,7 @@ export function ChatMessageList({
   onPlayText,
   onStopText,
   savedTerms,
+  enableToneColoring = true,
   onSaveVocabulary,
 }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -59,6 +61,7 @@ export function ChatMessageList({
             onPlayText={onPlayText}
             onStopText={onStopText}
             savedTerms={savedTerms}
+            enableToneColoring={enableToneColoring}
             onSaveVocabulary={onSaveVocabulary}
           />
         ))

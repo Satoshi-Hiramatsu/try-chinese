@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ChatMessage, Friend } from '../types'
 import { BulbIcon, SpeakerIcon, StopCircleIcon, BookmarkIcon, BookmarkFilledIcon } from './Icons'
 import { FriendAvatar } from './FriendAvatar'
+import { TonePinyin } from './TonePinyin'
 
 interface ChatMessageItemProps {
   message: ChatMessage
@@ -10,6 +11,7 @@ interface ChatMessageItemProps {
   onPlayText?: (text: string) => void
   onStopText?: () => void
   savedTerms?: Set<string>
+  enableToneColoring?: boolean
   onSaveVocabulary?: (item: {
     term: string
     pinyin: string
@@ -26,6 +28,7 @@ export function ChatMessageItem({
   onPlayText,
   onStopText,
   savedTerms,
+  enableToneColoring = true,
   onSaveVocabulary,
 }: ChatMessageItemProps) {
   const [showCorrection, setShowCorrection] = useState(true)
@@ -80,9 +83,11 @@ export function ChatMessageItem({
               {/* 音声再生ボタン (右上) */}
               <div className="flex items-center justify-between mb-1">
                 {/* ピンイン常時表示（発音重視） */}
-                <p className="text-xs sm:text-sm text-rose-600 font-mono tracking-wide m-0 select-text leading-snug">
-                  {reply.pinyin}
-                </p>
+                <TonePinyin
+                  pinyin={reply.pinyin}
+                  enableColoring={enableToneColoring}
+                  className="text-xs sm:text-sm text-stone-600 m-0 leading-snug"
+                />
 
                 <button
                   type="button"
@@ -140,7 +145,9 @@ export function ChatMessageItem({
                     <span lang="zh-CN" className="font-chinese font-bold text-amber-900">
                       {vocab.term}
                     </span>
-                    <span className="text-[10px] text-amber-700 font-mono">({vocab.pinyin})</span>
+                    <span className="text-[10px] text-stone-500 font-mono">
+                      (<TonePinyin pinyin={vocab.pinyin} enableColoring={enableToneColoring} />)
+                    </span>
                     <span className="text-[10px] text-stone-500">{vocab.ja}</span>
                     {vocab.hskLevel && (
                       <span className="text-[9px] px-1 bg-amber-200/60 text-amber-800 rounded font-semibold">
@@ -221,8 +228,8 @@ export function ChatMessageItem({
                           {correction.suggested}
                         </span>
                         {correction.pinyin && (
-                          <span className="text-[11px] text-rose-600 font-mono ml-2">
-                            ({correction.pinyin})
+                          <span className="text-[11px] text-stone-600 font-mono ml-2">
+                            (<TonePinyin pinyin={correction.pinyin} enableColoring={enableToneColoring} />)
                           </span>
                         )}
                       </div>
