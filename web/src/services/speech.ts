@@ -181,13 +181,32 @@ async function speakWithOpenRouterTts(
   if (!apiKey) return false
 
   const ttsModel = loadTtsModel()
-  const defaultVoice = ttsModel.includes('qwen')
-    ? (voice?.gender === 'male' ? 'loongjohn' : 'longanhuan_v3.6')
-    : ttsModel.includes('kokoro')
-      ? (voice?.gender === 'male' ? 'zm_yunjian' : 'zf_xiaobei')
-      : 'alloy'
+  const isMale = voice?.gender === 'male' || (voice?.voiceModel && (voice.voiceModel.includes('john') || voice.voiceModel.includes('yun') || voice.voiceModel.includes('male') || voice.voiceModel.includes('onyx') || voice.voiceModel.includes('echo')))
 
-  const voiceModel = voice?.voiceModel || defaultVoice
+  let voiceModel = voice?.voiceModel || ''
+
+  if (ttsModel.includes('kokoro')) {
+    // Kokoro用の話者に正規化
+    if (!voiceModel || !voiceModel.startsWith('z')) {
+      voiceModel = isMale ? 'zm_yunxi' : 'zf_xiaoxiao'
+    }
+  } else if (ttsModel.includes('qwen')) {
+    // Qwen用の話者に正規化
+    if (ttsModel.includes('plus')) {
+      if (voiceModel !== 'longanlingxin' && voiceModel !== 'longanlufeng') {
+        voiceModel = isMale ? 'longanlufeng' : 'longanlingxin'
+      }
+    } else {
+      if (voiceModel !== 'loongjohn' && voiceModel !== 'longanhuan_v3.6') {
+        voiceModel = isMale ? 'loongjohn' : 'longanhuan_v3.6'
+      }
+    }
+  } else {
+    if (!voiceModel) {
+      voiceModel = 'alloy'
+    }
+  }
+
   const speed = voice?.rate ?? 1.0
   const cacheKey = `${ttsModel}_${voiceModel}_${speed}_${text}`
 

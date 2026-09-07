@@ -12,25 +12,25 @@ import {
 
 export const PRESET_TTS_MODELS = [
   {
+    id: 'hexgrad/kokoro-82m',
+    name: 'Kokoro 82M',
+    tag: '推奨・5人全員の個別声質対応',
+    price: '$4 / 100万tok',
+    desc: '破格の低価格オープンTTS。中国語8話者対応で王浩・張偉・美玲たち5人全員を別々のリアルな声に演じ分け！',
+  },
+  {
     id: 'qwen/qwen-audio-3.0-tts-flash',
     name: 'Qwen Audio 3.0 TTS Flash',
-    tag: '推奨・中国語最高峰',
+    tag: '中国語最高峰の抑揚',
     price: '$15 / 100万tok',
-    desc: 'アリババ製。中国語の四声や抑揚が圧倒的に自然。低遅延で会話に最適',
+    desc: 'アリババ製。四声や抑揚が圧倒的に自然（※話者は男性1種・女性1種の計2種のみ提供）',
   },
   {
     id: 'qwen/qwen-audio-3.0-tts-plus',
     name: 'Qwen Audio 3.0 TTS Plus',
     tag: '最高品質',
     price: '$20 / 100万tok',
-    desc: 'Qwenの上位モデル。豊かな表現力と細やかなニュアンス',
-  },
-  {
-    id: 'hexgrad/kokoro-82m',
-    name: 'Kokoro 82M',
-    tag: '超爆安・高コスパ',
-    price: '$4 / 100万tok',
-    desc: '破格の低価格オープンTTS。トークン消費を最小限に抑えたい場合に最適',
+    desc: 'Qwenの上位モデル。豊かな表現力と細やかなニュアンス（男女各1種）',
   },
   {
     id: 'fish-audio/s2.1-pro-free:free',
@@ -322,7 +322,7 @@ export function SettingsModal({
                     })}
                   </div>
                   <p className="text-[10px] text-stone-400 mt-1 m-0">
-                    ※ 各友達キャラクター（美玲や王浩など）の「声のトーン・話者」は、友達カードの「声質」ボタンから個別にカスタマイズ可能です。
+                    ※ 各友達キャラクター（美玲や王浩など）の「声のトーン・話者」は、友達カードの「声質」ボタンから個別にカスタマイズ可能です（Kokoro 82M または ブラウザ/Edge なら5人全員が別々の個性的な声になります）。
                   </p>
                 </div>
               )}

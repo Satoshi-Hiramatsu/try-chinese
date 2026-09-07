@@ -41,7 +41,7 @@ interface CharacterVoiceOption {
 const CHARACTER_VOICE_OPTIONS: CharacterVoiceOption[] = [
   {
     id: 'char-yunxi',
-    name: '青年男性・知性的で温かみのある声 (Yunxi / loongjohn)',
+    name: '青年男性・知性的で温かみのある声 (Yunxi)',
     gender: 'male',
     character: '落ち着き・論理的',
     recommendFor: '王浩 (ITエンジニア)',
@@ -54,7 +54,7 @@ const CHARACTER_VOICE_OPTIONS: CharacterVoiceOption[] = [
   },
   {
     id: 'char-yunjian',
-    name: '男性・快活でエネルギッシュな声 (Yunjian / zm_yunjian)',
+    name: '男性・快活でエネルギッシュな声 (Yunjian)',
     gender: 'male',
     character: '元気・前向き',
     recommendFor: '張偉 (フィットネス)',
@@ -67,40 +67,40 @@ const CHARACTER_VOICE_OPTIONS: CharacterVoiceOption[] = [
   },
   {
     id: 'char-xiaoxiao',
-    name: '女性・明るく親しみやすい友達声 (Xiaoxiao / longanhuan)',
+    name: '女性・明るく親しみやすい友達声 (Xiaoxiao)',
     gender: 'female',
     character: '明るい・フランク',
     recommendFor: '陳美玲 (上海大学生)',
     desc: '同年代の友達と雑談しているような自然で生き生きとしたトーン。',
     edgeVoiceName: 'Microsoft Xiaoxiao Online (Natural) - Chinese (Mainland)',
     qwenVoice: 'longanhuan_v3.6',
-    kokoroVoice: 'zf_xiaobei',
+    kokoroVoice: 'zf_xiaoxiao',
     defaultRate: 0.96,
     defaultPitch: 1.05,
   },
   {
     id: 'char-xiaoyi',
-    name: '女性・優しく愛らしいのんびり声 (Xiaoyi / zf_xiaoxiao)',
+    name: '女性・優しく愛らしいのんびり声 (Xiaoyi)',
     gender: 'female',
     character: '愛嬌・癒やし',
     recommendFor: '李雪 (成都デザイナー)',
     desc: '柔らかく優しいニュアンス。初心者の聞き取りにも最適な心地よい声。',
     edgeVoiceName: 'Microsoft Xiaoyi Online (Natural) - Chinese (Mainland)',
     qwenVoice: 'longanhuan_v3.6',
-    kokoroVoice: 'zf_xiaoxiao',
+    kokoroVoice: 'zf_xiaoyi',
     defaultRate: 0.88,
     defaultPitch: 1.18,
   },
   {
     id: 'char-xiaochen',
-    name: '女性・穏やかで上品な大人の声 (Xiaochen / zf_xiaoyi)',
+    name: '女性・穏やかで上品な大人の声 (Xiaochen)',
     gender: 'female',
     character: '上品・穏やか',
     recommendFor: '林子涵 (杭州写真家)',
     desc: '品格があり旅情を感じさせる、クリアで落ち着きのある発音。',
     edgeVoiceName: 'Microsoft Xiaochen Online (Natural) - Chinese (Mainland)',
     qwenVoice: 'longanhuan_v3.6',
-    kokoroVoice: 'zf_xiaoyi',
+    kokoroVoice: 'zf_xiaobei',
     defaultRate: 0.92,
     defaultPitch: 0.96,
   },
@@ -118,6 +118,12 @@ export function VoiceSettingsModal({
   const [pitch, setPitch] = useState<number>(friend.voice?.pitch ?? 1.0)
   const [voiceName, setVoiceName] = useState<string>(friend.voice?.voiceName || '')
   const [voiceModel, setVoiceModel] = useState<string>(friend.voice?.voiceModel || 'longanhuan_v3.6')
+  const [selectedPresetId, setSelectedPresetId] = useState<string>(() => {
+    const matched = CHARACTER_VOICE_OPTIONS.find((opt) =>
+      opt.recommendFor.includes(friend.name.replace(/\s*\(.*?\)/g, ''))
+    )
+    return matched ? matched.id : 'char-yunxi'
+  })
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
   const [isPlayingPreview, setIsPlayingPreview] = useState(false)
@@ -134,6 +140,15 @@ export function VoiceSettingsModal({
       setPitch(friend.voice?.pitch ?? 1.0)
       setVoiceName(friend.voice?.voiceName || '')
       setVoiceModel(friend.voice?.voiceModel || 'longanhuan_v3.6')
+
+      const matched = CHARACTER_VOICE_OPTIONS.find((opt) =>
+        opt.recommendFor.includes(friend.name.replace(/\s*\(.*?\)/g, '')) ||
+        opt.kokoroVoice === friend.voice?.voiceModel ||
+        opt.edgeVoiceName === friend.voice?.voiceName
+      )
+      if (matched) {
+        setSelectedPresetId(matched.id)
+      }
 
       getAvailableVoices().then(() => {
         setAvailableVoices(getChineseVoices())
@@ -177,6 +192,7 @@ export function VoiceSettingsModal({
   }
 
   const handleApplyCharacterPreset = (preset: CharacterVoiceOption) => {
+    setSelectedPresetId(preset.id)
     const selectedVoiceModel = currentTtsModel.includes('kokoro')
       ? preset.kokoroVoice
       : preset.qwenVoice
@@ -321,17 +337,41 @@ export function VoiceSettingsModal({
 
           {/* 声質キャラクター選択 */}
           <div>
-            <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5 mb-2">
-              <SparklesIcon className="w-4 h-4 text-amber-500" />
-              <span>声質キャラクター（話者）を選ぶ:</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
+                <SparklesIcon className="w-4 h-4 text-amber-500" />
+                <span>声質キャラクター（話者）を選ぶ:</span>
+              </label>
+              {provider === 'openrouter' && currentTtsModel.includes('kokoro') && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 font-bold rounded-md">
+                  5人個別声質対応
+                </span>
+              )}
+            </div>
+
+            {/* Qwen Flash選択時のガイドアラート */}
+            {provider === 'openrouter' && currentTtsModel.includes('qwen') && (
+              <div className="mb-2.5 p-2.5 rounded-xl bg-amber-50/90 border border-amber-200 text-[11px] text-amber-800 leading-relaxed">
+                <div className="font-bold flex items-center gap-1 text-amber-900">
+                  <span>💡</span>
+                  <span>各友達で別々の声質にしたい場合:</span>
+                </div>
+                <p className="m-0 mt-0.5 text-amber-700">
+                  現在選択中の「Qwen TTS」は、OpenRouter公式仕様により話者が<strong>男性1種 (loongjohn)・女性1種 (longanhuan) の計2種</strong>のみとなります。5人全員を別々の声質で演じ分けるには、設定画面から<strong>「Kokoro 82M」</strong>または<strong>「ブラウザ / Edge」</strong>をお選びください。
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               {CHARACTER_VOICE_OPTIONS.map((opt) => {
-                const isSelected =
-                  gender === opt.gender &&
-                  (provider === 'openrouter'
-                    ? (voiceModel === opt.qwenVoice || voiceModel === opt.kokoroVoice)
-                    : (voiceName === opt.edgeVoiceName || Math.abs(pitch - opt.defaultPitch) < 0.06))
+                const isSelected = selectedPresetId === opt.id
+
+                const displayVoiceId =
+                  provider === 'browser'
+                    ? (opt.edgeVoiceName.includes('Online') ? opt.edgeVoiceName.split(' ')[1] : opt.edgeVoiceName)
+                    : currentTtsModel.includes('kokoro')
+                      ? opt.kokoroVoice
+                      : opt.qwenVoice
 
                 return (
                   <div
@@ -360,7 +400,7 @@ export function VoiceSettingsModal({
                     </p>
                     <div className="mt-1 flex items-center justify-between text-[10px] text-stone-400">
                       <span>おすすめ: {opt.recommendFor}</span>
-                      <span className="font-mono text-stone-400">ID: {currentTtsModel.includes('kokoro') ? opt.kokoroVoice : opt.qwenVoice}</span>
+                      <span className="font-mono text-stone-500 font-medium">話者ID: {displayVoiceId}</span>
                     </div>
                   </div>
                 )

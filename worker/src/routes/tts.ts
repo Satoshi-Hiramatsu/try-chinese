@@ -60,14 +60,40 @@ ttsRoute.post('/tts', async (c) => {
   // 使用モデルの検証（許可リスト外または未指定の場合は高コスパなデフォルトを使用）
   const targetModel = model && ALLOWED_TTS_MODELS.includes(model) ? model : DEFAULT_TTS_MODEL
 
-  // モデルごとのデフォルト声質
-  const defaultVoice = targetModel.includes('qwen')
-    ? 'longanhuan_v3.6'
-    : targetModel.includes('kokoro')
-      ? 'zf_xiaobei'
-      : 'alloy'
+  // モデルごとの有効話者リストと自動フォールバック
+  const isMaleGuess = (v?: string) =>
+    v && (v.includes('john') || v.includes('yun') || v.includes('male') || v.includes('onyx') || v.includes('echo'))
 
-  const selectedVoice = voice && voice.trim() !== '' ? voice.trim() : defaultVoice
+  let selectedVoice = voice && voice.trim() !== '' ? voice.trim() : ''
+
+  if (targetModel === 'qwen/qwen-audio-3.0-tts-flash') {
+    const validQwenVoices = ['loongjohn', 'longanhuan_v3.6']
+    if (!validQwenVoices.includes(selectedVoice)) {
+      selectedVoice = isMaleGuess(selectedVoice) ? 'loongjohn' : 'longanhuan_v3.6'
+    }
+  } else if (targetModel === 'qwen/qwen-audio-3.0-tts-plus') {
+    const validPlusVoices = ['longanlingxin', 'longanlufeng']
+    if (!validPlusVoices.includes(selectedVoice)) {
+      selectedVoice = isMaleGuess(selectedVoice) ? 'longanlufeng' : 'longanlingxin'
+    }
+  } else if (targetModel.includes('kokoro')) {
+    const validKokoroZhVoices = [
+      'zf_xiaobei',
+      'zf_xiaoni',
+      'zf_xiaoxiao',
+      'zf_xiaoyi',
+      'zm_yunjian',
+      'zm_yunxi',
+      'zm_yunxia',
+      'zm_yunyang',
+    ]
+    if (!selectedVoice || !selectedVoice.startsWith('z')) {
+      selectedVoice = isMaleGuess(selectedVoice) ? 'zm_yunxi' : 'zf_xiaoxiao'
+    }
+  } else if (!selectedVoice) {
+    selectedVoice = 'alloy'
+  }
+
   const clampedSpeed = Math.max(0.25, Math.min(4.0, Number(speed) || 1.0))
 
   try {
