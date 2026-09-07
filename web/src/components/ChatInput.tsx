@@ -3,6 +3,7 @@ import { SendIcon, MicIcon, StopCircleIcon } from './Icons'
 import {
   createSpeechRecognizer,
   isSpeechRecognitionSupported,
+  unlockSpeechSynthesis,
   type SpeechRecognitionController,
 } from '../services/speech'
 
@@ -54,6 +55,9 @@ export function ChatInput({
     }
 
     if (text.trim() && !isLoading && !disabled) {
+      // ユーザージェスチャー同期タイミングでブラウザのTTS制限を事前アンロック
+      unlockSpeechSynthesis()
+
       onSendMessage(text.trim())
       setText('')
       setInterimText('')
@@ -64,6 +68,11 @@ export function ChatInput({
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // 日本語・中国語ピンイン等のIME変換中（確定前のEnter）は送信しない
+    if (e.nativeEvent.isComposing || e.keyCode === 229) {
+      return
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -91,6 +100,9 @@ export function ChatInput({
       return
     }
 
+    // 開始前にTTSアンロック
+    unlockSpeechSynthesis()
+
     // 開始
     setInterimText('')
     const recognizer = createSpeechRecognizer({
@@ -101,9 +113,20 @@ export function ChatInput({
       onInterimResult: (interim) => {
         setInterimText(interim)
       },
-      onFinalResult: (final) => {
+      onFinalResult: (finalChunk) => {
         setText((prev) => {
-          const next = prev ? `${prev} ${final}` : final
+          const trimmedPrev = prev.trim()
+          // 前の文字列が英数字・ピンインで、追加分も英数字の場合はスペースを空け、漢字等の場合は自然に連結
+          const shouldAddSpace = Boolean(
+            trimmedPrev &&
+            /[a-zA-Z0-9]$/.test(trimmedPrev) &&
+            /^[a-zA-Z0-9]/.test(finalChunk)
+          )
+          const next = trimmedPrev
+            ? shouldAddSpace
+              ? `${trimmedPrev} ${finalChunk}`
+              : `${trimmedPrev}${finalChunk}`
+            : finalChunk
           setTimeout(() => handleInput(), 10)
           return next
         })
@@ -130,19 +153,35 @@ export function ChatInput({
     <div className="w-full bg-white/95 backdrop-blur-md rounded-2xl p-2 sm:p-3 shadow-md border border-rose-200/80 transition-all">
       {/* 音声認識中のインジケータ */}
       {isListening && (
-        <div className="mb-2 px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between animate-pulse">
-          <div className="flex items-center gap-2 text-xs font-semibold text-rose-600">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
-            <span>
+        <div className="mb-2 px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-semibold text-rose-600 min-w-0">
+            <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-600"></span>
+            </span>
+            <span className="flex-shrink-0">
               {speechLang === 'zh-CN' ? '中国語' : '日本語'}で聞き取り中...
             </span>
             {interimText && (
-              <span className="text-stone-600 font-normal italic truncate max-w-xs">
+              <span className="text-stone-600 font-normal italic truncate">
                 "{interimText}"
               </span>
             )}
           </div>
-          <span className="text-[10px] text-rose-400">マイクボタンで停止</span>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span className="text-[10px] text-stone-500 hidden sm:inline">話し終えたら</span>
+            <button
+              type="button"
+              onClick={() => {
+                recognizerRef.current?.stop()
+                setIsListening(false)
+                setInterimText('')
+              }}
+              className="px-2 py-0.5 text-xs bg-white border border-rose-200 text-rose-600 font-bold rounded-md hover:bg-rose-100 transition-colors cursor-pointer"
+            >
+              完了
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { UsersIcon, SparklesIcon, SettingsIcon, TrashIcon, BookOpenIcon } from './Icons'
+import { UsersIcon, SparklesIcon, SettingsIcon, TrashIcon, BookOpenIcon, SpeakerIcon } from './Icons'
 
 interface HeaderProps {
   hskLevel: number
@@ -10,6 +10,10 @@ interface HeaderProps {
   onOpenFriendList?: () => void
   onOpenVocabulary?: () => void
   vocabularyCount?: number
+  autoPlayTts?: boolean
+  onToggleAutoPlayTts?: () => void
+  toneColoring?: boolean
+  onToggleToneColoring?: () => void
 }
 
 export function Header({
@@ -22,6 +26,10 @@ export function Header({
   onOpenFriendList,
   onOpenVocabulary,
   vocabularyCount = 0,
+  autoPlayTts = false,
+  onToggleAutoPlayTts,
+  toneColoring = false,
+  onToggleToneColoring,
 }: HeaderProps) {
   return (
     <header className="w-full max-w-3xl flex items-center justify-between py-3 px-2 sm:px-0 border-b border-rose-200/60">
@@ -96,6 +104,40 @@ export function Header({
           <SparklesIcon className="w-3.5 h-3.5 text-amber-500" />
           <span className="hidden md:inline">趣味設定</span>
         </button>
+
+        {/* Auto Play TTS Toggle Button */}
+        {onToggleAutoPlayTts && (
+          <button
+            type="button"
+            onClick={onToggleAutoPlayTts}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium border transition-colors shadow-xs cursor-pointer ${
+              autoPlayTts
+                ? 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'
+                : 'bg-white/90 text-stone-400 border-stone-200 hover:text-stone-600'
+            }`}
+            title={autoPlayTts ? '返答の自動読み上げ: ON（クリックでOFF）' : '返答の自動読み上げ: OFF（クリックでON）'}
+          >
+            <SpeakerIcon className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">{autoPlayTts ? '音声:ON' : '音声:OFF'}</span>
+          </button>
+        )}
+
+        {/* Tone Coloring Toggle Button */}
+        {onToggleToneColoring && (
+          <button
+            type="button"
+            onClick={onToggleToneColoring}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium border transition-colors shadow-xs cursor-pointer ${
+              toneColoring
+                ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                : 'bg-white/90 text-stone-400 border-stone-200 hover:text-stone-600'
+            }`}
+            title={toneColoring ? 'ピンイン声調カラー: ON（クリックでOFF）' : 'ピンイン声調カラー: OFF（クリックでON）'}
+          >
+            <span className="font-mono text-[11px] font-bold">ā/a</span>
+            <span className="hidden lg:inline">{toneColoring ? '色分:ON' : '色分:OFF'}</span>
+          </button>
+        )}
 
         {/* Settings Button */}
         <button

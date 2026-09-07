@@ -29,7 +29,7 @@ export function ChatMessageList({
   onPlayText,
   onStopText,
   savedTerms,
-  enableToneColoring = true,
+  enableToneColoring = false,
   onSaveVocabulary,
 }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null)

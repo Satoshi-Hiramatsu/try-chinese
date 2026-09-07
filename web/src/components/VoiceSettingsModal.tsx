@@ -29,23 +29,23 @@ const VOICE_PRESETS = [
     desc: '標準的な同年代の友達トーン',
   },
   {
-    name: '女性・ゆったり落ち着いた声',
-    voice: { quality: 'natural' as const, gender: 'female' as const, rate: 0.85, pitch: 0.95 },
+    name: '女性・ゆったり愛らしい声',
+    voice: { quality: 'natural' as const, gender: 'female' as const, rate: 0.88, pitch: 1.18 },
     desc: '初心者の聞き取りに最適なスピード',
   },
   {
-    name: '女性・高めで愛らしい声',
-    voice: { quality: 'natural' as const, gender: 'female' as const, rate: 0.9, pitch: 1.2 },
-    desc: '可愛らしく優しいニュアンス',
+    name: '女性・落ち着いた穏やかな声',
+    voice: { quality: 'natural' as const, gender: 'female' as const, rate: 0.92, pitch: 0.96 },
+    desc: '品があり優しい大人のトーン',
   },
   {
     name: '男性・落ち着いた知的トーン',
-    voice: { quality: 'natural' as const, gender: 'male' as const, rate: 0.95, pitch: 0.9 },
+    voice: { quality: 'natural' as const, gender: 'male' as const, rate: 0.95, pitch: 0.85 },
     desc: '安定感のある聞き取りやすい低音',
   },
   {
     name: '男性・元気で快活な声',
-    voice: { quality: 'natural' as const, gender: 'male' as const, rate: 1.05, pitch: 1.0 },
+    voice: { quality: 'natural' as const, gender: 'male' as const, rate: 1.05, pitch: 0.95 },
     desc: 'テンポ良くエネルギッシュな会話',
   },
 ]
@@ -300,6 +300,17 @@ export function VoiceSettingsModal({
               </select>
             </div>
           )}
+
+          {/* 音声に関する親切な案内 */}
+          <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-2xl text-[11px] text-amber-900 space-y-1">
+            <div className="font-bold flex items-center gap-1 text-amber-800">
+              <span>💡 音声に関するヒント</span>
+            </div>
+            <p className="m-0 leading-relaxed text-stone-600">
+              お使いのブラウザによって認識される音声モデルの数や種類が異なります。Google Chrome等で男性音声が入っていない環境でも、ピッチ自動補正により自然な男性の低音ボイスを生成します。
+              さらにリアルな男性AI音声（Yunxi等）をお求めの場合は、<strong>Microsoft Edge</strong> でのご利用もおすすめです。
+            </p>
+          </div>
         </div>
 
         {/* Footer: 試聴 & 保存 */}

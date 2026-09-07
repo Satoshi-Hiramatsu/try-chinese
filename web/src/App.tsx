@@ -130,7 +130,7 @@ export default function App() {
   const [speechInputLang, setSpeechInputLang] = useState<'zh-CN' | 'ja-JP'>(() =>
     loadSpeechInputLang('zh-CN')
   )
-  const [toneColoring, setToneColoring] = useState<boolean>(() => loadToneColoring(true))
+  const [toneColoring, setToneColoring] = useState<boolean>(() => loadToneColoring(false))
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false)
   const [playingText, setPlayingText] = useState<string | null>(null)
 
@@ -223,6 +223,22 @@ export default function App() {
   const handleSpeechLangChange = (newLang: 'zh-CN' | 'ja-JP') => {
     setSpeechInputLang(newLang)
     saveSpeechInputLang(newLang)
+  }
+
+  const handleToggleAutoPlayTts = () => {
+    setAutoPlayTts((prev) => {
+      const next = !prev
+      saveAutoPlayTts(next)
+      return next
+    })
+  }
+
+  const handleToggleToneColoring = () => {
+    setToneColoring((prev) => {
+      const next = !prev
+      saveToneColoring(next)
+      return next
+    })
   }
 
   const handleSaveFriendVoice = (updatedVoice: Voice) => {
@@ -339,7 +355,9 @@ export default function App() {
 
       // 返答の自動読み上げ（設定がONの場合）
       if (autoPlayTts && response.reply?.zh) {
-        handlePlayText(response.reply.zh)
+        setTimeout(() => {
+          handlePlayText(response.reply.zh)
+        }, 120)
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '予期せぬエラーが発生しました'
@@ -366,6 +384,10 @@ export default function App() {
         onOpenFriendList={() => setIsFriendListOpen(true)}
         onOpenVocabulary={() => setIsVocabularyModalOpen(true)}
         vocabularyCount={vocabularyList.length}
+        autoPlayTts={autoPlayTts}
+        onToggleAutoPlayTts={handleToggleAutoPlayTts}
+        toneColoring={toneColoring}
+        onToggleToneColoring={handleToggleToneColoring}
       />
 
       {/* Main Chat Container */}

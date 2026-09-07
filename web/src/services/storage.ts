@@ -354,7 +354,7 @@ export function isVocabularySaved(term: string): boolean {
 
 // --- ピンイン声調の色分け設定 ---
 
-export function loadToneColoring(defaultValue = true): boolean {
+export function loadToneColoring(defaultValue = false): boolean {
   try {
     const val = localStorage.getItem(STORAGE_KEYS.TONE_COLORING)
     if (val === null) return defaultValue

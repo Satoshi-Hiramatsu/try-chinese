@@ -42,7 +42,7 @@ export function SettingsModal({
   currentModel,
   autoPlayTts = false,
   speechInputLang = 'zh-CN',
-  toneColoring = true,
+  toneColoring = false,
   onSave,
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey)

@@ -23,19 +23,19 @@ function getTone(syllable: string): 1 | 2 | 3 | 4 | 0 {
 
 // 声調に応じたTailwindカラークラス
 function getToneColorClass(tone: 1 | 2 | 3 | 4 | 0, enabled: boolean): string {
-  if (!enabled) return 'text-inherit'
+  if (!enabled) return 'text-stone-600 font-normal'
   switch (tone) {
     case 1:
-      return 'text-rose-500 font-semibold' // 第1声: 赤
+      return 'text-rose-600 font-medium' // 第1声: 落ち着いたローズ
     case 2:
-      return 'text-amber-500 font-semibold' // 第2声: 橙/黄
+      return 'text-amber-600 font-medium' // 第2声: 温かみのあるアンバー
     case 3:
-      return 'text-emerald-600 font-semibold' // 第3声: 緑
+      return 'text-emerald-600 font-medium' // 第3声: エメラルドグリーン
     case 4:
-      return 'text-sky-600 font-semibold' // 第4声: 青
+      return 'text-sky-600 font-medium' // 第4声: スカイブルー
     case 0:
     default:
-      return 'text-stone-400 font-medium' // 軽声: グレー
+      return 'text-stone-400 font-normal' // 軽声: グレー
   }
 }
 
@@ -45,7 +45,7 @@ function getToneColorClass(tone: 1 | 2 | 3 | 4 | 0, enabled: boolean): string {
 export function TonePinyin({
   pinyin,
   className = '',
-  enableColoring = true,
+  enableColoring = false,
 }: TonePinyinProps) {
   const parts = useMemo(() => {
     if (!pinyin) return []
@@ -75,7 +75,14 @@ export function TonePinyin({
     <span className={`font-mono inline-block tracking-wide select-text ${className}`}>
       {parts.map((p, idx) => {
         if (!p.isWord) {
-          return <span key={idx} className="text-stone-300 select-none">{p.text}</span>
+          return (
+            <span
+              key={idx}
+              className={enableColoring ? 'text-stone-400 select-none' : 'text-stone-500'}
+            >
+              {p.text}
+            </span>
+          )
         }
         return (
           <span key={idx} className={getToneColorClass(p.tone, enableColoring)}>

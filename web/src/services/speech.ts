@@ -68,6 +68,46 @@ export function getChineseVoices(): SpeechSynthesisVoice[] {
 }
 
 /**
+ * 声質が男性向け音声かどうかを判定
+ */
+export function isKnownMaleVoice(v?: SpeechSynthesisVoice | null): boolean {
+  if (!v) return false
+  const name = v.name.toLowerCase()
+  return (
+    name.includes('yunxi') ||
+    name.includes('yunjian') ||
+    name.includes('yunyang') ||
+    name.includes('kangkang') ||
+    name.includes('danny') ||
+    name.includes('zhiwei') ||
+    name.includes('wanlung') ||
+    name.includes('male') ||
+    name.includes('brian') ||
+    name.includes('george')
+  )
+}
+
+/**
+ * 声質が女性向け音声かどうかを判定
+ */
+export function isKnownFemaleVoice(v?: SpeechSynthesisVoice | null): boolean {
+  if (!v) return false
+  const name = v.name.toLowerCase()
+  return (
+    name.includes('xiaoxiao') ||
+    name.includes('xiaoyi') ||
+    name.includes('yaoyao') ||
+    name.includes('huihui') ||
+    name.includes('tingting') ||
+    name.includes('hanhan') ||
+    name.includes('female') ||
+    name.includes('mei-jia') ||
+    name.includes('sin-ji') ||
+    name.includes('google')
+  )
+}
+
+/**
  * 声質設定 (Voice) に合致する SpeechSynthesisVoice を選択
  */
 function findMatchingVoice(chineseVoices: SpeechSynthesisVoice[], voice?: Voice): SpeechSynthesisVoice | null {
@@ -81,35 +121,18 @@ function findMatchingVoice(chineseVoices: SpeechSynthesisVoice[], voice?: Voice)
 
   // 2. 性別 (gender) による絞り込み推測
   if (voice?.gender === 'female') {
-    const femaleVoice = chineseVoices.find((v) => {
-      const name = v.name.toLowerCase()
-      return (
-        name.includes('xiaoxiao') ||
-        name.includes('tingting') ||
-        name.includes('yaoyao') ||
-        name.includes('huihui') ||
-        name.includes('female') ||
-        name.includes('mei-jia') ||
-        name.includes('sin-ji')
-      )
-    })
+    const femaleVoice = chineseVoices.find((v) => isKnownFemaleVoice(v))
     if (femaleVoice) return femaleVoice
   } else if (voice?.gender === 'male') {
-    const maleVoice = chineseVoices.find((v) => {
-      const name = v.name.toLowerCase()
-      return (
-        name.includes('yunxi') ||
-        name.includes('yunjian') ||
-        name.includes('kangkang') ||
-        name.includes('danny') ||
-        name.includes('male') ||
-        name.includes('zhiwei')
-      )
-    })
+    const maleVoice = chineseVoices.find((v) => isKnownMaleVoice(v))
     if (maleVoice) return maleVoice
   }
 
-  // 3. デフォルト（zh-CN 優先）
+  // 3. 自然音声 (Edge Natural / Online) を優先
+  const naturalVoice = chineseVoices.find((v) => v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('online'))
+  if (naturalVoice) return naturalVoice
+
+  // 4. デフォルト（zh-CN 優先）
   const zhCnVoice = chineseVoices.find((v) => v.lang.toLowerCase().replace('_', '-') === 'zh-cn')
   return zhCnVoice || chineseVoices[0]
 }
@@ -118,6 +141,25 @@ export interface SpeakOptions {
   onStart?: () => void
   onEnd?: () => void
   onError?: (err: unknown) => void
+}
+
+/**
+ * ユーザージェスチャー同期コールバック内で呼び出し、
+ * ブラウザの音声再生制限（Autoplay Policy）を解除＆キューをクリアしておく
+ */
+export function unlockSpeechSynthesis(): void {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+  try {
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume()
+    }
+    // 極めて短い無音Utteranceを軽く再生してブラウザの音声コンテキストをアクティブにする
+    const dummy = new SpeechSynthesisUtterance('')
+    dummy.volume = 0
+    window.speechSynthesis.speak(dummy)
+  } catch {
+    // ignore
+  }
 }
 
 /**
@@ -134,9 +176,18 @@ export function speakChinese(text: string, voice?: Voice, options?: SpeakOptions
 
   if (!text.trim()) return
 
-  // iOS Safari などの対策で少し待機してから発話
+  // Chrome等のキュー詰まり・一時停止状態を解除
+  if (window.speechSynthesis.paused) {
+    window.speechSynthesis.resume()
+  }
+
+  // iOS Safari や Chrome 対策で少し待機してから発話
   setTimeout(() => {
     try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume()
+      }
+
       const utterance = new SpeechSynthesisUtterance(text)
       utterance.lang = 'zh-CN'
 
@@ -147,20 +198,34 @@ export function speakChinese(text: string, voice?: Voice, options?: SpeakOptions
         utterance.voice = matchedVoice
       }
 
-      // 速度 (rate) & ピッチ (pitch)
-      utterance.rate = voice?.rate ?? 0.95 // 学習用にほんの少しだけゆっくり
-      utterance.pitch = voice?.pitch ?? 1.0
+      // 話す速度 (rate)
+      utterance.rate = voice?.rate ?? 0.95
+
+      // ピッチ (pitch): 男性指定で女性音声フォールバック時のピッチ自動補正
+      let basePitch = voice?.pitch ?? 1.0
+      if (voice?.gender === 'male' && (!matchedVoice || !isKnownMaleVoice(matchedVoice))) {
+        // 女性音声で男性キャラを話す場合、ピッチを0.68〜0.72の低音にシフト
+        basePitch = Math.min(basePitch * 0.72, 0.72)
+      }
+      utterance.pitch = Math.max(0.5, Math.min(2.0, basePitch))
+
+      let hasStarted = false
+      let resumeWatchTimer: any = null
 
       utterance.onstart = () => {
+        hasStarted = true
+        if (resumeWatchTimer) clearTimeout(resumeWatchTimer)
         options?.onStart?.()
       }
 
       utterance.onend = () => {
+        if (resumeWatchTimer) clearTimeout(resumeWatchTimer)
         options?.onEnd?.()
       }
 
       utterance.onerror = (e) => {
-        // キャンセルによるエラーは無視
+        if (resumeWatchTimer) clearTimeout(resumeWatchTimer)
+        // キャンセルや中断によるエラーは正常終了扱い
         if (e.error === 'interrupted' || e.error === 'canceled') {
           options?.onEnd?.()
           return
@@ -170,11 +235,18 @@ export function speakChinese(text: string, voice?: Voice, options?: SpeakOptions
       }
 
       window.speechSynthesis.speak(utterance)
+
+      // Chromeの長期サスペンド防止：500ms経過しても未開始かつキューにある場合はresumeをキック
+      resumeWatchTimer = setTimeout(() => {
+        if (!hasStarted && window.speechSynthesis.speaking) {
+          window.speechSynthesis.resume()
+        }
+      }, 500)
     } catch (err) {
       console.error('TTS execution error:', err)
       options?.onError?.(err)
     }
-  }, 50)
+  }, 60)
 }
 
 /**
@@ -183,6 +255,9 @@ export function speakChinese(text: string, voice?: Voice, options?: SpeakOptions
 export function stopSpeaking(): void {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     window.speechSynthesis.cancel()
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume()
+    }
   }
 }
 
@@ -216,13 +291,13 @@ export interface SpeechRecognitionOptions {
   lang?: 'zh-CN' | 'ja-JP'
   onStart?: () => void
   onInterimResult?: (transcript: string) => void
-  onFinalResult?: (transcript: string) => void
+  onFinalResult?: (transcriptChunk: string) => void
   onError?: (error: string) => void
   onEnd?: () => void
 }
 
 /**
- * 音声認識セッションの作成
+ * 音声認識セッションの作成（継続リスニング対応）
  */
 export function createSpeechRecognizer(options: SpeechRecognitionOptions): SpeechRecognitionController | null {
   if (!isSpeechRecognitionSupported()) return null
@@ -232,22 +307,40 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
 
   recognition.lang = options.lang || 'zh-CN'
   recognition.interimResults = true
-  recognition.continuous = false
+  // 息継ぎや数秒の間が空いても自動切断されないよう継続リスニングを有効化
+  recognition.continuous = true
   recognition.maxAlternatives = 1
 
-  let finalTranscript = ''
+  let silenceTimeout: any = null
+
+  const resetSilenceTimer = () => {
+    if (silenceTimeout) clearTimeout(silenceTimeout)
+    // 5秒間完全に入力がなければ安全のために自動停止（※送信は行わない）
+    silenceTimeout = setTimeout(() => {
+      try {
+        recognition.stop()
+      } catch {
+        // ignore
+      }
+    }, 5000)
+  }
 
   recognition.onstart = () => {
-    finalTranscript = ''
+    resetSilenceTimer()
     options.onStart?.()
   }
 
   recognition.onresult = (event: any) => {
+    resetSilenceTimer()
+
     let interim = ''
     for (let i = event.resultIndex; i < event.results.length; ++i) {
       const item = event.results[i]
       if (item.isFinal) {
-        finalTranscript += item[0].transcript
+        const finalChunk = item[0].transcript.trim()
+        if (finalChunk) {
+          options.onFinalResult?.(finalChunk)
+        }
       } else {
         interim += item[0].transcript
       }
@@ -256,17 +349,16 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
     if (interim) {
       options.onInterimResult?.(interim)
     }
-    if (finalTranscript) {
-      options.onFinalResult?.(finalTranscript)
-    }
   }
 
   recognition.onerror = (event: any) => {
+    if (silenceTimeout) clearTimeout(silenceTimeout)
     let message = '音声認識エラーが発生しました'
     if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
       message = 'マイクの使用が許可されていません。ブラウザの設定でマイクを許可してください。'
     } else if (event.error === 'no-speech') {
-      message = '音声が検出されませんでした'
+      // no-speechは一時的な無音の場合があるためエラーではなく無視またはマイルドに処理
+      return
     } else if (event.error === 'network') {
       message = '音声認識のネットワーク通信エラーが発生しました'
     }
@@ -274,6 +366,7 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
   }
 
   recognition.onend = () => {
+    if (silenceTimeout) clearTimeout(silenceTimeout)
     options.onEnd?.()
   }
 
@@ -286,16 +379,18 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
       }
     },
     stop: () => {
+      if (silenceTimeout) clearTimeout(silenceTimeout)
       try {
         recognition.stop()
-      } catch (err) {
+      } catch {
         // ignore
       }
     },
     abort: () => {
+      if (silenceTimeout) clearTimeout(silenceTimeout)
       try {
         recognition.abort()
-      } catch (err) {
+      } catch {
         // ignore
       }
     },

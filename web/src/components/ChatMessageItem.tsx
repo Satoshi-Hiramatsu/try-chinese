@@ -28,7 +28,7 @@ export function ChatMessageItem({
   onPlayText,
   onStopText,
   savedTerms,
-  enableToneColoring = true,
+  enableToneColoring = false,
   onSaveVocabulary,
 }: ChatMessageItemProps) {
   const [showCorrection, setShowCorrection] = useState(true)

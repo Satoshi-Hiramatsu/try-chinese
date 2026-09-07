@@ -36,7 +36,7 @@ export const PRESET_FRIENDS: Friend[] = [
       quality: 'natural',
       gender: 'male',
       rate: 0.95,
-      pitch: 0.9,
+      pitch: 0.85,
     },
     initialMessage: {
       zh: '你好！我是王浩。很高兴认识你！你想聊点什么？科技、游戏，还是科幻小说？',
@@ -59,8 +59,8 @@ export const PRESET_FRIENDS: Friend[] = [
     voice: {
       quality: 'natural',
       gender: 'female',
-      rate: 0.9,
-      pitch: 1.15,
+      rate: 0.88,
+      pitch: 1.18,
     },
     initialMessage: {
       zh: '你好呀！我是李雪。很高兴认识你！想聊聊四川火锅、画画，还是可爱的猫猫？',
@@ -84,7 +84,7 @@ export const PRESET_FRIENDS: Friend[] = [
       quality: 'natural',
       gender: 'male',
       rate: 1.05,
-      pitch: 1.0,
+      pitch: 0.95,
     },
     initialMessage: {
       zh: '你好！我是张伟。很高兴认识你！今天想聊点什么？跑步、广东早茶，还是看球赛？',
@@ -107,8 +107,8 @@ export const PRESET_FRIENDS: Friend[] = [
     voice: {
       quality: 'natural',
       gender: 'female',
-      rate: 0.9,
-      pitch: 1.0,
+      rate: 0.92,
+      pitch: 0.96,
     },
     initialMessage: {
       zh: '你好呀！我是子涵。很高兴能认识你！你想聊聊旅行、摄影，还是西湖的龙井茶？',
