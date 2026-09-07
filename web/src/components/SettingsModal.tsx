@@ -15,6 +15,8 @@ interface SettingsModalProps {
   onClose: () => void
   currentApiKey: string
   currentModel: string
+  currentOpenAiKey?: string
+  currentTtsProvider?: 'browser' | 'openai'
   autoPlayTts?: boolean
   speechInputLang?: 'zh-CN' | 'ja-JP'
   toneColoring?: boolean
@@ -23,7 +25,9 @@ interface SettingsModalProps {
     model: string,
     autoPlayTts: boolean,
     speechInputLang: 'zh-CN' | 'ja-JP',
-    toneColoring: boolean
+    toneColoring: boolean,
+    openAiKey?: string,
+    ttsProvider?: 'browser' | 'openai'
   ) => void
 }
 
@@ -40,6 +44,8 @@ export function SettingsModal({
   onClose,
   currentApiKey,
   currentModel,
+  currentOpenAiKey = '',
+  currentTtsProvider = 'browser',
   autoPlayTts = false,
   speechInputLang = 'zh-CN',
   toneColoring = false,
@@ -47,6 +53,8 @@ export function SettingsModal({
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey)
   const [model, setModel] = useState(currentModel || 'google/gemini-2.5-flash')
+  const [openAiKey, setOpenAiKey] = useState(currentOpenAiKey)
+  const [ttsProvider, setTtsProvider] = useState<'browser' | 'openai'>(currentTtsProvider)
   const [autoPlay, setAutoPlay] = useState(autoPlayTts)
   const [inputLang, setInputLang] = useState<'zh-CN' | 'ja-JP'>(speechInputLang)
   const [enableToneColor, setEnableToneColor] = useState(toneColoring)
@@ -54,15 +62,17 @@ export function SettingsModal({
   useEffect(() => {
     setApiKey(currentApiKey)
     setModel(currentModel || 'google/gemini-2.5-flash')
+    setOpenAiKey(currentOpenAiKey)
+    setTtsProvider(currentTtsProvider)
     setAutoPlay(autoPlayTts)
     setInputLang(speechInputLang)
     setEnableToneColor(toneColoring)
-  }, [currentApiKey, currentModel, autoPlayTts, speechInputLang, toneColoring, isOpen])
+  }, [currentApiKey, currentModel, currentOpenAiKey, currentTtsProvider, autoPlayTts, speechInputLang, toneColoring, isOpen])
 
   if (!isOpen) return null
 
   const handleSave = () => {
-    onSave(apiKey, model, autoPlay, inputLang, enableToneColor)
+    onSave(apiKey, model, autoPlay, inputLang, enableToneColor, openAiKey, ttsProvider)
     onClose()
   }
 
@@ -162,7 +172,7 @@ export function SettingsModal({
           <div className="pt-3 border-t border-stone-100">
             <label className="block text-xs font-bold text-stone-800 mb-1 flex items-center gap-1.5">
               <KeyIcon className="w-4 h-4 text-stone-600" />
-              <span>OpenRouter API Key (ブラウザ保持):</span>
+              <span>OpenRouter API Key (文章生成用・ブラウザ保持):</span>
             </label>
             <input
               type="password"
@@ -176,12 +186,70 @@ export function SettingsModal({
             </p>
           </div>
 
-          {/* Section 3: 音声（TTS / STT）設定 */}
+          {/* Section 3: OpenAI API キー (TTS / AI音声用) */}
+          <div className="pt-3 border-t border-stone-100">
+            <label className="block text-xs font-bold text-stone-800 mb-1 flex items-center gap-1.5">
+              <SparklesIcon className="w-4 h-4 text-amber-500" />
+              <span>OpenAI API Key (AI音声合成用・任意):</span>
+            </label>
+            <input
+              type="password"
+              value={openAiKey}
+              onChange={(e) => setOpenAiKey(e.target.value)}
+              placeholder="sk-proj-... (OpenAI TTSを利用する場合に入力)"
+              className="w-full px-3 py-2 border border-stone-300 rounded-xl text-xs font-mono focus:border-rose-500 focus:outline-none"
+            />
+            <p className="text-[11px] text-stone-400 mt-1 m-0">
+              ※ OpenAI TTS（Onyx, Nova等の超リアルAI音声）を利用したい場合に設定します。未入力でもブラウザ・Edgeの自然音声を無料で利用できます。
+            </p>
+          </div>
+
+          {/* Section 4: 音声（TTS / STT）設定 */}
           <div className="pt-3 border-t border-stone-100 space-y-3">
             <label className="block text-xs font-bold text-stone-800 flex items-center gap-1.5">
               <SpeakerIcon className="w-4 h-4 text-stone-600" />
               <span>音声機能設定 (TTS / STT):</span>
             </label>
+
+            {/* TTSプロバイダ切り替え */}
+            <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80 space-y-2">
+              <span className="text-xs font-bold text-stone-800 block">
+                中国語の音声合成 (TTS) エンジン
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTtsProvider('browser')}
+                  className={`py-2 px-3 text-xs font-bold rounded-xl border text-left cursor-pointer transition-all ${
+                    ttsProvider === 'browser'
+                      ? 'border-rose-400 bg-rose-50 text-rose-800 shadow-2xs'
+                      : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-100'
+                  }`}
+                >
+                  <div>🌐 ブラウザ / Edge</div>
+                  <div className="text-[10px] text-stone-400 font-normal mt-0.5">
+                    無料・キー不要 (Edge推奨)
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTtsProvider('openai')}
+                  className={`py-2 px-3 text-xs font-bold rounded-xl border text-left cursor-pointer transition-all ${
+                    ttsProvider === 'openai'
+                      ? 'border-rose-400 bg-rose-50 text-rose-800 shadow-2xs'
+                      : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <SparklesIcon className="w-3 h-3 text-amber-500" />
+                    <span>OpenAI TTS</span>
+                  </div>
+                  <div className="text-[10px] text-stone-400 font-normal mt-0.5">
+                    最高品質AI音声 (要キー)
+                  </div>
+                </button>
+              </div>
+            </div>
 
             {/* 自動読み上げトグル */}
             <div className="flex items-center justify-between p-3 bg-stone-50 rounded-2xl border border-stone-200/80">

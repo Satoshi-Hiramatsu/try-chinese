@@ -44,6 +44,10 @@ import {
   toggleVocabularyMastered,
   loadToneColoring,
   saveToneColoring,
+  loadOpenAiKey,
+  saveOpenAiKey,
+  loadTtsProvider,
+  saveTtsProvider,
 } from './services/storage'
 
 const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => {
@@ -131,6 +135,8 @@ export default function App() {
     loadSpeechInputLang('zh-CN')
   )
   const [toneColoring, setToneColoring] = useState<boolean>(() => loadToneColoring(false))
+  const [openAiKey, setOpenAiKey] = useState<string>(() => loadOpenAiKey())
+  const [ttsProvider, setTtsProvider] = useState<'browser' | 'openai'>(() => loadTtsProvider('browser'))
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false)
   const [playingText, setPlayingText] = useState<string | null>(null)
 
@@ -205,7 +211,9 @@ export default function App() {
     newModel: string,
     newAutoPlay: boolean,
     newSpeechLang: 'zh-CN' | 'ja-JP',
-    newToneColoring: boolean
+    newToneColoring: boolean,
+    newOpenAiKey?: string,
+    newTtsProvider?: 'browser' | 'openai'
   ) => {
     setApiKey(newKey)
     saveApiKey(newKey)
@@ -217,6 +225,14 @@ export default function App() {
     saveSpeechInputLang(newSpeechLang)
     setToneColoring(newToneColoring)
     saveToneColoring(newToneColoring)
+    if (newOpenAiKey !== undefined) {
+      setOpenAiKey(newOpenAiKey)
+      saveOpenAiKey(newOpenAiKey)
+    }
+    if (newTtsProvider !== undefined) {
+      setTtsProvider(newTtsProvider)
+      saveTtsProvider(newTtsProvider)
+    }
     setErrorMessage(null)
   }
 
@@ -448,6 +464,8 @@ export default function App() {
         onClose={() => setIsSettingsModalOpen(false)}
         currentApiKey={apiKey}
         currentModel={model}
+        currentOpenAiKey={openAiKey}
+        currentTtsProvider={ttsProvider}
         autoPlayTts={autoPlayTts}
         speechInputLang={speechInputLang}
         toneColoring={toneColoring}

@@ -15,6 +15,8 @@ const STORAGE_KEYS = {
   FRIEND_VOICE_PREFIX: 'shabe_china_voice_',
   VOCABULARY_LIST: 'shabe_china_vocabulary_list',
   TONE_COLORING: 'shabe_china_tone_coloring',
+  OPENAI_API_KEY: 'shabe_china_openai_api_key',
+  TTS_PROVIDER: 'shabe_china_tts_provider',
 } as const
 
 export function loadApiKey(): string {
@@ -367,6 +369,48 @@ export function loadToneColoring(defaultValue = false): boolean {
 export function saveToneColoring(enabled: boolean): void {
   try {
     localStorage.setItem(STORAGE_KEYS.TONE_COLORING, String(enabled))
+  } catch {
+    // ignore
+  }
+}
+
+// --- OpenAI APIキー (TTS用) ---
+
+export function loadOpenAiKey(): string {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+export function saveOpenAiKey(key: string): void {
+  try {
+    if (key.trim()) {
+      localStorage.setItem(STORAGE_KEYS.OPENAI_API_KEY, key.trim())
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.OPENAI_API_KEY)
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// --- TTSプロバイダ設定 ('browser' | 'openai') ---
+
+export function loadTtsProvider(defaultProvider: 'browser' | 'openai' = 'browser'): 'browser' | 'openai' {
+  try {
+    const val = localStorage.getItem(STORAGE_KEYS.TTS_PROVIDER)
+    if (val === 'openai' || val === 'browser') return val
+    return defaultProvider
+  } catch {
+    return defaultProvider
+  }
+}
+
+export function saveTtsProvider(provider: 'browser' | 'openai'): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.TTS_PROVIDER, provider)
   } catch {
     // ignore
   }

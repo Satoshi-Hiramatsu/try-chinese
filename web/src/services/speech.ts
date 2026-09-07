@@ -162,19 +162,126 @@ export function unlockSpeechSynthesis(): void {
   }
 }
 
+import { loadOpenAiKey, loadTtsProvider } from './storage'
+
+// 再生中のオーディオオブジェクト
+let currentAudio: HTMLAudioElement | null = null
+// 生成済み音声Blobのメモリキャッシュ (key: model_speed_text -> objectUrl)
+const audioBlobCache = new Map<string, string>()
+
 /**
- * 中国語テキストを音声で読み上げる
+ * OpenAI TTS API経由で音声を合成・再生する
+ */
+async function speakWithOpenAiTts(
+  text: string,
+  voice?: Voice,
+  options?: SpeakOptions
+): Promise<boolean> {
+  const openAiKey = loadOpenAiKey()
+  if (!openAiKey) return false
+
+  const voiceModel = voice?.voiceModel || 'alloy'
+  const speed = voice?.rate ?? 1.0
+  const cacheKey = `${voiceModel}_${speed}_${text}`
+
+  try {
+    let audioUrl = audioBlobCache.get(cacheKey)
+
+    if (!audioUrl) {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-openai-key': openAiKey,
+        },
+        body: JSON.stringify({
+          text,
+          voice: voiceModel,
+          speed,
+        }),
+      })
+
+      if (!res.ok) {
+        console.warn('OpenAI TTS API error, falling back to Web Speech API:', res.status)
+        return false
+      }
+
+      const blob = await res.blob()
+      audioUrl = URL.createObjectURL(blob)
+      audioBlobCache.set(cacheKey, audioUrl)
+    }
+
+    if (currentAudio) {
+      currentAudio.pause()
+      currentAudio = null
+    }
+
+    const audio = new Audio(audioUrl)
+    currentAudio = audio
+
+    audio.onplay = () => {
+      options?.onStart?.()
+    }
+
+    audio.onended = () => {
+      currentAudio = null
+      options?.onEnd?.()
+    }
+
+    audio.onerror = (e) => {
+      currentAudio = null
+      console.warn('Audio playback error:', e)
+      options?.onError?.(e)
+    }
+
+    await audio.play()
+    return true
+  } catch (err) {
+    console.warn('OpenAI TTS execution error, falling back:', err)
+    return false
+  }
+}
+
+/**
+ * 中国語テキストを音声で読み上げる（ハイブリッド対応）
  */
 export function speakChinese(text: string, voice?: Voice, options?: SpeakOptions): void {
+  // 既存の音声をすべて停止
+  stopSpeaking()
+
+  if (!text.trim()) return
+
+  const effectiveProvider = voice?.ttsProvider || loadTtsProvider('browser')
+  const hasOpenAiKey = Boolean(loadOpenAiKey())
+
+  // 1. OpenAI TTS が有効でキーがある場合はAI音声を最優先試行
+  if (effectiveProvider === 'openai' && hasOpenAiKey) {
+    speakWithOpenAiTts(text, voice, {
+      ...options,
+      onError: () => {
+        // AI音声失敗時はシームレスにブラウザ標準TTSへフォールバック
+        speakWithBrowserTts(text, voice, options)
+      },
+    }).then((success) => {
+      if (!success) {
+        speakWithBrowserTts(text, voice, options)
+      }
+    })
+    return
+  }
+
+  // 2. それ以外はブラウザ標準 Web Speech API で発話
+  speakWithBrowserTts(text, voice, options)
+}
+
+/**
+ * ブラウザ標準の Web Speech API による中国語発話
+ */
+function speakWithBrowserTts(text: string, voice?: Voice, options?: SpeakOptions): void {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     options?.onError?.(new Error('お使いのブラウザは音声合成に対応していません'))
     return
   }
-
-  // 既存の音声を停止
-  stopSpeaking()
-
-  if (!text.trim()) return
 
   // Chrome等のキュー詰まり・一時停止状態を解除
   if (window.speechSynthesis.paused) {
@@ -253,6 +360,18 @@ export function speakChinese(text: string, voice?: Voice, options?: SpeakOptions
  * 現在再生中の音声を停止する
  */
 export function stopSpeaking(): void {
+  // オーディオ要素の停止
+  if (currentAudio) {
+    try {
+      currentAudio.pause()
+      currentAudio.currentTime = 0
+    } catch {
+      // ignore
+    }
+    currentAudio = null
+  }
+
+  // Web Speech API の停止
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     window.speechSynthesis.cancel()
     if (window.speechSynthesis.paused) {
@@ -265,6 +384,9 @@ export function stopSpeaking(): void {
  * 現在音声再生中かどうか
  */
 export function isSpeaking(): boolean {
+  if (currentAudio && !currentAudio.paused) {
+    return true
+  }
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     return false
   }

@@ -1,8 +1,9 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import chatRoute, { type ChatEnv } from './routes/chat'
+import ttsRoute, { type TtsEnv } from './routes/tts'
 
-export interface AppBindings extends Env, ChatEnv {
+export interface AppBindings extends Env, ChatEnv, TtsEnv {
   ASSETS?: Fetcher
 }
 
@@ -16,6 +17,9 @@ app.get('/api/health', (c) => {
 
 // チャットAPIマウント (/api/chat)
 app.route('/api', chatRoute)
+
+// TTS音声合成APIマウント (/api/tts)
+app.route('/api', ttsRoute)
 
 // 静的アセット (SPA) へのフォールバック
 app.all('*', async (c) => {
