@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 
@@ -35,7 +35,8 @@ function load(relPath, requireImpl = () => ({})) {
   return exports
 }
 
-const { PORTRAITS } = load('../src/data/portraits.ts')
+const { PORTRAITS, PORTRAIT_EXPRESSION_IDS, SCENE_IMAGE_IDS, getPortraitLayer, getSceneImage } =
+  load('../src/data/portraits.ts')
 const { PRESET_FRIENDS } = load('../src/data/presetFriends.ts')
 const { BACK_HAIR_PATHS, FRONT_HAIR_PATHS } = load('../src/data/portraitParts.ts')
 const { inferExpression, resolveExpression } = load('../src/services/expression.ts', () => ({
@@ -78,6 +79,53 @@ test('立ち絵の色指定がすべて有効な16進カラーである', () => 
       assert.match(p[key], hex, `${p.id} の ${key} が不正: ${p[key]}`)
     }
     if (p.hairPin) assert.match(p.hairPin, hex, `${p.id} の hairPin が不正`)
+  }
+})
+
+test('表情差分を持つ立ち絵は、10表情ぶんの透過画像がすべて揃っている', () => {
+  for (const id of PORTRAIT_EXPRESSION_IDS) {
+    assert.ok(PORTRAITS[id], `未定義の立ち絵に表情差分が指定されている: ${id}`)
+    for (const expression of EXPRESSIONS) {
+      const url = getPortraitLayer(id, expression)
+      assert.equal(url, `/portraits/${id}-${expression}.webp`)
+      assert.ok(
+        existsSync(new URL(`../public${url}`, import.meta.url)),
+        `表情差分の画像が見つからない: ${url}`
+      )
+    }
+  }
+})
+
+test('表情差分を持たない立ち絵は透過画像を要求しない', () => {
+  for (const id of Object.keys(PORTRAITS)) {
+    if (PORTRAIT_EXPRESSION_IDS.has(id)) continue
+    assert.equal(getPortraitLayer(id, 'smile'), null, `${id} が表情差分を返している`)
+  }
+})
+
+test('シーン背景イラストは、宣言されたシーンぶんの画像が揃っている', () => {
+  const scenes = new Set(Object.values(PORTRAITS).map((p) => p.scene))
+  for (const scene of SCENE_IMAGE_IDS) {
+    assert.ok(scenes.has(scene), `どの立ち絵も使っていないシーン: ${scene}`)
+    const url = getSceneImage(scene)
+    assert.equal(url, `/scenes/${scene}.webp`)
+    assert.ok(
+      existsSync(new URL(`../public${url}`, import.meta.url)),
+      `シーン背景の画像が見つからない: ${url}`
+    )
+  }
+  for (const scene of scenes) {
+    if (!SCENE_IMAGE_IDS.has(scene)) assert.equal(getSceneImage(scene), null)
+  }
+})
+
+test('背景と分離した立ち絵は、必ずシーン背景とセットで用意されている', () => {
+  // 透過立ち絵だけがあってシーン背景が無いと、キャラクターの背後が空になる。
+  for (const id of PORTRAIT_EXPRESSION_IDS) {
+    assert.ok(
+      SCENE_IMAGE_IDS.has(PORTRAITS[id].scene),
+      `${id} のシーン背景（${PORTRAITS[id].scene}）が未生成`
+    )
   }
 })
 

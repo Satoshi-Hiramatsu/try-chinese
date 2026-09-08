@@ -160,6 +160,31 @@ body {
   user-select: none;
 }
 
+/* キャラクターの背後に敷くシーン背景。立ち絵とは独立したレイヤー。 */
+.vn-backdrop-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+
+/*
+ * 表情差分は10枚すべてを重ねて置き、不透明度だけで切り替える。
+ * 表情が変わるたびに画像を読み込み直さないので、切り替えでちらつかない。
+ */
+.vn-portrait-layer {
+  position: absolute;
+  inset: 0;
+  transition: opacity 140ms ease-out;
+  filter: drop-shadow(0 10px 24px rgba(60, 40, 45, 0.22));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vn-portrait-layer { transition: none; }
+}
+
 /*
  * 3:4 の立ち絵から顔まわりだけを正方形に切り出すサムネイル。
  * 元画像の横 22%〜78%・縦 0%〜42% がちょうど枠いっぱいに収まる。

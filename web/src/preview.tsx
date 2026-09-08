@@ -13,7 +13,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import { PORTRAITS, getPortraitImage } from './data/portraits'
+import {
+  PORTRAITS,
+  getPortraitImage,
+  getPortraitLayer,
+  getSceneImage,
+  hasPortraitExpressions,
+} from './data/portraits'
 import { PRESET_FRIENDS } from './data/presetFriends'
 import { CharacterPortrait, EXPRESSION_LABELS } from './components/CharacterPortrait'
 import { PortraitFace } from './components/PortraitFace'
@@ -87,31 +93,48 @@ function Expressions() {
 
   return (
     <>
-      {samples.map((id, index) => (
-        <Section
-          key={id}
-          title={NAME_BY_PORTRAIT.get(id) || id}
-          note={
-            index === 0
-              ? 'イラスト立ち絵を持たないカスタム友達向けのSVG立ち絵。会話内容に応じて表情が切り替わる'
-              : undefined
-          }
-        >
-          <div className="grid grid-cols-10 gap-2">
-            {EXPRESSIONS.map((expression) => (
-              <Card key={expression} label={EXPRESSION_LABELS[expression]}>
-                <CharacterPortrait
-                  spec={PORTRAITS[id]}
-                  expression={expression}
-                  crop="bust"
-                  animate={false}
-                  className="w-full"
-                />
-              </Card>
-            ))}
-          </div>
-        </Section>
-      ))}
+      {samples.map((id) => {
+        const spec = PORTRAITS[id]
+        const backdrop = getSceneImage(spec.scene)
+        return (
+          <Section
+            key={id}
+            title={NAME_BY_PORTRAIT.get(id) || id}
+            note={
+              hasPortraitExpressions(id)
+                ? '背景と分離した透過イラスト。背景は同じまま、キャラクターだけが切り替わる'
+                : 'まだ表情差分を持たない立ち絵。カスタム友達と同じくSVG立ち絵で描画する'
+            }
+          >
+            <div className="grid grid-cols-10 gap-2">
+              {EXPRESSIONS.map((expression) => (
+                <Card key={expression} label={EXPRESSION_LABELS[expression]}>
+                  {hasPortraitExpressions(id) ? (
+                    <div className="relative aspect-3/4">
+                      {backdrop && (
+                        <img src={backdrop} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                      )}
+                      <img
+                        src={getPortraitLayer(id, expression) || ''}
+                        alt={`${id} ${expression}`}
+                        className="absolute inset-0 w-full h-full object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <CharacterPortrait
+                      spec={spec}
+                      expression={expression}
+                      crop="bust"
+                      animate={false}
+                      className="w-full"
+                    />
+                  )}
+                </Card>
+              ))}
+            </div>
+          </Section>
+        )
+      })}
     </>
   )
 }

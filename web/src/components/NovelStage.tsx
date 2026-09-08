@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChatMessage, Expression, Friend } from '../types'
-import { getPortraitImage, resolvePortrait } from '../data/portraits'
+import { EXPRESSIONS, type ChatMessage, type Expression, type Friend } from '../types'
+import {
+  getPortraitImage,
+  getPortraitLayer,
+  getSceneImage,
+  hasPortraitExpressions,
+  resolvePortrait,
+} from '../data/portraits'
 import { CharacterPortrait, EXPRESSION_LABELS } from './CharacterPortrait'
 import { SceneBackdrop } from './SceneBackdrop'
 import { TonePinyin } from './TonePinyin'
@@ -61,6 +67,8 @@ export function NovelStage({
 }: NovelStageProps) {
   const portrait = resolvePortrait(friend)
   const portraitImage = getPortraitImage(portrait.id)
+  /** 表情差分を持つ立ち絵は、背景レイヤーとキャラクターレイヤーを分けて描く。 */
+  const layered = hasPortraitExpressions(portrait.id)
   const reply = message?.reply
   const correction = message?.correction
   const vocabulary = message?.vocabulary || []
@@ -110,6 +118,7 @@ export function NovelStage({
   }, [expression])
 
   const scene = portrait.scene
+  const sceneImage = getSceneImage(scene)
   const isNight = scene === 'night'
 
   return (
@@ -119,8 +128,40 @@ export function NovelStage({
     >
       {/* ---------------------------------------------------------------- 立ち絵 */}
       <div className="vn-figure overflow-hidden">
-        {portraitImage ? (
-          /* イラスト立ち絵（プリセットの友達）。背景はイラストに描き込まれている。 */
+        {layered ? (
+          /*
+           * 背景とキャラクターを別レイヤーで描く。
+           * 表情差分は全パターンを重ねて置き、不透明度だけを切り替える。
+           * 表示のたびに画像を読み込み直さないので、切り替え時にちらつかない。
+           */
+          <>
+            {sceneImage ? (
+              <img src={sceneImage} alt="" className="vn-backdrop-img" draggable={false} />
+            ) : (
+              <SceneBackdrop scene={scene} />
+            )}
+            <div key={friend.id} className="absolute inset-0 stage-enter">
+              <div key={reactKey} className="w-full h-full stage-react">
+                {EXPRESSIONS.map((candidate) => (
+                  <img
+                    key={candidate}
+                    src={getPortraitLayer(portrait.id, candidate) || ''}
+                    alt={
+                      candidate === expression
+                        ? `${friend.name} の立ち絵（${EXPRESSION_LABELS[candidate]}）`
+                        : ''
+                    }
+                    className="vn-portrait-img vn-portrait-layer"
+                    style={{ opacity: candidate === expression ? 1 : 0 }}
+                    aria-hidden={candidate === expression ? undefined : true}
+                    draggable={false}
+                  />
+                ))}
+              </div>
+            </div>
+          </>
+        ) : portraitImage ? (
+          /* 表情差分をまだ持たないイラスト立ち絵。背景はイラストに描き込まれている。 */
           <div key={friend.id} className="absolute inset-0 stage-enter">
             <img
               src={portraitImage}

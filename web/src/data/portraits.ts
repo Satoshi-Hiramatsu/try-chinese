@@ -1,3 +1,4 @@
+import type { Expression } from '../types'
 import type { BackHairId, FrontHairId, OutfitId } from './portraitParts'
 
 /** 立ち絵の背景シーン（友達の居住地・雰囲気に対応） */
@@ -425,6 +426,39 @@ export function getPortrait(id?: string): PortraitSpec | null {
 export function getPortraitImage(id?: string): string | null {
   if (!id || !PORTRAITS[id]) return null
   return `/portraits/${id}.jpg`
+}
+
+/**
+ * 背景を抜いた表情差分（`web/public/portraits/<id>-<expression>.webp`）を持つ立ち絵。
+ * 差分を持つ立ち絵はノベル画面で背景レイヤーと分離して表示するため、
+ * キャラクターを描き替えても背景が動かない。
+ * 差分の生成は `scripts/sheet-to-portraits.mjs` を参照。
+ */
+export const PORTRAIT_EXPRESSION_IDS: ReadonlySet<string> = new Set(['pt-meiling'])
+
+/** 表情差分（透過画像）を持つ立ち絵かどうか。 */
+export function hasPortraitExpressions(id?: string): boolean {
+  return !!id && PORTRAIT_EXPRESSION_IDS.has(id)
+}
+
+/**
+ * 表情差分（透過画像）のURL。差分を持たない立ち絵は null を返す。
+ * 背景が入っていないので、シーン背景の上に重ねて表示する。
+ */
+export function getPortraitLayer(id: string | undefined, expression: Expression): string | null {
+  if (!hasPortraitExpressions(id)) return null
+  return `/portraits/${id}-${expression}.webp`
+}
+
+/**
+ * シーン背景イラスト（`web/public/scenes/`）を持つシーン。
+ * 未生成のシーンは SVG の `SceneBackdrop` にフォールバックする。
+ */
+export const SCENE_IMAGE_IDS: ReadonlySet<SceneId> = new Set<SceneId>(['campus'])
+
+/** シーン背景イラストのURL。未生成のシーンは null を返す。 */
+export function getSceneImage(scene: SceneId): string | null {
+  return SCENE_IMAGE_IDS.has(scene) ? `/scenes/${scene}.webp` : null
 }
 
 export const PORTRAIT_IDS = Object.keys(PORTRAITS)
