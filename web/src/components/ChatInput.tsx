@@ -222,10 +222,10 @@ export function ChatInput({
           placeholder={
             isListening
               ? '話しかけてください...'
-              : '中国語でも日本語でもOK！話しかけてみよう (Enterで送信)'
+              : '中国語でも日本語でもOK！'
           }
           disabled={isLoading || disabled || isListening}
-          className="flex-1 max-h-32 resize-none bg-transparent px-2.5 py-2 text-sm sm:text-base text-stone-900 placeholder:text-stone-400 outline-none leading-relaxed"
+          className="flex-1 min-w-0 max-h-32 resize-none bg-transparent px-2.5 py-2 text-sm sm:text-base text-stone-900 placeholder:text-stone-400 outline-none leading-relaxed"
         />
 
         {/* 音声入力ボタン */}

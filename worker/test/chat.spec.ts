@@ -4,6 +4,7 @@ import worker from '../src'
 import { parseChatResponse } from '../src/lib/llm'
 import { buildChatSystemPrompt } from '../src/lib/prompt'
 import type { Friend } from '../src/types'
+import { EXPRESSIONS } from '../src/types'
 
 const mockFriend: Friend = {
   name: '陈美玲',
@@ -123,6 +124,44 @@ describe('T-01: POST /api/chat 実装テスト', () => {
 
     it('無効な JSON の場合はエラーを投げること', () => {
       expect(() => parseChatResponse('invalid json')).toThrow(/JSONパースに失敗/)
+    })
+  })
+
+  describe('T-31: 表情 (Expression) の解決', () => {
+    const withExpression = (expression: unknown) =>
+      JSON.stringify({
+        reply: { zh: '好啊！', ja: 'いいよ！', pinyin: 'Hǎo a!', hskLevel: 2 },
+        correction: { hasCorrection: false },
+        vocabulary: [],
+        expression,
+      })
+
+    it('許可された10種の表情がそのまま保持されること', () => {
+      for (const expression of EXPRESSIONS) {
+        expect(parseChatResponse(withExpression(expression)).expression).toBe(expression)
+      }
+    })
+
+    it('未知の表情が指定された場合は neutral にフォールバックすること', () => {
+      expect(parseChatResponse(withExpression('excited')).expression).toBe('neutral')
+      expect(parseChatResponse(withExpression(42)).expression).toBe('neutral')
+    })
+
+    it('expression が欠落している場合も neutral になること', () => {
+      const raw = JSON.stringify({
+        reply: { zh: '你好', ja: 'こんにちは', pinyin: 'Nǐ hǎo', hskLevel: 1 },
+        correction: { hasCorrection: false },
+        vocabulary: [],
+      })
+      expect(parseChatResponse(raw).expression).toBe('neutral')
+    })
+
+    it('システムプロンプトに10種の表情と指定ルールが含まれること', () => {
+      const prompt = buildChatSystemPrompt(mockFriend, 2)
+      expect(prompt).toContain('表情の指定')
+      for (const expression of EXPRESSIONS) {
+        expect(prompt).toContain(`"${expression}"`)
+      }
     })
   })
 

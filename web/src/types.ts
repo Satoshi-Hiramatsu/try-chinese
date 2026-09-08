@@ -3,6 +3,29 @@
  * 用語定義書.md および 要件定義書.md に準拠
  */
 
+/**
+ * 立ち絵の表情パターン（喜怒哀楽ほか計10種）
+ * LLM の返答に付与され、会話内容に合わせて立ち絵を切り替えるために使用する。
+ */
+export const EXPRESSIONS = [
+  'neutral',
+  'smile',
+  'joy',
+  'laugh',
+  'shy',
+  'surprised',
+  'sad',
+  'angry',
+  'thinking',
+  'wink',
+] as const
+
+export type Expression = (typeof EXPRESSIONS)[number]
+
+export function isExpression(value: unknown): value is Expression {
+  return typeof value === 'string' && (EXPRESSIONS as readonly string[]).includes(value)
+}
+
 export interface Voice {
   quality: 'standard' | 'natural' | 'high'
   gender: 'male' | 'female'
@@ -17,7 +40,10 @@ export interface Voice {
 export interface Friend {
   id?: string
   name: string
-  avatar: string
+  /** アイコン画像のパス（立ち絵未設定のカスタム友達向けの後方互換フィールド） */
+  avatar?: string
+  /** 立ち絵パラメータのID（PORTRAITS のキー）。設定時は avatar より優先される。 */
+  portraitId?: string
   personality: string
   hobbies: string[]
   tone?: string
@@ -57,6 +83,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content?: string // user 発話の場合のテキスト
   reply?: BilingualReply // assistant 返答の場合
+  expression?: Expression // 返答時の立ち絵の表情
   correction?: Correction // 添削情報
   vocabulary?: HobbyVocabulary[] // 趣味語彙
   timestamp: number

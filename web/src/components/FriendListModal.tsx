@@ -12,6 +12,8 @@ import {
   FemaleIcon,
 } from './Icons'
 import { FriendAvatar } from './FriendAvatar'
+import { CharacterPortrait } from './CharacterPortrait'
+import { PORTRAITS } from '../data/portraits'
 import {
   CHARACTER_VOICE_OPTIONS,
   type CharacterVoiceOption,
@@ -29,12 +31,8 @@ interface FriendListModalProps {
   onDeleteFriend?: (id: string) => void
 }
 
-const PRESET_AVATARS = [
-  { path: '/avatars/meiling.jpg', label: '美玲' },
-  { path: '/avatars/wanghao.jpg', label: '王浩' },
-  { path: '/avatars/lixue.jpg', label: '李雪' },
-  { path: '/avatars/zhangwei.jpg', label: '張偉' },
-]
+/** 立ち絵の選択肢（性別ごとに絞り込んで表示する） */
+const PORTRAIT_LIST = Object.values(PORTRAITS)
 
 export function FriendListModal({
   isOpen,
@@ -51,7 +49,7 @@ export function FriendListModal({
 
   // フォーム状態
   const [name, setName] = useState('')
-  const [avatar, setAvatar] = useState('/avatars/meiling.jpg')
+  const [portraitId, setPortraitId] = useState('pt-meiling')
   const [personality, setPersonality] = useState('')
   const [hobbiesInput, setHobbiesInput] = useState('')
   const [tone, setTone] = useState('')
@@ -82,7 +80,7 @@ export function FriendListModal({
   const handleStartCreate = () => {
     setEditingFriendId(null)
     setName('')
-    setAvatar('/avatars/meiling.jpg')
+    setPortraitId('pt-meiling')
     setPersonality('')
     setHobbiesInput('')
     setTone('')
@@ -95,7 +93,7 @@ export function FriendListModal({
   const handleStartEdit = (friend: Friend) => {
     setEditingFriendId(friend.id || null)
     setName(friend.name)
-    setAvatar(friend.avatar)
+    setPortraitId(friend.portraitId || 'pt-meiling')
     setPersonality(friend.personality)
     setHobbiesInput(friend.hobbies.join(', '))
     setTone(friend.tone || '')
@@ -124,6 +122,13 @@ export function FriendListModal({
     } else {
       setSelectedVoiceId('char-xiaoxiao')
     }
+    // 立ち絵の性別が食い違う場合は同性の立ち絵に切り替える
+    setPortraitId((current) => {
+      const spec = PORTRAITS[current]
+      if (spec && spec.gender === newGender) return current
+      const fallback = PORTRAIT_LIST.find((p) => p.gender === newGender)
+      return fallback ? fallback.id : current
+    })
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -151,7 +156,7 @@ export function FriendListModal({
     const updatedOrNewFriend: Friend = {
       id: editingFriendId || `custom-${Date.now()}`,
       name: name.trim(),
-      avatar: avatar || '/avatars/meiling.jpg',
+      portraitId,
       personality: personality.trim(),
       hobbies: hobbies.length > 0 ? hobbies : ['日常会話'],
       tone: tone.trim() || undefined,
@@ -379,32 +384,38 @@ export function FriendListModal({
                 </div>
               )}
 
-              {/* アバター選択 */}
+              {/* 立ち絵の選択 */}
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                  アバター画像:
+                  立ち絵（キャラクター画像）:
                 </label>
-                <div className="flex flex-wrap gap-2.5 items-center">
-                  {PRESET_AVATARS.map((item) => (
+                <div className="grid grid-cols-5 sm:grid-cols-7 gap-2">
+                  {PORTRAIT_LIST.filter((p) => p.gender === voiceGender).map((spec) => (
                     <button
-                      key={item.path}
+                      key={spec.id}
                       type="button"
-                      onClick={() => setAvatar(item.path)}
-                      className={`w-14 h-14 rounded-2xl overflow-hidden border-2 transition-all cursor-pointer p-0.5 ${
-                        avatar === item.path
+                      onClick={() => setPortraitId(spec.id)}
+                      className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all cursor-pointer bg-rose-50/60 ${
+                        portraitId === spec.id
                           ? 'border-rose-500 ring-2 ring-rose-400/40 scale-105 shadow-sm'
-                          : 'border-stone-200 hover:border-stone-400 opacity-75 hover:opacity-100'
+                          : 'border-stone-200 hover:border-stone-400 opacity-80 hover:opacity-100'
                       }`}
-                      title={item.label}
+                      title={spec.id}
+                      aria-pressed={portraitId === spec.id}
                     >
-                      <img
-                        src={item.path}
-                        alt={item.label}
-                        className="w-full h-full object-cover rounded-xl scale-[2.1] origin-[50%_36%]"
+                      <CharacterPortrait
+                        spec={spec}
+                        expression="smile"
+                        crop="face"
+                        animate={false}
+                        className="w-full h-full"
                       />
                     </button>
                   ))}
                 </div>
+                <p className="text-[11px] text-stone-500 mt-1.5">
+                  ※ 立ち絵は会話内容に合わせて喜怒哀楽など10パターンの表情に自動で切り替わります。
+                </p>
               </div>
 
               {/* 名前 */}

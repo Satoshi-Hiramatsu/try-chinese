@@ -1,4 +1,5 @@
-import type { ChatHistoryItem, ChatResponse, Friend } from '../types'
+import type { ChatHistoryItem, ChatResponse, Expression, Friend } from '../types'
+import { EXPRESSIONS } from '../types'
 import { buildChatSystemPrompt } from './prompt'
 
 export interface CallLLMOptions {
@@ -80,10 +81,18 @@ export function parseChatResponse(content: string): ChatResponse {
     }
   }
 
+  // expression の検証（許可された10種以外は neutral にフォールバック）
+  const rawExpression = res.expression
+  const expression: Expression =
+    typeof rawExpression === 'string' && (EXPRESSIONS as readonly string[]).includes(rawExpression)
+      ? (rawExpression as Expression)
+      : 'neutral'
+
   return {
     reply,
     correction,
     vocabulary: vocabList,
+    expression,
   }
 }
 

@@ -3,6 +3,22 @@
  * 用語定義書.md および 要件定義書.md に準拠
  */
 
+/** 立ち絵の表情パターン（喜怒哀楽ほか計10種） */
+export const EXPRESSIONS = [
+  'neutral',
+  'smile',
+  'joy',
+  'laugh',
+  'shy',
+  'surprised',
+  'sad',
+  'angry',
+  'thinking',
+  'wink',
+] as const
+
+export type Expression = (typeof EXPRESSIONS)[number]
+
 export interface Voice {
   quality: 'standard' | 'natural' | 'high'
   gender: 'male' | 'female'
@@ -15,6 +31,7 @@ export interface Friend {
   id?: string
   name: string
   avatar?: string
+  portraitId?: string
   personality: string
   hobbies: string[]
   tone?: string
@@ -74,4 +91,6 @@ export interface ChatResponse {
   reply: BilingualReply
   correction: Correction
   vocabulary: HobbyVocabulary[]
+  /** 返答時の Friend の表情（立ち絵切り替え用） */
+  expression: Expression
 }

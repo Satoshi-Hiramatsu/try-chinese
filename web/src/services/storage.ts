@@ -20,7 +20,28 @@ const STORAGE_KEYS = {
   TTS_PROVIDER: 'shabe_china_tts_provider',
   TTS_MODEL: 'shabe_china_tts_model',
   CUSTOM_VOICES: 'shabe_china_custom_voices',
+  VIEW_MODE: 'shabe_china_view_mode',
 } as const
+
+/** 画面モード: novel = ノベルステージ / chat = チャットログ */
+export type ViewMode = 'novel' | 'chat'
+
+export function loadViewMode(defaultMode: ViewMode = 'novel'): ViewMode {
+  try {
+    const val = localStorage.getItem(STORAGE_KEYS.VIEW_MODE)
+    return val === 'chat' || val === 'novel' ? val : defaultMode
+  } catch {
+    return defaultMode
+  }
+}
+
+export function saveViewMode(mode: ViewMode): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.VIEW_MODE, mode)
+  } catch {
+    // ignore
+  }
+}
 
 export function loadApiKey(): string {
   try {

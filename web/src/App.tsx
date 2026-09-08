@@ -4,6 +4,8 @@ import { PRESET_FRIENDS } from './data/presetFriends'
 import { Header } from './components/Header'
 import { FriendCard } from './components/FriendCard'
 import { ChatMessageList } from './components/ChatMessageList'
+import { NovelStage } from './components/NovelStage'
+import { ChatLogModal } from './components/ChatLogModal'
 import { ChatInput } from './components/ChatInput'
 import { SettingsModal } from './components/SettingsModal'
 import { OnboardingModal } from './components/OnboardingModal'
@@ -48,7 +50,10 @@ import {
   saveTtsModel,
   loadTtsProvider,
   saveTtsProvider,
+  loadViewMode,
+  saveViewMode,
 } from './services/storage'
+import type { ViewMode } from './services/storage'
 
 const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => {
   if (friend.initialMessage) {
@@ -64,6 +69,7 @@ const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => {
       correction: {
         hasCorrection: false,
       },
+      expression: 'smile',
       vocabulary: friend.initialMessage.vocabulary || [
         { term: '高兴', pinyin: 'gāoxìng', ja: 'うれしい', hskLevel: 1 },
         { term: '认识', pinyin: 'rènshi', ja: '知り合う', hskLevel: 2 },
@@ -87,6 +93,7 @@ const buildWelcomeMessage = (friend: Friend, level: number): ChatMessage => {
     correction: {
       hasCorrection: false,
     },
+    expression: 'smile',
     vocabulary: [
       { term: '高兴', pinyin: 'gāoxìng', ja: 'うれしい', hskLevel: 1 },
       { term: '认识', pinyin: 'rènshi', ja: '知り合う', hskLevel: 2 },
@@ -145,6 +152,8 @@ export default function App() {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => !isOnboardingCompleted())
   const [isFriendListOpen, setIsFriendListOpen] = useState(false)
   const [isVocabularyModalOpen, setIsVocabularyModalOpen] = useState(false)
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>(() => loadViewMode('novel'))
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
   const [vocabularyList, setVocabularyList] = useState<VocabularyItem[]>(() => loadVocabularyList())
   const [isLoading, setIsLoading] = useState(false)
@@ -384,6 +393,7 @@ export default function App() {
         reply: response.reply,
         correction: response.correction,
         vocabulary: response.vocabulary,
+        expression: response.expression,
         timestamp: Date.now(),
       }
 
@@ -407,8 +417,30 @@ export default function App() {
     }
   }
 
+  const handleChangeViewMode = (mode: ViewMode) => {
+    setViewMode(mode)
+    saveViewMode(mode)
+  }
+
+  // ノベルステージに表示する最新の返答と、直前のユーザー発話
+  const latestAssistantMessage = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === 'assistant') return messages[i]
+    }
+    return null
+  }, [messages])
+
+  const lastUserText = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === 'user') return messages[i].content
+    }
+    return undefined
+  }, [messages])
+
+  const isNovel = viewMode === 'novel'
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50/60 via-rose-50/40 to-orange-50/50 text-stone-800 flex flex-col items-center justify-between p-3 sm:p-6 font-sans select-text">
+    <div className="h-[100svh] overflow-hidden bg-gradient-to-br from-amber-50/60 via-rose-50/40 to-orange-50/50 text-stone-800 flex flex-col items-center p-2 sm:p-4 font-sans select-text">
       {/* Header */}
       <Header
         hskLevel={hskLevel}
@@ -424,20 +456,19 @@ export default function App() {
         onToggleAutoPlayTts={handleToggleAutoPlayTts}
         toneColoring={toneColoring}
         onToggleToneColoring={handleToggleToneColoring}
+        viewMode={viewMode}
+        onChangeViewMode={handleChangeViewMode}
       />
 
-      {/* Main Chat Container */}
-      <main className="w-full max-w-3xl flex-1 flex flex-col py-3 sm:py-4 gap-3 min-h-0 h-[calc(100vh-140px)]">
-        {/* Friend Profile Card */}
-        <FriendCard
-          friend={currentFriend}
-          onOpenFriendList={() => setIsFriendListOpen(true)}
-          onOpenVoiceSettings={() => setIsVoiceSettingsOpen(true)}
-        />
-
+      {/* Main Stage / Chat Container */}
+      <main
+        className={`w-full flex-1 flex flex-col min-h-0 py-2 gap-2 ${
+          isNovel ? 'max-w-[1920px]' : 'max-w-3xl sm:gap-3'
+        }`}
+      >
         {/* Error Alert Banner */}
         {errorMessage && (
-          <div className="bg-rose-100 border border-rose-300 text-rose-800 px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center justify-between shadow-xs">
+          <div className="bg-rose-100 border border-rose-300 text-rose-800 px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center justify-between shadow-xs flex-shrink-0">
             <span className="flex items-center gap-1.5">
               <AlertIcon className="w-4 h-4 text-rose-700 flex-shrink-0" />
               <span>{errorMessage}</span>
@@ -453,11 +484,12 @@ export default function App() {
           </div>
         )}
 
-        {/* Chat Message List */}
-        <div className="flex-1 min-h-0 bg-stone-50/60 backdrop-blur-xs rounded-2xl border border-rose-100/80 flex flex-col shadow-inner">
-          <ChatMessageList
-            messages={messages}
+        {isNovel ? (
+          /* ノベルステージ（立ち絵＋テキスト枠） */
+          <NovelStage
             friend={currentFriend}
+            message={latestAssistantMessage}
+            lastUserText={lastUserText}
             isLoading={isLoading}
             playingText={playingText}
             onPlayText={handlePlayText}
@@ -465,17 +497,47 @@ export default function App() {
             savedTerms={savedTermsSet}
             enableToneColoring={toneColoring}
             onSaveVocabulary={handleAddVocabulary}
+            onOpenLog={() => setIsLogModalOpen(true)}
+            onOpenFriendList={() => setIsFriendListOpen(true)}
+            onOpenVoiceSettings={() => setIsVoiceSettingsOpen(true)}
+            logCount={messages.length}
           />
-        </div>
+        ) : (
+          <>
+            {/* Friend Profile Card */}
+            <FriendCard
+              friend={currentFriend}
+              onOpenFriendList={() => setIsFriendListOpen(true)}
+              onOpenVoiceSettings={() => setIsVoiceSettingsOpen(true)}
+            />
+
+            {/* Chat Message List */}
+            <div className="flex-1 min-h-0 bg-stone-50/60 backdrop-blur-xs rounded-2xl border border-rose-100/80 flex flex-col shadow-inner">
+              <ChatMessageList
+                messages={messages}
+                friend={currentFriend}
+                isLoading={isLoading}
+                playingText={playingText}
+                onPlayText={handlePlayText}
+                onStopText={handleStopText}
+                savedTerms={savedTermsSet}
+                enableToneColoring={toneColoring}
+                onSaveVocabulary={handleAddVocabulary}
+              />
+            </div>
+          </>
+        )}
 
         {/* Chat Input */}
-        <ChatInput
-          onSendMessage={handleSendMessage}
-          isLoading={isLoading}
-          speechLang={speechInputLang}
-          onSpeechLangChange={handleSpeechLangChange}
-          onError={(msg) => setErrorMessage(msg)}
-        />
+        <div className={isNovel ? 'vn-measure flex-shrink-0' : 'flex-shrink-0'}>
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            isLoading={isLoading}
+            speechLang={speechInputLang}
+            onSpeechLangChange={handleSpeechLangChange}
+            onError={(msg) => setErrorMessage(msg)}
+          />
+        </div>
       </main>
 
       {/* Settings Modal (BYO-AI & Model Selection & Audio) */}
@@ -541,6 +603,20 @@ export default function App() {
           setIsVocabularyModalOpen(false)
           setIsReviewModalOpen(true)
         }}
+      />
+
+      {/* Chat Log Modal (ノベル画面のバックログ) */}
+      <ChatLogModal
+        isOpen={isLogModalOpen}
+        onClose={() => setIsLogModalOpen(false)}
+        messages={messages}
+        friend={currentFriend}
+        playingText={playingText}
+        onPlayText={handlePlayText}
+        onStopText={handleStopText}
+        savedTerms={savedTermsSet}
+        enableToneColoring={toneColoring}
+        onSaveVocabulary={handleAddVocabulary}
       />
 
       {/* Review Modal (復習: カード＆クイズ) */}

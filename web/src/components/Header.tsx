@@ -1,4 +1,14 @@
-import { UsersIcon, SparklesIcon, SettingsIcon, TrashIcon, BookOpenIcon, SpeakerIcon } from './Icons'
+import type { ViewMode } from '../services/storage'
+import {
+  UsersIcon,
+  SparklesIcon,
+  SettingsIcon,
+  TrashIcon,
+  BookOpenIcon,
+  SpeakerIcon,
+  UserIcon,
+  MessageSquareIcon,
+} from './Icons'
 
 interface HeaderProps {
   hskLevel: number
@@ -14,6 +24,8 @@ interface HeaderProps {
   onToggleAutoPlayTts?: () => void
   toneColoring?: boolean
   onToggleToneColoring?: () => void
+  viewMode?: ViewMode
+  onChangeViewMode?: (mode: ViewMode) => void
 }
 
 export function Header({
@@ -30,9 +42,11 @@ export function Header({
   onToggleAutoPlayTts,
   toneColoring = false,
   onToggleToneColoring,
+  viewMode = 'novel',
+  onChangeViewMode,
 }: HeaderProps) {
   return (
-    <header className="w-full max-w-3xl flex items-center justify-between py-2.5 px-1 sm:px-0 border-b border-rose-200/60 gap-2">
+    <header className="w-full max-w-[1920px] flex items-center justify-between py-2 px-1 sm:px-0 border-b border-rose-200/60 gap-2 flex-shrink-0">
       {/* App Logo & Title */}
       <div className="flex items-center gap-2.5 flex-shrink-0">
         <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-rose-500/20 flex-shrink-0">
@@ -50,6 +64,44 @@ export function Header({
 
       {/* Action Buttons & Toggles */}
       <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
+        {/* View Mode Switch (ノベル / チャット) */}
+        {onChangeViewMode && (
+          <div
+            className="flex items-center gap-0.5 p-0.5 bg-stone-100 rounded-full border border-stone-200 flex-shrink-0"
+            role="group"
+            aria-label="画面モードの切り替え"
+          >
+            <button
+              type="button"
+              onClick={() => onChangeViewMode('novel')}
+              aria-pressed={viewMode === 'novel'}
+              title="ノベル画面（立ち絵で会話）"
+              className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                viewMode === 'novel'
+                  ? 'bg-white text-rose-600 shadow-2xs'
+                  : 'text-stone-500 hover:text-stone-800'
+              }`}
+            >
+              <UserIcon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">ノベル</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onChangeViewMode('chat')}
+              aria-pressed={viewMode === 'chat'}
+              title="チャット画面（履歴を一覧で確認）"
+              className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                viewMode === 'chat'
+                  ? 'bg-white text-rose-600 shadow-2xs'
+                  : 'text-stone-500 hover:text-stone-800'
+              }`}
+            >
+              <MessageSquareIcon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">チャット</span>
+            </button>
+          </div>
+        )}
+
         {/* HSK Selector */}
         <div className="flex items-center gap-1 bg-white/95 px-2.5 py-1 rounded-full border border-rose-200/80 shadow-2xs whitespace-nowrap flex-shrink-0">
           <span className="text-[11px] font-semibold text-stone-600">HSK:</span>

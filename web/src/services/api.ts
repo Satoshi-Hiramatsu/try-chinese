@@ -1,4 +1,5 @@
-import type { Friend, ChatMessage, BilingualReply, Correction, HobbyVocabulary } from '../types'
+import type { Friend, ChatMessage, BilingualReply, Correction, Expression, HobbyVocabulary } from '../types'
+import { resolveExpression } from './expression'
 
 export interface SendMessageOptions {
   message: string
@@ -13,6 +14,8 @@ export interface SendMessageResponse {
   reply: BilingualReply
   correction: Correction
   vocabulary: HobbyVocabulary[]
+  /** 立ち絵の表情。API が返さない場合は返答テキストから推定する。 */
+  expression: Expression
 }
 
 /**
@@ -68,6 +71,12 @@ export async function sendMessageToChatApi(options: SendMessageOptions): Promise
     throw new Error(errorMsg)
   }
 
-  const data = (await response.json()) as SendMessageResponse
-  return data
+  const data = (await response.json()) as Omit<SendMessageResponse, 'expression'> & {
+    expression?: unknown
+  }
+
+  return {
+    ...data,
+    expression: resolveExpression(data.expression, data.reply?.zh || '', data.reply?.ja || ''),
+  }
 }
