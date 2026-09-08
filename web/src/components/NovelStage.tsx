@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChatMessage, Expression, Friend } from '../types'
-import { resolvePortrait } from '../data/portraits'
+import { getPortraitImage, resolvePortrait } from '../data/portraits'
 import { CharacterPortrait, EXPRESSION_LABELS } from './CharacterPortrait'
 import { SceneBackdrop } from './SceneBackdrop'
 import { TonePinyin } from './TonePinyin'
@@ -60,6 +60,7 @@ export function NovelStage({
   logCount = 0,
 }: NovelStageProps) {
   const portrait = resolvePortrait(friend)
+  const portraitImage = getPortraitImage(portrait.id)
   const reply = message?.reply
   const correction = message?.correction
   const vocabulary = message?.vocabulary || []
@@ -118,22 +119,36 @@ export function NovelStage({
     >
       {/* ---------------------------------------------------------------- 立ち絵 */}
       <div className="vn-figure overflow-hidden">
-        <SceneBackdrop scene={scene} />
-
-        <div className="absolute inset-0 flex items-end justify-center px-2">
-          <div key={friend.id} className="w-full h-full stage-enter">
-            <div key={reactKey} className="w-full h-full stage-react">
-              <CharacterPortrait
-                spec={portrait}
-                expression={expression}
-                crop="bust"
-                talking={talking}
-                className="w-full h-full drop-shadow-[0_10px_24px_rgba(60,40,45,0.22)]"
-                title={`${friend.name}（${EXPRESSION_LABELS[expression]}）`}
-              />
-            </div>
+        {portraitImage ? (
+          /* イラスト立ち絵（プリセットの友達）。背景はイラストに描き込まれている。 */
+          <div key={friend.id} className="absolute inset-0 stage-enter">
+            <img
+              src={portraitImage}
+              alt={`${friend.name} の立ち絵`}
+              className="vn-portrait-img"
+              draggable={false}
+            />
           </div>
-        </div>
+        ) : (
+          /* イラストを持たないカスタム友達は SVG 立ち絵で描画する。 */
+          <>
+            <SceneBackdrop scene={scene} />
+            <div className="absolute inset-0 flex items-end justify-center px-2">
+              <div key={friend.id} className="w-full h-full stage-enter">
+                <div key={reactKey} className="w-full h-full stage-react">
+                  <CharacterPortrait
+                    spec={portrait}
+                    expression={expression}
+                    crop="bust"
+                    talking={talking}
+                    className="w-full h-full drop-shadow-[0_10px_24px_rgba(60,40,45,0.22)]"
+                    title={`${friend.name}（${EXPRESSION_LABELS[expression]}）`}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* ネームプレート */}
         <div className="vn-nameplate absolute top-2.5 left-2.5 sm:top-4 sm:left-4 flex items-center gap-2 max-w-[calc(100%-1.25rem)]">
@@ -148,19 +163,6 @@ export function NovelStage({
             {EXPRESSION_LABELS[expression]}
           </span>
         </div>
-
-        {/* 直前のユーザー発話 */}
-        {lastUserText && (
-          <div className="vn-echo absolute left-2.5 right-2.5 sm:left-4 sm:right-4 top-14 sm:top-16 flex justify-end pointer-events-none">
-            <span
-              className={`vn-meta max-w-[80%] truncate px-3 py-1 rounded-xl shadow-sm ${
-                isNight ? 'bg-rose-500/80 text-white' : 'bg-white/85 text-stone-600'
-              }`}
-            >
-              あなた: {lastUserText}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* ステージ上のクイックボタン */}
@@ -203,7 +205,14 @@ export function NovelStage({
 
       {/* ------------------------------------------------------------ テキスト枠 */}
       <div className="vn-dialogue relative px-2 pb-2 sm:px-4 sm:pb-4">
-        <div className="vn-scrim absolute inset-x-0 -top-16 bottom-0 pointer-events-none" />
+        {/* 直前のユーザー発話（テキスト枠の上に小さく残す） */}
+        {lastUserText && (
+          <div className="vn-echo vn-measure flex justify-end pb-1.5 pointer-events-none">
+            <span className="vn-meta max-w-[80%] truncate px-3 py-1 rounded-xl shadow-sm bg-white/85 text-stone-600">
+              あなた: {lastUserText}
+            </span>
+          </div>
+        )}
 
         <div
           className="vn-measure vn-panel relative bg-white/94 backdrop-blur-md rounded-2xl border border-rose-200/70 shadow-lg px-4 py-3 sm:px-6 sm:py-4 overflow-y-auto overscroll-contain"

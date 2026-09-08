@@ -122,14 +122,15 @@ body {
 /* ===========================================================================
    ノベルステージのレイアウト
    ---------------------------------------------------------------------------
-   縦画面（スマホ）: 立ち絵とテキスト枠を上下に分割し、文字を大きく保つ。
-   横画面（PC・スマホ横）: 立ち絵を全面に広げ、テキスト枠を下部に重ねる。
+   立ち絵とテキスト枠は決して重ねない。
+   狭い画面（スマホ縦）: 立ち絵を上・テキスト枠を下に分ける。
+   広い画面（タブレット・PC・スマホ横）: 立ち絵を左・テキスト枠を右に分ける。
    =========================================================================== */
 
 .vn-stage {
   display: grid;
   /* 立ち絵の領域が潰れないよう最低高さを確保する */
-  grid-template-rows: minmax(24svh, 1fr) auto;
+  grid-template-rows: minmax(26svh, 1fr) auto;
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -145,15 +146,35 @@ body {
   grid-column: 1;
   z-index: 2;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 
-/* 横画面では立ち絵を全高に広げ、テキスト枠を重ねる（ノベルゲーム風） */
-@media (orientation: landscape) {
-  .vn-figure { grid-row: 1 / -1; }
+/* 立ち絵イラスト。顔が切れないよう上寄せでトリミングする。 */
+.vn-portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 14%;
+  user-select: none;
+}
+
+/*
+ * 3:4 の立ち絵から顔まわりだけを正方形に切り出すサムネイル。
+ * 元画像の横 22%〜78%・縦 0%〜42% がちょうど枠いっぱいに収まる。
+ */
+.pt-face {
+  position: absolute;
+  top: 0;
+  left: -39.3%;
+  width: 178.6%;
+  max-width: none;
+  user-select: none;
 }
 
 /* テキスト枠の高さ上限。内容が長い場合は枠内でスクロールする。 */
-.vn-panel { max-height: 50svh; }
+.vn-panel { max-height: 46svh; }
 
 /* ステージ上のボタン群（既定は右上） */
 .vn-controls { position: absolute; top: 0.625rem; right: 0.625rem; z-index: 3; }
@@ -163,24 +184,35 @@ body {
 }
 
 /*
- * 高さの狭い横画面（スマホの横持ちなど）は上下分割だと両方が潰れるため、
- * 立ち絵を左・テキスト枠を右に置く2カラムに切り替える。
+ * 広い画面は立ち絵を左カラム・テキスト枠を右カラムに分ける。
+ * 立ち絵の上に本文が重ならないので、キャラクターの顔が常に見える。
  */
-@media (orientation: landscape) and (max-height: 560px) {
+@media (min-width: 640px) and (min-aspect-ratio: 1/1) {
   .vn-stage {
-    grid-template-columns: minmax(0, 36%) minmax(0, 1fr);
+    grid-template-columns: minmax(232px, 38%) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
   }
   .vn-figure { grid-row: 1; grid-column: 1; }
   .vn-dialogue {
     grid-row: 1;
     grid-column: 2;
-    display: flex;
-    align-items: center;
-    padding: 0.5rem 0.5rem 0.5rem 0;
+    justify-content: center;
+    /* 右上のボタン群と本文が重ならないだけの余白を上に取る */
+    padding: 3.25rem 1rem 1rem 0;
   }
   .vn-panel { max-height: 100%; }
-  .vn-scrim { display: none; }
+  /* 立ち絵が縦長カラムに収まるので、顔位置の寄せを弱める */
+  .vn-portrait-img { object-position: 50% 24%; }
+}
+
+/*
+ * 高さの狭い横画面（スマホの横持ちなど）は立ち絵カラムをさらに絞り、
+ * 本文の行数を確保する。
+ * 上の2カラム指定を前提とした調整のため、同じ min-width で条件を揃える。
+ */
+@media (min-width: 640px) and (orientation: landscape) and (max-height: 560px) {
+  .vn-stage { grid-template-columns: minmax(0, 32%) minmax(0, 1fr); }
+  .vn-dialogue { padding: 0.5rem 0.5rem 0.5rem 0; }
   .vn-echo { display: none; }
   /* ボタンは立ち絵側の左下に逃がし、本文と重ならないようにする */
   .vn-controls { top: auto; right: auto; bottom: 0.625rem; left: 0.625rem; }
@@ -199,11 +231,6 @@ body {
 
 /* 超ワイドモニターでも読みやすいよう本文の横幅を制限する */
 .vn-measure { width: 100%; max-width: min(1180px, 100%); margin-inline: auto; }
-
-/* テキスト枠の背後に敷くスクリム（立ち絵と文字の分離） */
-.vn-scrim {
-  background: linear-gradient(180deg, rgba(28, 22, 24, 0) 0%, rgba(28, 22, 24, 0.16) 55%, rgba(28, 22, 24, 0.3) 100%);
-}
 
 /* 送り待ちの三角マーカー */
 @keyframes vn-tick {

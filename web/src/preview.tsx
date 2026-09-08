@@ -5,7 +5,7 @@
  * vite の build 入力は index.html のみのため、本番バンドルには含まれない。
  *
  * URL パラメータ:
- *   ?view=portraits   … 20体の立ち絵一覧（既定）
+ *   ?view=portraits   … 20体のイラスト立ち絵一覧（既定）
  *   ?view=expressions … 表情10パターンの一覧
  *   ?view=icons       … 顔アイコン（切り出し）一覧
  */
@@ -13,9 +13,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import { PORTRAITS } from './data/portraits'
+import { PORTRAITS, getPortraitImage } from './data/portraits'
 import { PRESET_FRIENDS } from './data/presetFriends'
 import { CharacterPortrait, EXPRESSION_LABELS } from './components/CharacterPortrait'
+import { PortraitFace } from './components/PortraitFace'
 import { EXPRESSIONS } from './types'
 
 const PORTRAIT_LIST = Object.values(PORTRAITS)
@@ -59,14 +60,21 @@ function Portraits() {
         <Section
           key={title}
           title={title}
-          note="肌・髪型・髪色・瞳・服装・装飾・背景シーンの組み合わせがすべて異なる"
+          note="趣味・職業・居住地に合わせて描き起こしたイラスト立ち絵"
         >
           <div className="grid grid-cols-5 gap-3">
-            {list.map((spec) => (
-              <Card key={spec.id} label={NAME_BY_PORTRAIT.get(spec.id) || spec.id}>
-                <CharacterPortrait spec={spec} expression="smile" crop="bust" animate={false} className="w-full" />
-              </Card>
-            ))}
+            {list.map((spec) => {
+              const image = getPortraitImage(spec.id)
+              return (
+                <Card key={spec.id} label={NAME_BY_PORTRAIT.get(spec.id) || spec.id}>
+                  {image ? (
+                    <img src={image} alt={spec.id} className="w-full block" />
+                  ) : (
+                    <CharacterPortrait spec={spec} expression="smile" crop="bust" animate={false} className="w-full" />
+                  )}
+                </Card>
+              )
+            })}
           </div>
         </Section>
       ))}
@@ -85,7 +93,7 @@ function Expressions() {
           title={NAME_BY_PORTRAIT.get(id) || id}
           note={
             index === 0
-              ? '会話内容に応じて LLM が指定した表情に切り替わる（指定がない場合は返答テキストから推定）'
+              ? 'イラスト立ち絵を持たないカスタム友達向けのSVG立ち絵。会話内容に応じて表情が切り替わる'
               : undefined
           }
         >
@@ -110,11 +118,13 @@ function Expressions() {
 
 function Icons() {
   return (
-    <Section title="顔アイコン" note="立ち絵と同じSVGの顔部分を切り出して生成する">
+    <Section title="顔アイコン" note="立ち絵の顔部分を切り出して生成する">
       <div className="grid grid-cols-10 gap-2">
         {PORTRAIT_LIST.map((spec) => (
           <Card key={spec.id} label={NAME_BY_PORTRAIT.get(spec.id) || spec.id}>
-            <CharacterPortrait spec={spec} expression="smile" crop="face" animate={false} className="w-full" />
+            <div className="aspect-square">
+              <PortraitFace spec={spec} title={spec.id} />
+            </div>
           </Card>
         ))}
       </div>

@@ -12,7 +12,7 @@ import {
   FemaleIcon,
 } from './Icons'
 import { FriendAvatar } from './FriendAvatar'
-import { CharacterPortrait } from './CharacterPortrait'
+import { PortraitFace } from './PortraitFace'
 import { PORTRAITS } from '../data/portraits'
 import {
   CHARACTER_VOICE_OPTIONS,
@@ -403,18 +403,12 @@ export function FriendListModal({
                       title={spec.id}
                       aria-pressed={portraitId === spec.id}
                     >
-                      <CharacterPortrait
-                        spec={spec}
-                        expression="smile"
-                        crop="face"
-                        animate={false}
-                        className="w-full h-full"
-                      />
+                      <PortraitFace spec={spec} title={spec.id} />
                     </button>
                   ))}
                 </div>
                 <p className="text-[11px] text-stone-500 mt-1.5">
-                  ※ 立ち絵は会話内容に合わせて喜怒哀楽など10パターンの表情に自動で切り替わります。
+                  ※ 選んだ立ち絵がノベル画面に表示されます。返答の感情は名前の横にラベルで表示されます。
                 </p>
               </div>
 

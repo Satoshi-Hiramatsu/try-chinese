@@ -1,6 +1,6 @@
 import type { Expression, Friend } from '../types'
 import { getPortrait, resolvePortrait } from '../data/portraits'
-import { CharacterPortrait } from './CharacterPortrait'
+import { PortraitFace } from './PortraitFace'
 
 interface FriendAvatarProps {
   friend: Friend
@@ -47,14 +47,7 @@ export function FriendAvatar({
       className={`relative overflow-hidden flex-shrink-0 bg-rose-50 border border-rose-200/80 shadow-xs ${sizeClasses} ${shapeClasses} ${className}`}
     >
       {portrait ? (
-        <CharacterPortrait
-          spec={portrait}
-          expression={expression}
-          crop="face"
-          animate={false}
-          className="w-full h-full"
-          title={friend.name}
-        />
+        <PortraitFace spec={portrait} expression={expression} title={friend.name} />
       ) : isImageAvatar ? (
         <img
           src={avatar}

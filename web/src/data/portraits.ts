@@ -417,6 +417,16 @@ export function getPortrait(id?: string): PortraitSpec | null {
   return PORTRAITS[id] || null
 }
 
+/**
+ * 立ち絵イラスト（`web/public/portraits/`）のURL。
+ * プリセット20人はイラストを持つ。イラストが無いカスタム友達は null を返し、
+ * 呼び出し側は PortraitSpec から組み立てる SVG 立ち絵にフォールバックする。
+ */
+export function getPortraitImage(id?: string): string | null {
+  if (!id || !PORTRAITS[id]) return null
+  return `/portraits/${id}.jpg`
+}
+
 export const PORTRAIT_IDS = Object.keys(PORTRAITS)
 
 const PORTRAIT_LIST = Object.values(PORTRAITS)
