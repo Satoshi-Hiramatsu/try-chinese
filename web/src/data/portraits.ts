@@ -434,26 +434,17 @@ export function getPortraitImage(id?: string): string | null {
  * キャラクターを描き替えても背景が動かない。
  * 差分の生成は `scripts/sheet-to-portraits.mjs` を参照。
  *
- * ここに載せるのは、シーン背景イラスト（`SCENE_IMAGE_IDS`）まで揃っている立ち絵だけ。
- * 透過立ち絵だけを先に有効にすると、平坦な SVG 背景の上にイラストが乗って
- * かえって元の1枚絵より見劣りするため、背景が揃った時点で追加する。
- * 画像は用意済みだが背景待ちの立ち絵は `PORTRAIT_EXPRESSIONS_PENDING_SCENE`。
+ * 差分がまだ無い立ち絵は、背景が描き込まれた1枚絵（`getPortraitImage`）のまま表示する。
  */
 export const PORTRAIT_EXPRESSION_IDS: ReadonlySet<string> = new Set([
   'pt-meiling',
   'pt-lixue',
   'pt-shixun',
-])
-
-/**
- * 表情差分10枚は生成済みだが、シーン背景イラストが未生成のため
- * まだ有効にしていない立ち絵。背景を追加したら `PORTRAIT_EXPRESSION_IDS` へ移す。
- */
-export const PORTRAIT_EXPRESSIONS_PENDING_SCENE: ReadonlySet<string> = new Set([
   'pt-zihan',
   'pt-yuchen',
   'pt-xiaoyu',
   'pt-chenyu',
+  'pt-wanghao',
 ])
 
 /** 表情差分（透過画像）を持つ立ち絵かどうか。 */
@@ -474,7 +465,18 @@ export function getPortraitLayer(id: string | undefined, expression: Expression)
  * シーン背景イラスト（`web/public/scenes/`）を持つシーン。
  * 未生成のシーンは SVG の `SceneBackdrop` にフォールバックする。
  */
-export const SCENE_IMAGE_IDS: ReadonlySet<SceneId> = new Set<SceneId>(['campus', 'studio'])
+export const SCENE_IMAGE_IDS: ReadonlySet<SceneId> = new Set<SceneId>([
+  'campus',
+  'studio',
+  'teahouse',
+  'gym',
+  'night',
+  'park',
+  'cafe',
+  'city',
+  'travel',
+  'kitchen',
+])
 
 /** シーン背景イラストのURL。未生成のシーンは null を返す。 */
 export function getSceneImage(scene: SceneId): string | null {

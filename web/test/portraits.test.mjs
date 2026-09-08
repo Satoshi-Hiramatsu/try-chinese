@@ -35,14 +35,7 @@ function load(relPath, requireImpl = () => ({})) {
   return exports
 }
 
-const {
-  PORTRAITS,
-  PORTRAIT_EXPRESSION_IDS,
-  PORTRAIT_EXPRESSIONS_PENDING_SCENE,
-  SCENE_IMAGE_IDS,
-  getPortraitLayer,
-  getSceneImage,
-} =
+const { PORTRAITS, PORTRAIT_EXPRESSION_IDS, SCENE_IMAGE_IDS, getPortraitLayer, getSceneImage } =
   load('../src/data/portraits.ts')
 const { PRESET_FRIENDS } = load('../src/data/presetFriends.ts')
 const { BACK_HAIR_PATHS, FRONT_HAIR_PATHS } = load('../src/data/portraitParts.ts')
@@ -126,24 +119,14 @@ test('シーン背景イラストは、宣言されたシーンぶんの画像�
   }
 })
 
-test('背景待ちの立ち絵は、画像が10枚揃っていて背景だけが足りない', () => {
-  for (const id of PORTRAIT_EXPRESSIONS_PENDING_SCENE) {
-    assert.ok(PORTRAITS[id], `未定義の立ち絵が背景待ちに入っている: ${id}`)
-    assert.ok(
-      !PORTRAIT_EXPRESSION_IDS.has(id),
-      `${id} が有効と背景待ちの両方に入っている`
+test('表情差分の画像が揃っている立ち絵は、すべて有効になっている', () => {
+  // 10枚を生成したのに PORTRAIT_EXPRESSION_IDS へ入れ忘れる、という取りこぼしを検出する。
+  for (const id of Object.keys(PORTRAITS)) {
+    if (PORTRAIT_EXPRESSION_IDS.has(id)) continue
+    const complete = EXPRESSIONS.every((expression) =>
+      existsSync(new URL(`../public/portraits/${id}-${expression}.webp`, import.meta.url))
     )
-    for (const expression of EXPRESSIONS) {
-      assert.ok(
-        existsSync(new URL(`../public/portraits/${id}-${expression}.webp`, import.meta.url)),
-        `背景待ちの立ち絵に画像が足りない: ${id}-${expression}.webp`
-      )
-    }
-    // 背景が揃ったのに有効化し忘れる、という取りこぼしをここで検出する。
-    assert.ok(
-      !SCENE_IMAGE_IDS.has(PORTRAITS[id].scene),
-      `${id} のシーン背景（${PORTRAITS[id].scene}）は用意済み。PORTRAIT_EXPRESSION_IDS へ移すこと`
-    )
+    assert.ok(!complete, `${id} は10表情が揃っている。PORTRAIT_EXPRESSION_IDS へ追加すること`)
   }
 })
 

@@ -91,7 +91,7 @@ function Portraits() {
 
 function Expressions() {
   // 表情差分を持つ立ち絵をすべて並べ、最後に未対応の立ち絵を1体だけ添えて対比する。
-  const samples = [...PORTRAIT_EXPRESSION_IDS, 'pt-wanghao']
+  const samples = [...PORTRAIT_EXPRESSION_IDS, 'pt-nuan']
 
   return (
     <>
