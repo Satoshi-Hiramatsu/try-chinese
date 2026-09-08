@@ -181,7 +181,7 @@ npm run dev:worker
 
 ### 5. テスト実行 & ビルド
 ```bash
-# Workers テスト実行 (Vitest)
+# React Hooks 検査 + Web テスト (Node.js) + Workers テスト (Vitest)
 npm test
 
 # 全体ビルド (Web + Worker)

@@ -74,6 +74,9 @@ export function FriendListModal({
     return allVoiceOptions.filter((v) => v.gender === voiceGender)
   }, [allVoiceOptions, voiceGender])
 
+  // Keep hooks unconditional across modal open/close renders.
+  const scrollRef = useRef<HTMLDivElement>(null)
+
   if (!isOpen) return null
 
   const handleStartCreate = () => {
@@ -173,8 +176,6 @@ export function FriendListModal({
     setEditingFriendId(null)
     onClose()
   }
-
-  const scrollRef = useRef<HTMLDivElement>(null)
 
   const handleCardWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     if (scrollRef.current && !scrollRef.current.contains(e.target as Node)) {
