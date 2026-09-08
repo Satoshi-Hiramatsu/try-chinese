@@ -15,6 +15,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import {
   PORTRAITS,
+  PORTRAIT_EXPRESSION_IDS,
   getPortraitImage,
   getPortraitLayer,
   getSceneImage,
@@ -89,7 +90,8 @@ function Portraits() {
 }
 
 function Expressions() {
-  const samples = ['pt-meiling', 'pt-wanghao', 'pt-zihan', 'pt-lijun']
+  // 表情差分を持つ立ち絵をすべて並べ、最後に未対応の立ち絵を1体だけ添えて対比する。
+  const samples = [...PORTRAIT_EXPRESSION_IDS, 'pt-wanghao']
 
   return (
     <>

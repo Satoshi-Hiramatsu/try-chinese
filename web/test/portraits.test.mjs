@@ -35,7 +35,14 @@ function load(relPath, requireImpl = () => ({})) {
   return exports
 }
 
-const { PORTRAITS, PORTRAIT_EXPRESSION_IDS, SCENE_IMAGE_IDS, getPortraitLayer, getSceneImage } =
+const {
+  PORTRAITS,
+  PORTRAIT_EXPRESSION_IDS,
+  PORTRAIT_EXPRESSIONS_PENDING_SCENE,
+  SCENE_IMAGE_IDS,
+  getPortraitLayer,
+  getSceneImage,
+} =
   load('../src/data/portraits.ts')
 const { PRESET_FRIENDS } = load('../src/data/presetFriends.ts')
 const { BACK_HAIR_PATHS, FRONT_HAIR_PATHS } = load('../src/data/portraitParts.ts')
@@ -119,12 +126,40 @@ test('シーン背景イラストは、宣言されたシーンぶんの画像�
   }
 })
 
-test('背景と分離した立ち絵は、必ずシーン背景とセットで用意されている', () => {
-  // 透過立ち絵だけがあってシーン背景が無いと、キャラクターの背後が空になる。
-  for (const id of PORTRAIT_EXPRESSION_IDS) {
+test('背景待ちの立ち絵は、画像が10枚揃っていて背景だけが足りない', () => {
+  for (const id of PORTRAIT_EXPRESSIONS_PENDING_SCENE) {
+    assert.ok(PORTRAITS[id], `未定義の立ち絵が背景待ちに入っている: ${id}`)
     assert.ok(
-      SCENE_IMAGE_IDS.has(PORTRAITS[id].scene),
-      `${id} のシーン背景（${PORTRAITS[id].scene}）が未生成`
+      !PORTRAIT_EXPRESSION_IDS.has(id),
+      `${id} が有効と背景待ちの両方に入っている`
+    )
+    for (const expression of EXPRESSIONS) {
+      assert.ok(
+        existsSync(new URL(`../public/portraits/${id}-${expression}.webp`, import.meta.url)),
+        `背景待ちの立ち絵に画像が足りない: ${id}-${expression}.webp`
+      )
+    }
+    // 背景が揃ったのに有効化し忘れる、という取りこぼしをここで検出する。
+    assert.ok(
+      !SCENE_IMAGE_IDS.has(PORTRAITS[id].scene),
+      `${id} のシーン背景（${PORTRAITS[id].scene}）は用意済み。PORTRAIT_EXPRESSION_IDS へ移すこと`
+    )
+  }
+})
+
+test('シーン背景が未生成でも、透過立ち絵の背後は必ず埋まる', () => {
+  // 透過立ち絵は背景を持たないので、シーン背景イラストが無い場合は
+  // SVG の SceneBackdrop へフォールバックする。どちらも無いと背後が空になる。
+  const backdropScenes = new Set(
+    readFileSync(new URL('../src/components/SceneBackdrop.tsx', import.meta.url), 'utf8')
+      .matchAll(/case '([a-z]+)':/g)
+      .map((m) => m[1])
+  )
+  for (const id of PORTRAIT_EXPRESSION_IDS) {
+    const { scene } = PORTRAITS[id]
+    assert.ok(
+      SCENE_IMAGE_IDS.has(scene) || backdropScenes.has(scene),
+      `${id} のシーン（${scene}）に背景イラストも SceneBackdrop も無い`
     )
   }
 })
