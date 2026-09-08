@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "readme": "README.md",
+  "start": {
+    "command": "npm run dev:web -- --port 5177 --strictPort",
+    "readyUrl": "http://localhost:5177/",
+    "timeoutSeconds": 60
+  },
+  "screenshots": [
+    {
+      "id": "desktop-novel",
+      "path": "docs/screenshots/novel_stage.png",
+      "url": "http://localhost:5177/",
+      "alt": "ノベル画面。周暖の立ち絵と、ピンイン・中国語本文・日本語訳・新出語彙を並べたテキスト枠",
+      "viewport": { "width": 1600, "height": 900 },
+      "waitFor": "main section[aria-label]",
+      "steps": [
+        {
+          "action": "setLocalStorage",
+          "value": {
+            "shabe_china_onboarding_completed": "true",
+            "shabe_china_selected_friend_id": "friend-nuan"
+          }
+        }
+      ]
+    },
+    {
+      "id": "portrait-gallery",
+      "path": "docs/screenshots/portrait_gallery.png",
+      "url": "http://localhost:5177/preview.html?view=portraits",
+      "alt": "男女10人ずつ計20体の立ち絵一覧",
+      "viewport": { "width": 1180, "height": 1200 },
+      "fullPage": true,
+      "waitFor": "#preview-root",
+      "steps": []
+    },
+    {
+      "id": "expressions",
+      "path": "docs/screenshots/expressions.png",
+      "url": "http://localhost:5177/preview.html?view=expressions",
+      "alt": "4人のキャラクターについて、通常・微笑み・喜び・笑い・照れ・驚き・哀しみ・怒り・考え中・ウインクの10表情を並べた一覧",
+      "viewport": { "width": 1280, "height": 1200 },
+      "fullPage": true,
+      "waitFor": "#preview-root",
+      "steps": []
+    },
+    {
+      "id": "mobile-portrait",
+      "path": "docs/screenshots/mobile_portrait.png",
+      "url": "http://localhost:5177/",
+      "alt": "スマートフォン縦画面。立ち絵が上、テキスト枠が下の上下分割レイアウト",
+      "viewport": { "width": 390, "height": 844 },
+      "waitFor": "main section[aria-label]",
+      "steps": [
+        {
+          "action": "setLocalStorage",
+          "value": {
+            "shabe_china_onboarding_completed": "true",
+            "shabe_china_selected_friend_id": "friend-nuan"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mobile-landscape",
+      "path": "docs/screenshots/mobile_landscape.png",
+      "url": "http://localhost:5177/",
+      "alt": "スマートフォン横画面。立ち絵が左、テキスト枠が右の2カラムレイアウト",
+      "viewport": { "width": 844, "height": 390 },
+      "waitFor": "main section[aria-label]",
+      "steps": [
+        {
+          "action": "setLocalStorage",
+          "value": {
+            "shabe_china_onboarding_completed": "true",
+            "shabe_china_selected_friend_id": "friend-nuan"
+          }
+        }
+      ]
+    },
+    {
+      "id": "friend-list",
+      "path": "docs/screenshots/friend_list.png",
+      "url": "http://localhost:5177/",
+      "alt": "外国人の友達モーダル。20人の一覧と、それぞれの顔アイコン・声の性別・趣味タグ",
+      "viewport": { "width": 1280, "height": 900 },
+      "waitFor": "main section[aria-label]",
+      "steps": [
+        {
+          "action": "setLocalStorage",
+          "value": { "shabe_china_onboarding_completed": "true" }
+        },
+        { "action": "click", "target": "友達を切り替え" },
+        { "action": "wait", "milliseconds": 600 }
+      ]
+    },
+    {
+      "id": "friend-create",
+      "path": "docs/screenshots/friend_create.png",
+      "url": "http://localhost:5177/",
+      "alt": "友達作成フォーム。性別で絞り込まれた立ち絵を選び、名前・性格・趣味・口調・声質を設定する",
+      "viewport": { "width": 1280, "height": 900 },
+      "waitFor": "main section[aria-label]",
+      "steps": [
+        {
+          "action": "setLocalStorage",
+          "value": { "shabe_china_onboarding_completed": "true" }
+        },
+        { "action": "click", "target": "友達を切り替え" },
+        { "action": "click", "target": "新しい友達を作る" },
+        { "action": "wait", "milliseconds": 500 }
+      ]
+    },
+    {
+      "id": "desktop-chat",
+      "path": "docs/screenshots/main_chat.png",
+      "url": "http://localhost:5177/",
+      "alt": "チャット画面。返答のピンイン・中国語本文・日本語訳と新出語彙カードを時系列で表示する",
+      "viewport": { "width": 1280, "height": 900 },
+      "waitFor": "main",
+      "steps": [
+        {
+          "action": "setLocalStorage",
+          "value": {
+            "shabe_china_onboarding_completed": "true",
+            "shabe_china_view_mode": "chat",
+            "shabe_china_selected_friend_id": "friend-tianyou"
+          }
+        }
+      ]
+    },
+    {
+      "id": "settings",
+      "path": "docs/screenshots/settings_modal.png",
+      "url": "http://localhost:5177/",
+      "alt": "設定モーダル。OpenRouter API キー、会話 AI モデル、音声合成モデルを選択する",
+      "viewport": { "width": 1280, "height": 900 },
+      "waitFor": "main section[aria-label]",
+      "steps": [
+        {
+          "action": "setLocalStorage",
+          "value": { "shabe_china_onboarding_completed": "true" }
+        },
+        { "action": "click", "target": "設定" },
+        { "action": "wait", "milliseconds": 600 }
+      ]
+    },
+    {
+      "id": "voice-settings",
+      "path": "docs/screenshots/voice_settings.png",
+      "url": "http://localhost:5177/",
+      "alt": "声質設定モーダル。友達ごとに話者キャラクターを選び、試聴して保存する",
+      "viewport": { "width": 1280, "height": 900 },
+      "waitFor": "main section[aria-label]",
+      "steps": [
+        {
+          "action": "setLocalStorage",
+          "value": { "shabe_china_onboarding_completed": "true" }
+        },
+        { "action": "click", "target": "声質・読み上げ設定" },
+        { "action": "wait", "milliseconds": 600 }
+      ]
+    }
+  ],
+  "checks": ["npm test", "npm run build"]
+}

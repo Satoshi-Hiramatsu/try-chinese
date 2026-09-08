@@ -1,7 +1,7 @@
 # しゃべチャイナ (Shabe-China) 🇨🇳🗣️
 
-> **「趣味の合う外国人の友達と、中国語で話す。」**  
-> 不完全な発話や片言でも会話が自然に弾み、リアルタイムで優しい添削とネイティブ音声が返ってくる、ブラウザ完結型の中国語会話学習 PWA アプリケーションです。
+> **「趣味の合う外国人の友達と、中国語で話す。」**
+> 片言でも会話が成立し、優しい添削とネイティブ音声が返ってくる。立ち絵つきのサウンドノベル画面で会話する、ブラウザ完結型の中国語会話学習 PWA です。
 
 [![Deploy Status](https://img.shields.io/badge/Deploy-Cloudflare_Workers-F38020?logo=cloudflare)](https://try-chinese.molkz.com)
 [![React](https://img.shields.io/badge/Frontend-React_19_+_Vite-61DAFB?logo=react)](https://react.dev/)
@@ -9,201 +9,367 @@
 [![Tailwind CSS](https://img.shields.io/badge/Styling-Tailwind_CSS_v4-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
 [![OpenRouter](https://img.shields.io/badge/AI_Engine-OpenRouter_API-black)](https://openrouter.ai/)
 
-🌐 **本番公開URL**: [https://try-chinese.molkz.com](https://try-chinese.molkz.com)
+🌐 **公開URL**: [https://try-chinese.molkz.com](https://try-chinese.molkz.com)
+
+![ノベル画面](docs/screenshots/novel_stage.png)
 
 ---
 
-## 📸 アプリケーション画面ギャラリー
+## 目次
 
-### 1. メイン会話画面（リアルタイム添削 & ピンイン表示）
-趣味の合う友達とのフランクな会話。発話が多少不完全でも意図を汲み取って会話を広げつつ、文末に控えめに改善表現（添削）と新出語彙カードを表示します。
-
-![メイン会話画面](docs/screenshots/main_chat.png)
-
-### 2. AI モデル・音声合成（TTS）・キー設定（OpenRouter 1本化）
-OpenRouter API キー 1 つで、会話生成（LLM）と最新の音声合成（TTS）の両方を完結。高額モデル（MiniMax等）を排除し、中国語最高峰の Qwen Audio Flash や爆安の Kokoro 82M、無料枠などを選択できます。
-
-![設定モーダル](docs/screenshots/settings_modal.png)
-
-### 3. 友達ごとの声質キャラクター設定 & 試聴
-AI音声の話者を選ぶと、その友達専用に Kokoro 82M と中国語8話者（男女各4種類）の話者IDを保存します。ピッチだけでなく話者そのものを切り替え、ワンタップで試聴できます。ブラウザ音声は端末に搭載された声のみ利用できます。
-
-![声質カスタマイズモーダル](docs/screenshots/voice_settings.png)
-
-※ 画像は以前の画面です。現在は8話者の選択と、試聴に失敗した場合のエラー表示に対応しています。
-
-### 4. 趣味の合う友達キャラクター選択 & 作成
-歴史・三国志、アニメ・サブカル、激辛火鍋、フィットネス、写真・旅行など、多彩なバックグラウンドを持つ友達から選んだり、自分だけのオリジナルの友達を作成できます。
-
-![友達一覧モーダル](docs/screenshots/friend_list.png)
+- [しゃべチャイナとは](#しゃべチャイナとは)
+- [画面ギャラリー](#画面ギャラリー)
+- [主な機能](#主な機能)
+- [取扱説明書（使い方ガイド）](#取扱説明書使い方ガイド)
+- [登場する友達（20人）](#登場する友達20人)
+- [技術スタック & アーキテクチャ](#技術スタック--アーキテクチャ)
+- [ローカル開発](#ローカル開発)
+- [デプロイ](#デプロイ)
+- [ドキュメント](#ドキュメント)
+- [変更履歴](#変更履歴)
+- [ライセンス](#ライセンス)
 
 ---
 
-## ✨ 主な特長・機能
+## しゃべチャイナとは
+
+中国語を「勉強する」のではなく、**趣味の合う友達とおしゃべりする**ことで身につけるためのアプリです。
+
+- 文法が間違っていても、片言でも、日本語混じりでも会話は止まりません。友達が意図を汲んで中国語で返し、そのあとで優しく添削してくれます。
+- HSK 1〜6 級の範囲で語彙と文法をコントロールするので、背伸びせずに続けられます。
+- 会話画面はチャットではなく**サウンドノベル風の立ち絵つきステージ**。返答内容に合わせて相手の表情が変わります。
+- API キー・会話履歴・語彙帳はすべてブラウザ内にのみ保存されます。サーバーはプロキシに徹し、ユーザーデータを保持しません。
+
+---
+
+## 画面ギャラリー
+
+### ノベル画面 — 立ち絵と会話する
+
+会話内容に応じて相手の表情が切り替わります。ピンイン・中国語本文・日本語訳・新出語彙が1枚のテキスト枠にまとまり、添削は折りたたみで控えめに添えられます。
+
+![ノベル画面](docs/screenshots/novel_stage.png)
+
+### 立ち絵 — 男女10人ずつ、計20体
+
+立ち絵は画像ファイルではなくパラメトリック SVG です。肌・髪型・髪色・瞳・服装・装飾・背景シーンの組み合わせで描画するため、同じ顔のキャラクターは生成されません。
+
+![20体の立ち絵一覧](docs/screenshots/portrait_gallery.png)
+
+### 表情 — 1人につき10パターン
+
+通常・微笑み・喜び・笑い・照れ・驚き・哀しみ・怒り・考え中・ウインクの10種。LLM が返答ごとに表情を指定し、指定がない場合は返答テキストから推定します。
+
+![表情10パターンの一覧](docs/screenshots/expressions.png)
+
+### レスポンシブ — 縦画面と横画面
+
+| スマートフォン縦画面 | スマートフォン横画面 |
+|---|---|
+| ![スマホ縦画面](docs/screenshots/mobile_portrait.png) | ![スマホ横画面](docs/screenshots/mobile_landscape.png) |
+| 立ち絵が上、テキスト枠が下の上下分割 | 立ち絵が左、テキスト枠が右の2カラム |
+
+PC（16:9・ウルトラワイド）では立ち絵を全面に広げ、テキスト枠を下部に重ねます。本文サイズは `clamp()` で下限を確保しているため、どの画面でも文字が小さくなりすぎません。
+
+### チャット画面 — 履歴を一覧で振り返る
+
+ヘッダーの「ノベル / チャット」で切り替えられます。ノベル画面からも会話ログとして同じ内容を開けます。
+
+![チャット画面](docs/screenshots/main_chat.png)
+
+### 友達の選択と作成
+
+20人から選ぶほか、立ち絵・名前・性格・趣味・口調・声質を指定して自分だけの友達を作成できます。
+
+| 友達一覧 | 友達の作成 |
+|---|---|
+| ![友達一覧モーダル](docs/screenshots/friend_list.png) | ![友達作成フォーム](docs/screenshots/friend_create.png) |
+
+### AI モデル・音声の設定
+
+OpenRouter API キー1つで、会話生成（LLM）と音声合成（TTS）の両方を賄います。友達ごとの声質設定は全体設定より優先されます。
+
+| AIモデル・キー設定 | 友達ごとの声質設定 |
+|---|---|
+| ![設定モーダル](docs/screenshots/settings_modal.png) | ![声質設定モーダル](docs/screenshots/voice_settings.png) |
+
+---
+
+## 主な機能
 
 ### 1. 片言・不完全な発話ウェルカム設計
-- 文法が間違っていても、AI が意図を理解して会話を楽しく盛り上げます。
-- メッセージの下部に控えめに **添削（Correction）** が表示され、ワンタップで元の表現と自然なネイティブ表現を比較学習できます。
 
-### 2. HSK 1〜6 級の語彙・文法難易度コントロール
-- ヘッダーからいつでも HSK 級（1〜6級）を切り替え可能。
-- 級内の単語を中心に会話が構成され、背伸びせずに無理なく会話練習を継続できます。
+文法が間違っていても AI が意図を理解して会話を続けます。返答の下に控えめな **添削（Correction）** が折りたたまれ、開くと元の表現と自然な中国語を比較できます。日本語で話しかけた場合は、まず内容に中国語で答えたうえで「中国語ではこう言うといいよ」と表現を教えてくれる2段階対話になります。
 
-### 3. 常時ピンイン & 声調カラーハイライト
-- すべての中国語メッセージにピンインがルビのように常時並記。
-- 第1声（赤）・第2声（橙）・第3声（緑）・第4声（青）・軽声（灰）の声調別ハイライト表示をワンタップで ON/OFF できます。
+### 2. HSK 1〜6 級の難易度コントロール
 
-### 4. OpenRouter 1本化の高コスパ AI 音声合成 (TTS)
-- OpenAI API キーなどの複数管理は不要。**OpenRouter API キー 1 つ** で動作します。
-- 厳選された高コスパ・最新音声モデルをサポート：
-  - **Qwen Audio 3.0 TTS Flash** ($15 / 100万tok・標準推奨): アリババ製。四声や自然な抑揚が世界トップクラス。
-  - **Qwen Audio 3.0 TTS Plus** ($20 / 100万tok): さらに繊細な感情表現が可能な上位モデル。
-  - **Kokoro 82M** ($4 / 100万tok・超爆安): 驚異的な低コストでトークン消費を最小化。
-  - **Fish Audio S2.1 Pro Free** ($0・完全無料枠): テスト・お試しに最適。
-  - **ブラウザ標準音声** ($0・完全無料): 端末内蔵の Web Speech API（Edge Neural 等）で通信費ゼロ。
+ヘッダーからいつでも HSK 級を切り替えられます。級内の語彙・文法を軸にしつつ、不自然に硬くならないよう平易な言い換えを優先します。趣味分野の固有表現（作品名・料理名など）は級を超えても積極的に使われます。
 
-### 5. 音声入力（STT）によるハンズフリー対話
-- 音声認識（中国語・日本語両対応）で文字起こしし、送信ボタンで送信します。認識結果の再通知は追記せず更新し、重複入力を防ぎます。録音中は手入力と言語変更を停止し、「完了」後に編集できます。
-- 返答の「自動読み上げ」を ON にすれば、本物の音声通話のような会話練習が可能です。
+### 3. 立ち絵と表情によるゲーム性
 
-### 6. 語彙帳 & クイズ復習機能
-- 会話中に出現した新出表現や添削フレーズを、ワンタップで語彙帳へブックマーク。
-- 単語カードめくりや 4 択クイズによる記憶定着トレーニングを内蔵。
+- **立ち絵**: バストアップ（腹の上から頭まで）。待機中は呼吸とまばたき、読み上げ中は口元が動きます。
+- **表情**: 10パターンを会話内容に合わせて切り替え。表情が変わるとひと跳ねするリアクションが入ります。
+- **演出**: 居住地に応じた背景シーン10種、本文のタイプライター表示（タップでスキップ）、感情エフェクト（キラキラ・音符・汗・涙・怒りマークなど）。
+- OS の「動きを減らす」設定を有効にしている場合、これらのアニメーションは自動的に停止します。
 
-### 7. 完全 BYO-AI & プライバシー保護
-- ユーザーの API キー、会話履歴、語彙帳データは**すべてブラウザ内（IndexedDB / LocalStorage）にのみ保存**。
-- サーバー（Cloudflare Workers）側には一切ユーザーデータを保持しない、セキュアな設計です。
+### 4. 常時ピンイン & 声調カラーハイライト
+
+すべての中国語にピンインを常時併記します。第1声（赤）・第2声（橙）・第3声（緑）・第4声（青）・軽声（灰）の色分けをワンタップで ON/OFF できます。
+
+### 5. OpenRouter 1本化の音声合成 (TTS)
+
+OpenRouter API キー1つで動作します。選択できるモデル:
+
+| モデル | 目安コスト | 特徴 |
+|---|---|---|
+| Qwen Audio 3.0 TTS Flash | $15 / 100万tok | 標準推奨。四声と抑揚の自然さが高い |
+| Qwen Audio 3.0 TTS Plus | $20 / 100万tok | より繊細な感情表現 |
+| Kokoro 82M | $4 / 100万tok | 低コスト。中国語8話者（男女各4）を個別に選択可能 |
+| Fish Audio S2.1 Pro Free | 無料枠 | お試し向け |
+| ブラウザ標準音声 | 無料 | 端末内蔵の Web Speech API。通信費ゼロ |
+
+### 6. 音声入力（STT）
+
+中国語・日本語の両方に対応した音声認識で文字起こしし、確認してから送信します。認識結果は追記ではなく更新されるため重複入力が起きません。返答の「自動読み上げ」を ON にすれば、音声通話のように練習できます。
+
+### 7. 語彙帳 & 復習
+
+会話で出た新出表現や添削フレーズを栞アイコンで語彙帳に保存し、フラッシュカードと4択クイズで復習できます。
+
+### 8. 完全 BYO-AI & プライバシー保護
+
+API キー・会話履歴・語彙帳はすべてブラウザ内（IndexedDB / LocalStorage）にのみ保存されます。Cloudflare Workers 側はリクエストの転送に徹し、ユーザーデータを保持しません。
 
 ---
 
-## 📖 取扱説明書（使い方ガイド）
+## 取扱説明書（使い方ガイド）
 
-### STEP 1: 初期設定（OpenRouter API キーの登録）
-1. 右上の **「設定」**（⚙️ アイコン）をクリックします。
-2. お手持ちの **OpenRouter API Key**（`sk-or-v1-...`）を入力します。
-   - ※ OpenRouter のアカウントをお持ちでない場合は、[openrouter.ai](https://openrouter.ai/) にてアカウントを作成・チャージしてください。
-3. お好みの **会話 AI モデル**（推奨: `Gemini 2.5 Flash` または `DeepSeek Chat`）と、**音声合成 TTS モデル**（推奨: `Qwen Audio 3.0 TTS Flash`）を選択して「設定を保存」をクリックします。
-   - ※ 音声再生だけをキーなしで試す場合は「ブラウザ」音声を明示的に選んでください。会話AIにはAPIキーが必要です。
+### STEP 1: OpenRouter API キーを登録する
+
+1. ヘッダー右の **「設定」**（⚙️）を開きます。
+2. **OpenRouter API Key**（`sk-or-v1-...`）を入力します。お持ちでない場合は [openrouter.ai](https://openrouter.ai/) で作成・チャージしてください。
+3. **会話用 AI モデル**（推奨: `Gemini 2.5 Flash`）と **音声合成 TTS モデル**（推奨: `Qwen Audio 3.0 TTS Flash`）を選び、「設定を保存」を押します。
+   - 音声だけをキーなしで試したい場合は、読み上げエンジンに「ブラウザ / Edge」を選んでください。会話生成には API キーが必要です。
 
 ### STEP 2: 会話相手（友達）を選ぶ
-1. ヘッダーの **「友達」**（👥 アイコン）または上部の友達カードをクリックします。
-2. 趣味や性格の合う友達を選択します：
-   - **陳美玲 (Chen Meiling)**: 上海在住の大学生。三国志・歴史、中華料理好き。
-   - **王浩 (Wang Hao)**: 深センのITエンジニア。ガジェット、SF映画、日本のアニメ好き。
-   - **李雪 (Li Xue)**: 成都のUIデザイナー。激辛火鍋、カフェ巡り、パンダ好き。
-   - **張偉 (Zhang Wei)**: 北京のパーソナルトレーナー。ジム筋トレ、アウトドア好き。
-3. 友達カードの **「声質」** ボタンから、「OpenRouter AI音声」を選び、話者を選択して試聴し、「保存」します。友達別のモデル設定は全体設定より優先されます。ピッチ調整はブラウザ音声専用です。
-   - 以前の声設定が保存されている場合は、話者を選び直して保存してください。
-   - AI音声には有効なAPIキーと利用料金が必要です。失敗時はブラウザ音声へ自動で切り替えず、会話画面や試聴画面にエラーを表示します。
+
+1. ノベル画面右上の 👥 アイコン、またはヘッダーの **「友達」** を押します。
+2. 20人の中から趣味や性格の合う相手を選んで「話す」を押します。
+3. 「設定」からプロフィールや立ち絵、声質を変更できます。オリジナルの友達も作成できます。
+4. 立ち絵横の ⚙️ アイコンから話者を選び、試聴して「保存する」を押すと、その友達専用の声として記録されます。
+   - AI 音声には有効な API キーと利用料金が必要です。合成に失敗した場合はブラウザ音声へ自動切り替えせず、エラーを表示します。
 
 ### STEP 3: 会話を楽しむ
-1. 画面下部の入力欄にメッセージを入力するか、マイクボタン（🎙️）を押して話しかけます。
-   - **日本語でも中国語でもOK**: 中国語が出てこない時は日本語で話しかけても、友達は親切に中国語で返してくれます。
-   - **片言でもOK**: 「我想 去 上海」のような途切れ途切れの文でも、自然に通じます。
-2. 友達からの返答が届きます。
-   - **ピンイン**: 漢字の上に常時表示されているため、読み方に迷いません。
-   - **スピーカーボタン**: クリックするとネイティブな発音で読み上げます。
-   - **添削カード**: あなたの発話により自然な表現があれば、優しくアドバイスが表示されます。
-   - **語彙カード**: 栞（🔖）アイコンを押すと、即座に「語彙帳」へ保存されます。
+
+1. 画面下部の入力欄に入力するか、マイクボタン（🎙️）で話しかけます。
+   - **日本語でも中国語でも OK**: 中国語が出てこないときは日本語で構いません。
+   - **片言でも OK**: 「我想 去 上海」のような途切れた文でも通じます。
+2. 返答が届きます。
+   - **表情**: 返答内容に合わせて立ち絵の表情が変わります。
+   - **ピンイン**: 本文の上に常時表示されます。
+   - **発音ボタン**: ネイティブ音声で読み上げます。
+   - **添削**: より自然な表現があれば「添削アドバイス」として折りたたまれます。
+   - **新出表現**: 栞（🔖）アイコンで語彙帳に保存できます。
+3. 本文はタイプライター表示されます。待ちきれないときはテキスト枠をタップすると全文が出ます。
+4. 右上の 💬 アイコンで会話ログ（バックログ）を開き、過去のやり取りを振り返れます。
 
 ### STEP 4: 復習する
-1. ヘッダーの **「語彙」**（📖 アイコン）をクリックすると、保存した単語一覧を確認できます。
-2. **「復習クイズを始める」** を押すと、フラッシュカードや 4 択クイズで定着度をテストできます。
+
+1. ヘッダーの **「語彙」**（📖）で保存した単語一覧を確認します。
+2. **「復習クイズを始める」** でフラッシュカードと4択クイズに進みます。
 
 ---
 
-## 🛠️ 技術スタック & アーキテクチャ
+## 登場する友達（20人）
+
+立ち絵・声質・出身地・職業・趣味がそれぞれ異なります。
+
+### 女性
+
+| 名前 | 居住地・職業 | 趣味 |
+|---|---|---|
+| 陈美玲 (Chen Meiling) | 上海・大学生 | 三国志、映画鑑賞、台湾料理 |
+| 李雪 (Li Xue) | 成都・グラフィックデザイナー | 四川料理・火鍋、アート、猫、旅行 |
+| 林子涵 (Lin Zihan) | 杭州・写真家 / 旅行ブロガー | 風景写真、中国茶、歴史文化・漢服 |
+| 苏雨辰 (Su Yuchen) | 厦門・ヨガ / ランニングコーチ | ヨガ、海辺の散歩、健康料理 |
+| 周暖 (Zhou Nuan) | 昆明・パティシエ見習い | お菓子作り、花・植物、パンダ |
+| 何静怡 (He Jingyi) | 深圳・金融アナリスト | 読書、ジャズ、都市・建築、語学学習 |
+| 唐小雨 (Tang Xiaoyu) | 重慶・バンドのベーシスト | 音楽、ライブハウス、夜景、バイク |
+| 郭珊珊 (Guo Shanshan) | 西安・考古学専攻の大学院生 | 歴史・遺跡、バックパック旅行、西安グルメ |
+| 顾安琪 (Gu Anqi) | 大連・通訳者 | インテリア、映画音楽、静かなカフェ |
+| 沈若熙 (Shen Ruoxi) | 長沙・家庭料理店の若女将 | 湖南料理、市場めぐり、ドラマ鑑賞 |
+
+### 男性
+
+| 名前 | 居住地・職業 | 趣味 |
+|---|---|---|
+| 王浩 (Wang Hao) | 北京・IT エンジニア | テクノロジー・AI、ゲーム、SF小説 |
+| 张伟 (Zhang Wei) | 広州・フィットネスインストラクター | ランニング、広東飲茶、スポーツ観戦 |
+| 陈宇 (Chen Yu) | 蘇州・造園職人 | 庭園・盆栽、園芸、二十四節気 |
+| 李俊 (Li Jun) | 深圳・ストリートダンサー / DJ | ダンス、ヒップホップ、スニーカー |
+| 赵浩然 (Zhao Haoran) | 武漢・大学生（eスポーツ部） | eスポーツ、アニメ、武漢グルメ |
+| 孙天佑 (Sun Tianyou) | 北京・大学講師（中国史） | 中国史、書道、古典詩、茶館 |
+| 吴一帆 (Wu Yifan) | 青島・海鮮レストランのシェフ | 海鮮料理、釣り、ビール、市場めぐり |
+| 徐世勋 (Xu Shixun) | 杭州・ゲーム開発者 | ゲーム開発、SF映画、ボードゲーム |
+| 高光耀 (Gao Guangyao) | 新疆・ツアーガイド | シルクロード、羊肉料理、砂漠の星空 |
+| 郑志远 (Zheng Zhiyuan) | 天津・ジャズ喫茶のマスター | コーヒー、ジャズ・レコード、古い映画 |
+
+---
+
+## 技術スタック & アーキテクチャ
 
 ```mermaid
 flowchart LR
     subgraph Client["ブラウザ (Web PWA)"]
-        UI["React 19 + Tailwind CSS"]
+        Stage["NovelStage<br>(立ち絵 + テキスト枠)"]
+        Portrait["CharacterPortrait<br>(パラメトリックSVG)"]
         Speech["Web Speech API (STT / ローカルTTS)"]
         Storage["IndexedDB / LocalStorage<br>(履歴・語彙・設定・APIキー)"]
     end
 
     subgraph Server["Cloudflare Workers (Edge API)"]
-        ChatRoute["POST /api/chat<br>(プロンプト最適化・HSK制御)"]
-        TtsRoute["POST /api/tts<br>(音声合成ストリーミング)"]
+        ChatRoute["POST /api/chat<br>(HSK制御・表情指定)"]
+        TtsRoute["POST /api/tts<br>(音声合成の中継)"]
     end
 
     subgraph AI["OpenRouter API"]
         LLM["会話生成 (Gemini / DeepSeek / GPT)"]
-        TTS["音声合成 (Qwen Flash / Kokoro / Fish)"]
+        TTS["音声合成 (Qwen / Kokoro / Fish)"]
     end
 
-    UI --> Storage
-    UI --> Speech
-    UI -->|リクエスト転送| Server
+    Stage --> Portrait
+    Stage --> Storage
+    Stage --> Speech
+    Stage -->|リクエスト転送| Server
     Server -->|API呼び出し| AI
 ```
 
-| 領域 | 技術 | バージョン / 詳細 |
+| 領域 | 技術 | 詳細 |
 |---|---|---|
-| **Frontend Framework** | React + TypeScript | React 19, Strict Mode, JSX |
-| **Build & Bundler** | Vite | Vite 8, `vite-plugin-pwa` (オフライン/インストール対応) |
-| **Styling** | Tailwind CSS | Tailwind CSS v4 (Vanilla CSS統合) |
-| **Backend & Proxy** | Cloudflare Workers | Hono フレームワーク, エッジ実行 |
-| **AI Hub** | OpenRouter API | Text Completions + OpenAI互換 TTS Endpoint |
-| **Local Storage** | Web Storage | LocalStorage / IndexedDB (完全クライアント保持) |
+| **Frontend** | React + TypeScript | React 19, Strict Mode, `any` 不使用 |
+| **Build** | Vite | Vite 8, `vite-plugin-pwa`（オフライン / インストール対応） |
+| **Styling** | Tailwind CSS | Tailwind CSS v4 + 素の CSS（アニメーション・レイアウト） |
+| **キャラクター** | インライン SVG | 画像アセットなし。20体 × 10表情をパラメータで生成 |
+| **Backend** | Cloudflare Workers | Hono、エッジ実行、Static Assets で SPA も同居 |
+| **AI Hub** | OpenRouter API | Chat Completions + OpenAI 互換 TTS |
+| **保存先** | Web Storage | LocalStorage / IndexedDB（完全クライアント保持） |
+
+### 主要ディレクトリ
+
+```
+web/src/
+├── components/
+│   ├── CharacterPortrait.tsx   立ち絵の描画（表情・服装・髪型の組み立て）
+│   ├── NovelStage.tsx          ノベル画面（立ち絵 + テキスト枠）
+│   ├── SceneBackdrop.tsx       背景シーン
+│   ├── ChatLogModal.tsx        会話ログ（バックログ）
+│   └── ...                     ヘッダー・入力欄・各種モーダル
+├── data/
+│   ├── portraits.ts            立ち絵パラメータ（20体）
+│   ├── portraitParts.ts        髪型・体型などの SVG パス定義
+│   ├── presetFriends.ts        プリセットの友達（20人）
+│   └── characterVoices.ts      話者プリセット
+├── services/
+│   ├── api.ts                  /api/chat の呼び出し
+│   ├── expression.ts           表情の検証とテキストからの推定
+│   ├── speech.ts               STT / TTS
+│   └── storage.ts              ブラウザ保存
+└── preview.tsx                 立ち絵カタログ（開発用・本番ビルドには含まれない）
+
+worker/src/
+├── routes/chat.ts              POST /api/chat
+├── routes/tts.ts               POST /api/tts
+└── lib/prompt.ts               HSK 級別制御・添削・表情指定のプロンプト
+```
 
 ---
 
-## 💻 ローカル開発環境の構築手順
+## ローカル開発
 
-### 1. リポジトリのクローン
+### 1. クローンと依存関係
+
 ```bash
 git clone https://github.com/Satoshi-Hiramatsu/try-chinese.git
 cd try-chinese
-```
-
-### 2. 依存関係のインストール
-```bash
 npm install
 ```
 
-### 3. 環境変数の設定 (開発用 Worker)
-`worker/.dev.vars` を作成し、開発用の OpenRouter API キーを設定します（任意）：
+### 2. 環境変数（任意）
+
+`worker/.dev.vars` に開発用の OpenRouter キーを置けます。設定しなくても、ブラウザの設定画面からキーを入力すれば動作します。
+
 ```ini
 OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxxxxxx
-OPENROUTER_MODEL=deepseek/deepseek-chat
-```
-> ※ ユーザー自身のブラウザ上から API キーを入力して利用することも可能です。
-
-### 4. 開発サーバーの起動
-```bash
-# フロントエンド開発サーバー (http://localhost:5173)
-npm run dev:web
-
-# バックエンド開発サーバー (http://localhost:8787)
-npm run dev:worker
+OPENROUTER_MODEL=google/gemini-2.5-flash
 ```
 
-### 5. テスト実行 & ビルド
-```bash
-# React Hooks 検査 + Web テスト (Node.js) + Workers テスト (Vitest)
-npm test
+> API キーは絶対にコミットしないでください。`.dev.vars*` は `.gitignore` 済みです。
 
-# 全体ビルド (Web + Worker)
-npm run build
+### 3. 開発サーバー
+
+```bash
+npm run dev:web      # フロントエンド (http://localhost:5173)
+npm run dev:worker   # Workers API (http://localhost:8787)
+```
+
+フロントエンドの `/api` リクエストは Vite の proxy 経由で Workers に転送されます。
+
+立ち絵のカタログは `http://localhost:5173/preview.html` で確認できます（`?view=portraits` / `?view=expressions` / `?view=icons`）。この画面は開発専用で、本番ビルドには含まれません。
+
+### 4. テストとビルド
+
+```bash
+npm test        # React Hooks 検査 + Web テスト (node:test) + Workers テスト (Vitest)
+npm run build   # Web ビルド + Worker 型チェック
+```
+
+Web 側のテストでは、立ち絵の重複がないこと、男女10人ずつ揃っていること、表情推定が定義済みの10種に収まることを検証しています。
+
+### 5. スクリーンショットの更新
+
+README の画像は `.github/readme-showcase.json` の定義に従って再現できます。
+
+```bash
+# 初回のみ（playwright は package.json に登録していません）
+npm install --no-save playwright
+npx playwright install chromium
+
+# 開発サーバーを起動したうえで
+npm run dev:web -- --port 5177 --strictPort
+node scripts/capture-screenshots.mjs              # 全件
+node scripts/capture-screenshots.mjs desktop-novel # ID 指定
 ```
 
 ---
 
-## 🚢 デプロイ手順 (Cloudflare Workers)
+## デプロイ
 
-本リポジトリは Cloudflare Workers の Static Assets 機能を利用して、フロントエンドとバックエンドが単一の Worker として統合デプロイされます。
+Cloudflare Workers の Static Assets により、フロントエンドと API が単一の Worker として配信されます。
 
 ```bash
-# プロダクションビルド
-npm run build
-
-# Cloudflare へのデプロイ
-npm run deploy:worker
+npm run deploy   # ビルドしてから wrangler deploy を実行
 ```
 
 ---
 
-## 📜 ライセンス
+## ドキュメント
+
+| ファイル | 内容 |
+|---|---|
+| [要件定義書.md](要件定義書.md) | 何を作るか、どんな体験にするか |
+| [用語定義書.md](用語定義書.md) | ドメイン用語とコード上の型・変数の対応 |
+| [開発フロー（詳細）.md](開発フロー（詳細）.md) | 開発の進め方 |
+| [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) | AI コーディングエージェント向けの規約 |
+| [CHANGELOG.md](CHANGELOG.md) | すべてのタスク（T-00 〜）の変更履歴 |
+
+---
+
+## 変更履歴
+
+すべての変更は [CHANGELOG.md](CHANGELOG.md) に記録しています。最新は **T-31: 立ち絵20体・表情10パターンとノベル画面の追加** です。
+
+---
+
+## ライセンス
 
 MIT License

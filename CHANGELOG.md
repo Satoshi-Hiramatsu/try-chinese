@@ -1,0 +1,268 @@
+# 変更履歴
+
+しゃべチャイナのすべての変更をタスク単位（1タスク = 1コミット）で記録します。
+日付は該当コミットの作成日です。各見出しのリンクから GitHub 上の差分を確認できます。
+
+タスク番号は開発フロー上の採番であり、T-10 〜 T-14 は計画段階で他タスクに統合されたため欠番です。
+
+---
+
+## T-31 — 立ち絵20体・表情10パターンとノベル画面の追加
+
+**2026-09-08** · [`b12a5c9`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/b12a5c9)
+
+同じ顔グラフィックの重複を解消し、会話画面をサウンドノベル風に刷新しました。
+
+**キャラクター**
+
+- 顔グラフィックを画像ファイルからパラメトリック SVG（`CharacterPortrait`）へ移行。肌・髪型・髪色・瞳・服装・装飾の組み合わせで描画するため、同一の見た目が構造的に発生しなくなりました（林子涵が陈美玲と同じ画像を参照していた不具合の解消）。
+- プリセットの友達を男性10人・女性10人の計20人に拡充。居住地・職業・趣味・初回挨拶をそれぞれ個別に用意しました。
+- 立ち絵はバストアップ（腹の上から頭まで）。顔アイコンは同じ SVG の顔部分を切り出して生成します。
+- 立ち絵が未設定の旧データにも、性別と ID から決まる立ち絵を自動で割り当てます。
+
+**表情**
+
+- 通常・微笑み・喜び・笑い・照れ・驚き・哀しみ・怒り・考え中・ウインクの10パターン（`Expression`）を定義。
+- LLM が返答ごとに表情を指定し、未指定・不正値の場合は返答テキストから推定します。
+- 待機時の呼吸とまばたき、読み上げ中の口元、表情変化時のリアクションを追加。「動きを減らす」設定時は停止します。
+
+**画面**
+
+- `NovelStage` を追加し、ヘッダーの切り替えでノベル / チャットを選べるようにしました。
+- PC（16:9・ウルトラワイド）は立ち絵全面＋下部テキスト枠、スマホ縦は上下分割、スマホ横は左右2カラムに切り替わります。本文サイズは `clamp()` で下限を確保。
+- 背景シーン10種、本文のタイプライター表示、会話ログ（`ChatLogModal`）を追加。ログからの語彙保存・添削確認は従来どおり可能です。
+
+**ドキュメント / テスト**
+
+- 用語定義書に Portrait・Expression・NovelStage・ViewMode を追記。
+- 立ち絵の重複がないこと、男女10人ずつ揃っていること、表情推定が定義済みの10種に収まることをテストで検証。
+
+---
+
+## T-30 — 友達選択時の白画面を修正し Hooks 検査をテストに追加
+
+**2026-09-08** · [`2baf909`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/2baf909)
+
+友達を切り替えた際に画面が白くなる不具合を修正し、React Hooks のルール違反を検出する検査（`oxlint --react-plugin -D react/rules-of-hooks`）をテストコマンドに組み込みました。
+
+---
+
+## T-29 — 音声入力の重複修正と友達別8話者の声質切り替え
+
+**2026-09-08** · [`3f09f3b`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/3f09f3b)
+
+音声認識の結果が追記されて重複する問題を修正し、認識結果をスナップショットで更新する方式に変更しました。あわせて友達ごとに Kokoro の中国語8話者（男女各4）を個別に選択できるようにしました。
+
+---
+
+## T-28 — 声質キャラクター拡充・カスタム声質と友達設定
+
+**2026-09-08** · [`987fe3e`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/987fe3e)
+
+声質キャラクターを拡充し、性別切り替えタブとカスタム声質の作成機能を追加しました。友達一覧から各友達のプロフィール・声質を編集できるようにし、ファビコンを刷新、フォントアイコンを SVG に全面切り替えしました。
+
+---
+
+## T-27 — TTS モデルごとの話者仕様に合わせた声質管理の修正
+
+**2026-09-08** · [`c84dd10`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/c84dd10)
+
+Kokoro の個別話者に対応し、Qwen の仕様案内を追加。声質が多重選択されてしまうバグを解消しました。
+
+---
+
+## T-26 — 設定モーダルのスクロール不可を修正
+
+**2026-09-07** · [`a4d06c7`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/a4d06c7)
+
+設定モーダルなどが縦にスクロールできない不具合を修正し、モーダルの高さとホイール操作の連動を改善しました。
+
+---
+
+## T-25 — README 取扱説明書の作成とスクリーンショット掲載
+
+**2026-09-07** · [`0204fc9`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/0204fc9)
+
+使い方ガイド・技術スタック・開発手順を含む詳細な README を作成し、画面スクリーンショットを `docs/screenshots/` に追加しました。
+
+---
+
+## T-24 — OpenRouter 1本化と音声モデル・声質の分離設定
+
+**2026-09-07** · [`75bbe66`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/75bbe66)
+
+OpenAI API キーを廃止し、会話生成と音声合成の両方を OpenRouter API キー1つで賄う構成に統一しました。高コスパな音声モデルを厳選し、TTS モデルの選択と声質キャラクターの選択を別々の設定に分離しました。
+
+---
+
+## T-23 — ヘッダーのレイアウト崩れ修正とレスポンシブ最適化
+
+**2026-09-07** · [`4010b91`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/4010b91)
+
+ヘッダーボタンのレイアウト崩れとテキストの縦折り返しを防止し、狭い画面での表示を最適化しました。
+
+---
+
+## T-22 — Cloudflare デプロイ時のワークスペースルート判定エラー修正
+
+**2026-09-07** · [`6427891`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/6427891)
+
+npm workspaces 構成でのデプロイ失敗を解消するため、リポジトリルート用の `wrangler.jsonc` を追加しました。
+
+---
+
+## T-21 — 高品質 AI 音声エンドポイントと友達ごとの声質保存
+
+**2026-09-07** · [`2717948`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/2717948)
+
+高品質 AI 音声（当時は OpenAI TTS）のエンドポイントを実装し、声質キャラクターを直接選べる UI に刷新しました。あわせて友達ごとの個別声質を保存できるようにしました。
+
+---
+
+## T-20 — 音声認識・音声合成・ピンイン表示の改善
+
+**2026-09-07** · [`e55e7d7`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/e55e7d7)
+
+音声認識の中断と誤送信を防止し、男性音声のピッチ補正と返答の自動読み上げを追加。ピンイン表示は既定を単色に変更しました。
+
+---
+
+## chore — wrangler.jsonc に workers_dev 設定を追加
+
+**2026-09-07** · [`56af2a9`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/56af2a9)
+
+---
+
+## T-19 — Cloudflare Workers Static Assets とカスタムドメイン設定
+
+**2026-09-07** · [`34d0f46`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/34d0f46)
+
+Static Assets を用いてフロントエンドと API を単一の Worker として配信する構成に変更し、`try-chinese.molkz.com` を割り当てました。
+
+---
+
+## T-18 — 趣味ペルソナ拡充と会話履歴からの学習記憶
+
+**2026-09-07** · [`b3bfabb`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/b3bfabb)
+
+友達に林子涵を追加し、過去の会話で学習者が言及した趣味や好みを踏まえて話すよう、記憶を促すプロンプトを組み込みました。
+
+---
+
+## T-17 — ピンイン声調の色分け表示
+
+**2026-09-07** · [`d3fa9ea`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/d3fa9ea)
+
+第1声から第4声と軽声を色で区別する `TonePinyin` を実装しました。
+
+---
+
+## T-16 — 復習機能（フラッシュカード & 4択クイズ）
+
+**2026-09-07** · [`c9a32a9`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/c9a32a9)
+
+語彙帳に保存した単語をカードめくりと4択クイズで復習できるようにしました。
+
+---
+
+## T-15 — 語彙帳機能
+
+**2026-09-07** · [`20ebd11`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/20ebd11)
+
+会話中の新出表現や添削フレーズをブラウザ内に保存し、一覧・検索・発音再生できるようにしました。
+
+---
+
+## T-09 — 音声入力（STT）・音声回答（TTS）・声質変更
+
+**2026-09-07** · [`6246d00`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/6246d00)
+
+Web Speech API による音声入力と読み上げ、声質の変更機能を実装しました。
+
+---
+
+## T-08 — 中国語返答の徹底と2段階対話
+
+**2026-09-06** · [`8430bf7`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/8430bf7)
+
+返答本文への日本語混入を禁止し、日本語で話しかけられた場合は「内容に中国語で答える → 中国語表現を教える」の2段階で返すルールをプロンプトに追加。初期メッセージも改善しました。
+
+---
+
+## T-07 — アバターの顔フォーカス拡大・クリップ調整
+
+**2026-09-06** · [`b11f110`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/b11f110)
+
+会話画面のアバターを顔中心に拡大表示するようクリップを調整しました。
+
+---
+
+## T-06 — 中国語フォント正常化とアイコンの SVG 化
+
+**2026-09-06** · [`4dfc534`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/4dfc534)
+
+簡体字が正しいグリフで表示されるようフォント指定を整理し、全アイコンを SVG 化、アニメ調のアバターを適用しました。
+
+---
+
+## feat — モデル自由選定機能とトークン効率最適化
+
+**2026-09-06** · [`3bc4d76`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/3bc4d76)
+
+設定モーダルから会話用 AI モデルを自由に選べるようにし、送信するトークン量を最適化しました。
+
+---
+
+## chore — .gitignore に .dev.vars* を追加
+
+**2026-09-06** · [`76d8bdc`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/76d8bdc)
+
+開発用シークレットの誤コミットを防止しました。
+
+---
+
+## T-05 — 友達の作成・一覧切り替え
+
+**2026-09-06** · [`d9687a6`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/d9687a6)
+
+会話相手（Friend）の一覧表示・切り替えと、オリジナルの友達を作成する機能を実装しました。
+
+---
+
+## T-04 — オンボーディング
+
+**2026-09-06** · [`36e7fd4`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/36e7fd4)
+
+趣味・HSK 級・会話相手を初回に設定するウィザードを実装しました。
+
+---
+
+## T-03 — 会話画面 UI
+
+**2026-09-06** · [`43ef740`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/43ef740)
+
+ピンインの常時表示、控えめな添削表示、API 連動を含む会話画面を実装しました。
+
+---
+
+## T-02 — HSK 級別制御のプロンプト設計
+
+**2026-09-06** · [`7d11dae`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/7d11dae)
+
+HSK 1〜6 級ごとの目標語彙・文長・文法範囲・添削方針を定義し、「級内ベース＋自然さ優先」の制御方針をプロンプトに落とし込みました。
+
+---
+
+## T-01 — POST /api/chat の実装
+
+**2026-09-06** · [`a84c190`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/a84c190)
+
+Cloudflare Workers 上に LLM プロキシを実装し、返答・添削・趣味語彙を構造化 JSON で返すようにしました。
+
+---
+
+## T-00 — プロジェクト初期セットアップ
+
+**2026-09-06** · [`40909c6`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/40909c6)
+
+React + Vite + TypeScript のフロントエンドと、Cloudflare Workers + Hono のバックエンドを npm workspaces で構成しました。
