@@ -13,7 +13,6 @@ import {
   FemaleIcon,
   GlobeIcon,
   SettingsIcon,
-  BulbIcon,
 } from './Icons'
 import { FriendAvatar } from './FriendAvatar'
 import {
@@ -96,7 +95,8 @@ export function VoiceSettingsModal({
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const hasApiKey = Boolean(loadApiKey())
-  const currentTtsModel = loadTtsModel()
+  const [currentTtsModel, setCurrentTtsModel] = useState(friend.voice?.ttsModel || loadTtsModel())
+  const [previewError, setPreviewError] = useState('')
 
   // 全声質リスト（プリセット＋カスタム）
   const allVoices = useMemo(() => {
@@ -130,6 +130,8 @@ export function VoiceSettingsModal({
     if (isOpen) {
       const currentCustoms = loadCustomVoices()
       setCustomVoices(currentCustoms)
+      setCurrentTtsModel(friend.voice?.ttsModel || loadTtsModel())
+      setPreviewError('')
       setProvider(friend.voice?.ttsProvider || loadTtsProvider('openrouter'))
       setGender(friend.voice?.gender || 'female')
       setRate(friend.voice?.rate ?? 0.95)
@@ -142,15 +144,9 @@ export function VoiceSettingsModal({
       setIsCreatingCustom(false)
 
       const combined = [...CHARACTER_VOICE_OPTIONS, ...currentCustoms]
-      const matched = combined.find(
-        (opt) =>
-          opt.recommendFor.includes(friend.name.replace(/\s*\(.*?\)/g, '')) ||
-          opt.kokoroVoice === friend.voice?.voiceModel ||
-          opt.edgeVoiceName === friend.voice?.voiceName
-      )
-      if (matched) {
-        setSelectedPresetId(matched.id)
-      }
+      const matched = combined.find(opt => opt.kokoroVoice === friend.voice?.voiceModel)
+        ?? combined.find(opt => opt.edgeVoiceName === friend.voice?.voiceName)
+      setSelectedPresetId(matched?.id ?? '')
 
       getAvailableVoices().then(() => {
         setAvailableVoices(getChineseVoices())
@@ -168,13 +164,16 @@ export function VoiceSettingsModal({
   if (!isOpen) return null
 
   const handlePreview = (targetVoice?: Partial<Voice>) => {
-    if (isPlayingPreview) {
+    if (isPlayingPreview && !targetVoice) {
       stopSpeaking()
       setIsPlayingPreview(false)
       return
     }
 
+    stopSpeaking()
+    setPreviewError('')
     const previewVoice: Voice = {
+      ttsModel: targetVoice?.ttsModel ?? currentTtsModel,
       quality: 'natural',
       gender: targetVoice?.gender ?? gender,
       rate: targetVoice?.rate ?? rate,
@@ -189,15 +188,17 @@ export function VoiceSettingsModal({
     setIsPlayingPreview(true)
     speakChinese(testText, previewVoice, {
       onEnd: () => setIsPlayingPreview(false),
-      onError: () => setIsPlayingPreview(false),
+      onError: (error) => {
+        setIsPlayingPreview(false)
+        setPreviewError(error instanceof Error ? error.message : 'Audio playback failed')
+      },
     })
   }
 
   const handleApplyCharacterPreset = (preset: CharacterVoiceOption) => {
     setSelectedPresetId(preset.id)
-    const selectedVoiceModel = currentTtsModel.includes('kokoro')
-      ? preset.kokoroVoice
-      : preset.qwenVoice
+    const selectedVoiceModel = preset.kokoroVoice
+    setCurrentTtsModel('hexgrad/kokoro-82m')
 
     setGender(preset.gender)
     setRate(preset.defaultRate)
@@ -212,6 +213,7 @@ export function VoiceSettingsModal({
       pitch: preset.defaultPitch,
       voiceName: preset.edgeVoiceName,
       voiceModel: selectedVoiceModel,
+      ttsModel: 'hexgrad/kokoro-82m',
       ttsProvider: provider,
     })
   }
@@ -264,6 +266,7 @@ export function VoiceSettingsModal({
     saveTtsProvider(provider)
 
     const updatedVoice: Voice = {
+      ttsModel: currentTtsModel,
       quality: 'natural',
       gender,
       rate,
@@ -405,23 +408,9 @@ export function VoiceSettingsModal({
             </div>
 
             {/* Qwen Flash選択時のガイドアラート */}
-            {provider === 'openrouter' && currentTtsModel.includes('qwen') && (
-              <div className="mb-2.5 p-2.5 rounded-xl bg-amber-50/90 border border-amber-200 text-[11px] text-amber-800 leading-relaxed">
-                <div className="font-bold flex items-center gap-1.5 text-amber-900">
-                  <BulbIcon className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                  <span>各友達で別々の声質にしたい場合:</span>
-                </div>
-                <p className="m-0 mt-0.5 text-amber-700">
-                  現在選択中の「Qwen TTS」は、OpenRouter公式仕様により話者が
-                  <strong>男性1種 (loongjohn)・女性1種 (longanhuan) の計2種</strong>
-                  のみとなります。多彩な声質を演じ分けるには、設定画面から
-                  <strong>「Kokoro 82M」</strong>または<strong>「ブラウザ / Edge」</strong>
-                  をお選びください。
-                </p>
-              </div>
-            )}
+            <p className="mb-3 text-xs text-stone-600">{provider === 'openrouter' ? '話者を選ぶとKokoroの中国語8話者で声質を切り替えます。API利用料がかかります。ピッチ調整はブラウザ音声専用です。' : '端末にない声は再現できません。声質を変えるにはAI音声を選んでください。'}</p>
+            {previewError && <p role="alert" className="mb-3 text-xs text-red-700">{previewError}</p>}
 
-            {/* 性別・カスタム切り替えタブ */}
             <div className="flex gap-1.5 p-1 bg-stone-100 rounded-xl mb-3">
               <button
                 type="button"
@@ -724,9 +713,7 @@ export function VoiceSettingsModal({
                       ? opt.edgeVoiceName.includes('Online')
                         ? opt.edgeVoiceName.split(' ')[1]
                         : opt.edgeVoiceName
-                      : currentTtsModel.includes('kokoro')
-                        ? opt.kokoroVoice
-                        : opt.qwenVoice
+                      : opt.kokoroVoice
 
                   return (
                     <div

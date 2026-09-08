@@ -5,10 +5,28 @@
 
 import type { Voice } from '../types'
 
+interface RecognitionResultEvent {
+  resultIndex: number
+  results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>
+}
+interface RecognitionInstance {
+  lang: string
+  interimResults: boolean
+  continuous: boolean
+  maxAlternatives: number
+  onstart: (() => void) | null
+  onresult: ((event: RecognitionResultEvent) => void) | null
+  onerror: ((event: { error: string }) => void) | null
+  onend: (() => void) | null
+  start(): void
+  stop(): void
+  abort(): void
+}
+
 // Web Speech API の型拡張（ブラウザ間の差異吸収）
 interface IWindow extends Window {
-  SpeechRecognition?: any
-  webkitSpeechRecognition?: any
+  SpeechRecognition?: new () => RecognitionInstance
+  webkitSpeechRecognition?: new () => RecognitionInstance
 }
 
 declare const window: IWindow
@@ -81,7 +99,7 @@ export function isKnownMaleVoice(v?: SpeechSynthesisVoice | null): boolean {
     name.includes('danny') ||
     name.includes('zhiwei') ||
     name.includes('wanlung') ||
-    name.includes('male') ||
+    (/\bmale\b/.test(name)) ||
     name.includes('brian') ||
     name.includes('george')
   )
@@ -166,6 +184,7 @@ import { loadApiKey, loadTtsProvider, loadTtsModel } from './storage'
 
 // 再生中のオーディオオブジェクト
 let currentAudio: HTMLAudioElement | null = null
+let playbackGeneration = 0
 // 生成済み音声Blobのメモリキャッシュ (key: model_voice_speed_text -> objectUrl)
 const audioBlobCache = new Map<string, string>()
 
@@ -177,10 +196,11 @@ async function speakWithOpenRouterTts(
   voice?: Voice,
   options?: SpeakOptions
 ): Promise<boolean> {
+  const generation = playbackGeneration
   const apiKey = loadApiKey()
   if (!apiKey) return false
 
-  const ttsModel = loadTtsModel()
+  const ttsModel = voice?.ttsModel || loadTtsModel()
   const isMale = voice?.gender === 'male' || (voice?.voiceModel && (voice.voiceModel.includes('john') || voice.voiceModel.includes('yun') || voice.voiceModel.includes('male') || voice.voiceModel.includes('onyx') || voice.voiceModel.includes('echo')))
 
   let voiceModel = voice?.voiceModel || ''
@@ -230,7 +250,7 @@ async function speakWithOpenRouterTts(
       })
 
       if (!res.ok) {
-        console.warn('OpenRouter TTS API error, falling back to Web Speech API:', res.status)
+        console.warn('OpenRouter TTS API error, request failed:', res.status)
         return false
       }
 
@@ -239,6 +259,7 @@ async function speakWithOpenRouterTts(
       audioBlobCache.set(cacheKey, audioUrl)
     }
 
+    if (generation !== playbackGeneration) return true
     if (currentAudio) {
       currentAudio.pause()
       currentAudio = null
@@ -265,7 +286,7 @@ async function speakWithOpenRouterTts(
     await audio.play()
     return true
   } catch (err) {
-    console.warn('OpenRouter TTS execution error, falling back:', err)
+    console.warn('OpenRouter TTS execution error:', err)
     return false
   }
 }
@@ -276,24 +297,20 @@ async function speakWithOpenRouterTts(
 export function speakChinese(text: string, voice?: Voice, options?: SpeakOptions): void {
   // 既存の音声をすべて停止
   stopSpeaking()
+  const generation = playbackGeneration
 
   if (!text.trim()) return
 
   const effectiveProvider = voice?.ttsProvider || loadTtsProvider('openrouter')
   const hasApiKey = Boolean(loadApiKey())
 
-  // 1. OpenRouter TTS が有効でキーがある場合はAI音声を最優先試行
-  if (effectiveProvider === 'openrouter' && hasApiKey) {
-    speakWithOpenRouterTts(text, voice, {
-      ...options,
-      onError: () => {
-        // AI音声失敗時はシームレスにブラウザ標準TTSへフォールバック
-        speakWithBrowserTts(text, voice, options)
-      },
-    }).then((success) => {
-      if (!success) {
-        speakWithBrowserTts(text, voice, options)
-      }
+  if (effectiveProvider === 'openrouter') {
+    if (!hasApiKey) {
+      options?.onError?.(new Error('AI音声にはOpenRouter APIキーが必要です。'))
+      return
+    }
+    speakWithOpenRouterTts(text, voice, options).then((success) => {
+      if (!success && generation === playbackGeneration) options?.onError?.(new Error('AI音声を再生できません。APIキー・残高・音声モデルを確認してください。'))
     })
     return
   }
@@ -317,7 +334,9 @@ function speakWithBrowserTts(text: string, voice?: Voice, options?: SpeakOptions
   }
 
   // iOS Safari や Chrome 対策で少し待機してから発話
+  const generation = playbackGeneration
   setTimeout(() => {
+    if (generation !== playbackGeneration) return
     try {
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume()
@@ -345,7 +364,7 @@ function speakWithBrowserTts(text: string, voice?: Voice, options?: SpeakOptions
       utterance.pitch = Math.max(0.5, Math.min(2.0, basePitch))
 
       let hasStarted = false
-      let resumeWatchTimer: any = null
+      let resumeWatchTimer: ReturnType<typeof setTimeout> | null = null
 
       utterance.onstart = () => {
         hasStarted = true
@@ -388,6 +407,7 @@ function speakWithBrowserTts(text: string, voice?: Voice, options?: SpeakOptions
  * 現在再生中の音声を停止する
  */
 export function stopSpeaking(): void {
+  playbackGeneration++
   // オーディオ要素の停止
   if (currentAudio) {
     try {
@@ -441,7 +461,7 @@ export interface SpeechRecognitionOptions {
   lang?: 'zh-CN' | 'ja-JP'
   onStart?: () => void
   onInterimResult?: (transcript: string) => void
-  onFinalResult?: (transcriptChunk: string) => void
+  onFinalResult?: (transcript: string) => void
   onError?: (error: string) => void
   onEnd?: () => void
 }
@@ -453,7 +473,9 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
   if (!isSpeechRecognitionSupported()) return null
 
   const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition
+  if (!SpeechRecognitionAPI) return null
   const recognition = new SpeechRecognitionAPI()
+  let aborted = false
 
   recognition.lang = options.lang || 'zh-CN'
   recognition.interimResults = true
@@ -461,7 +483,7 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
   recognition.continuous = true
   recognition.maxAlternatives = 1
 
-  let silenceTimeout: any = null
+  let silenceTimeout: ReturnType<typeof setTimeout> | null = null
 
   const resetSilenceTimer = () => {
     if (silenceTimeout) clearTimeout(silenceTimeout)
@@ -476,33 +498,30 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
   }
 
   recognition.onstart = () => {
+    if (aborted) return
     resetSilenceTimer()
     options.onStart?.()
   }
 
-  recognition.onresult = (event: any) => {
+  recognition.onresult = (event: RecognitionResultEvent) => {
+    if (aborted) return
     resetSilenceTimer()
-
+    // results is a session snapshot. A repeated final index must replace,
+    // never append to, the previously displayed recognition text.
+    let final = ''
     let interim = ''
-    for (let i = event.resultIndex; i < event.results.length; ++i) {
+    for (let i = 0; i < event.results.length; i++) {
       const item = event.results[i]
-      if (item.isFinal) {
-        const finalChunk = item[0].transcript.trim()
-        if (finalChunk) {
-          options.onFinalResult?.(finalChunk)
-        }
-      } else {
-        interim += item[0].transcript
-      }
+      if (item.isFinal) final += item[0].transcript
+      else interim += item[0].transcript
     }
-
-    if (interim) {
-      options.onInterimResult?.(interim)
-    }
+    options.onFinalResult?.(final.trim())
+    options.onInterimResult?.(interim)
   }
 
-  recognition.onerror = (event: any) => {
+  recognition.onerror = (event: { error: string }) => {
     if (silenceTimeout) clearTimeout(silenceTimeout)
+    if (aborted) return
     let message = '音声認識エラーが発生しました'
     if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
       message = 'マイクの使用が許可されていません。ブラウザの設定でマイクを許可してください。'
@@ -517,12 +536,13 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
 
   recognition.onend = () => {
     if (silenceTimeout) clearTimeout(silenceTimeout)
-    options.onEnd?.()
+    if (!aborted) options.onEnd?.()
   }
 
   return {
     start: () => {
       try {
+        aborted = false
         recognition.start()
       } catch (err) {
         console.warn('SpeechRecognition start error:', err)
@@ -537,6 +557,7 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
       }
     },
     abort: () => {
+      aborted = true
       if (silenceTimeout) clearTimeout(silenceTimeout)
       try {
         recognition.abort()

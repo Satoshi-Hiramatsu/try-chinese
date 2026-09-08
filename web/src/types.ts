@@ -9,6 +9,7 @@ export interface Voice {
   voiceName?: string // ブラウザ/Edge音声名 (例: Microsoft Yunxi Online (Natural))
   voiceModel?: string // 話者キャラクターID (例: longanhuan_v3.6, loongjohn, zf_xiaobei, zm_yunxi 等)
   ttsProvider?: 'browser' | 'openrouter'
+  ttsModel?: string
   rate?: number
   pitch?: number
 }

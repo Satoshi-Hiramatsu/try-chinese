@@ -4,6 +4,7 @@ import {
   createSpeechRecognizer,
   isSpeechRecognitionSupported,
   unlockSpeechSynthesis,
+  stopSpeaking,
   type SpeechRecognitionController,
 } from '../services/speech'
 
@@ -48,8 +49,8 @@ export function ChatInput({
   }, [])
 
   const handleSend = () => {
-    if (isListening && recognizerRef.current) {
-      recognizerRef.current.stop()
+    if (recognizerRef.current) {
+      recognizerRef.current.abort()
       setIsListening(false)
       setInterimText('')
     }
@@ -95,13 +96,13 @@ export function ChatInput({
     if (isListening) {
       // 停止
       recognizerRef.current?.stop()
-      setIsListening(false)
-      setInterimText('')
       return
     }
 
-    // 開始前にTTSアンロック
-    unlockSpeechSynthesis()
+    // Stop playback before opening the microphone.
+    recognizerRef.current?.abort()
+    stopSpeaking()
+    const baseText = text.trim()
 
     // 開始
     setInterimText('')
@@ -114,8 +115,8 @@ export function ChatInput({
         setInterimText(interim)
       },
       onFinalResult: (finalChunk) => {
-        setText((prev) => {
-          const trimmedPrev = prev.trim()
+        setText(() => {
+          const trimmedPrev = baseText
           // 前の文字列が英数字・ピンインで、追加分も英数字の場合はスペースを空け、漢字等の場合は自然に連結
           const shouldAddSpace = Boolean(
             trimmedPrev &&
@@ -127,10 +128,10 @@ export function ChatInput({
               ? `${trimmedPrev} ${finalChunk}`
               : `${trimmedPrev}${finalChunk}`
             : finalChunk
-          setTimeout(() => handleInput(), 10)
           return next
         })
         setInterimText('')
+        setTimeout(handleInput, 10)
       },
       onError: (err) => {
         setIsListening(false)
@@ -174,8 +175,6 @@ export function ChatInput({
               type="button"
               onClick={() => {
                 recognizerRef.current?.stop()
-                setIsListening(false)
-                setInterimText('')
               }}
               className="px-2 py-0.5 text-xs bg-white border border-rose-200 text-rose-600 font-bold rounded-md hover:bg-rose-100 transition-colors cursor-pointer"
             >
@@ -189,6 +188,7 @@ export function ChatInput({
         {/* 言語切り替えボタン (中国語 / 日本語) */}
         <button
           type="button"
+          disabled={isListening}
           onClick={() => {
             const nextLang = speechLang === 'zh-CN' ? 'ja-JP' : 'zh-CN'
             onSpeechLangChange?.(nextLang)
@@ -224,7 +224,7 @@ export function ChatInput({
               ? '話しかけてください...'
               : '中国語でも日本語でもOK！話しかけてみよう (Enterで送信)'
           }
-          disabled={isLoading || disabled}
+          disabled={isLoading || disabled || isListening}
           className="flex-1 max-h-32 resize-none bg-transparent px-2.5 py-2 text-sm sm:text-base text-stone-900 placeholder:text-stone-400 outline-none leading-relaxed"
         />
 

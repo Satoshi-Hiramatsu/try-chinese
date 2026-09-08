@@ -159,6 +159,7 @@ export function FriendListModal({
         pitch: voiceOpt.defaultPitch,
         voiceName: voiceOpt.edgeVoiceName,
         voiceModel: voiceOpt.kokoroVoice,
+        ttsModel: 'hexgrad/kokoro-82m',
       },
     }
 

@@ -13,7 +13,7 @@
     "dev:web": "npm run dev --workspace=web",
     "dev:worker": "npm run dev --workspace=worker",
     "deploy": "npm run build && wrangler deploy",
-    "test": "npm run test --workspace=worker"
+    "test": "npm run test --workspace=web && npm run test --workspace=worker"
   },
   "devDependencies": {
     "wrangler": "^4.129.0"

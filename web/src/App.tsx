@@ -272,7 +272,10 @@ export default function App() {
     setPlayingText(text)
     speakChinese(text, currentFriend.voice, {
       onEnd: () => setPlayingText(null),
-      onError: () => setPlayingText(null),
+      onError: (error) => {
+        setPlayingText(null)
+        setErrorMessage(error instanceof Error ? error.message : 'Audio playback failed')
+      },
     })
   }
 
