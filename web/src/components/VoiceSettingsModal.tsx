@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import type { Friend, Voice } from '../types'
+import type { Friend, TtsVoiceTuning, Voice } from '../types'
 import {
   CloseIcon,
   SpeakerIcon,
@@ -34,6 +34,22 @@ import {
   CHARACTER_VOICE_OPTIONS,
   type CharacterVoiceOption,
 } from '../data/characterVoices'
+import { getTtsTuningCapability, normalizeTuning } from '../data/ttsVoiceTuning'
+import { loadTtsCatalog, type TtsCatalogModel } from '../services/ttsCatalog'
+import { VoiceTuningFields } from './VoiceTuningFields'
+
+/**
+ * 声質キャラクターの話者IDを、選択中のモデルの話者へ読み替える。
+ * 対応表を持つのは Kokoro と Qwen だけで、他のモデルはモデル側の話者一覧から選ぶ。
+ */
+function presetVoiceForModel(preset: CharacterVoiceOption, modelId: string): string {
+  return modelId.includes('qwen') ? preset.qwenVoice : preset.kokoroVoice
+}
+
+/** 声質キャラクター一覧で話者を選べるモデルか。 */
+function usesCharacterPresets(provider: 'browser' | 'openrouter', modelId: string): boolean {
+  return provider === 'browser' || modelId.includes('kokoro') || modelId.includes('qwen')
+}
 
 interface VoiceSettingsModalProps {
   isOpen: boolean
@@ -97,6 +113,11 @@ export function VoiceSettingsModal({
   const hasApiKey = Boolean(loadApiKey())
   const [currentTtsModel, setCurrentTtsModel] = useState(friend.voice?.ttsModel || loadTtsModel())
   const [previewError, setPreviewError] = useState('')
+  /** OpenRouterで音声出力できるモデル一覧。話者はモデルごとに異なるため実行時に取得する。 */
+  const [catalog, setCatalog] = useState<TtsCatalogModel[]>([])
+  const [catalogState, setCatalogState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  /** 話者一覧を持たないモデルで声を固定するための調整値。 */
+  const [tuning, setTuning] = useState<TtsVoiceTuning>(() => friend.voice?.voiceTuning || {})
 
   // 全声質リスト（プリセット＋カスタム）
   const allVoices = useMemo(() => {
@@ -138,6 +159,7 @@ export function VoiceSettingsModal({
       setPitch(friend.voice?.pitch ?? 1.0)
       setVoiceName(friend.voice?.voiceName || '')
       setVoiceModel(friend.voice?.voiceModel || 'longanhuan_v3.6')
+      setTuning(friend.voice?.voiceTuning || {})
 
       // 初回タブ選択: 友達の性別に合わせる
       setVoiceTab(friend.voice?.gender === 'male' ? 'male' : 'female')
@@ -145,6 +167,7 @@ export function VoiceSettingsModal({
 
       const combined = [...CHARACTER_VOICE_OPTIONS, ...currentCustoms]
       const matched = combined.find(opt => opt.kokoroVoice === friend.voice?.voiceModel)
+        ?? combined.find(opt => opt.qwenVoice === friend.voice?.voiceModel)
         ?? combined.find(opt => opt.edgeVoiceName === friend.voice?.voiceName)
       setSelectedPresetId(matched?.id ?? '')
 
@@ -160,6 +183,34 @@ export function VoiceSettingsModal({
       setIsPlayingPreview(false)
     }
   }, [])
+
+  // 利用できるモデルと話者はOpenRouter側で随時変わるため、開いた時点で取得する。
+  useEffect(() => {
+    if (!isOpen || provider !== 'openrouter' || !hasApiKey || catalogState !== 'idle') return
+    let cancelled = false
+    setCatalogState('loading')
+    loadTtsCatalog()
+      .then(({ models }) => {
+        if (cancelled) return
+        setCatalog(models)
+        setCatalogState('ready')
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCatalogState('error')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [catalogState, hasApiKey, isOpen, provider])
+
+  const catalogModel = useMemo(
+    () => catalog.find((model) => model.id === currentTtsModel),
+    [catalog, currentTtsModel]
+  )
+  const tuningCapability = useMemo(() => getTtsTuningCapability(currentTtsModel), [currentTtsModel])
+  const showsPresetList = usesCharacterPresets(provider, currentTtsModel)
+  const modelVoices = catalogModel?.supportedVoices ?? []
 
   if (!isOpen) return null
 
@@ -181,6 +232,7 @@ export function VoiceSettingsModal({
       voiceName: targetVoice?.voiceName ?? voiceName ?? undefined,
       voiceModel: targetVoice?.voiceModel ?? voiceModel ?? undefined,
       ttsProvider: targetVoice?.ttsProvider ?? provider,
+      voiceTuning: targetVoice?.voiceTuning ?? normalizeTuning(tuning),
     }
 
     const testText = `你好！我是${friend.name.replace(/\s*\(.*?\)/g, '')}。很高兴和你用中文聊天！`
@@ -197,8 +249,8 @@ export function VoiceSettingsModal({
 
   const handleApplyCharacterPreset = (preset: CharacterVoiceOption) => {
     setSelectedPresetId(preset.id)
-    const selectedVoiceModel = preset.kokoroVoice
-    setCurrentTtsModel('hexgrad/kokoro-82m')
+    // モデルは選択中のものを保つ。話者IDだけをそのモデル向けに読み替える。
+    const selectedVoiceModel = presetVoiceForModel(preset, currentTtsModel)
 
     setGender(preset.gender)
     setRate(preset.defaultRate)
@@ -213,9 +265,35 @@ export function VoiceSettingsModal({
       pitch: preset.defaultPitch,
       voiceName: preset.edgeVoiceName,
       voiceModel: selectedVoiceModel,
-      ttsModel: 'hexgrad/kokoro-82m',
+      ttsModel: currentTtsModel,
       ttsProvider: provider,
     })
+  }
+
+  /**
+   * 音声モデルを切り替える。
+   * 話者IDはモデルごとに異なるため、選択中の話者が使えないときだけ差し替える。
+   */
+  const handleChangeModel = (modelId: string) => {
+    setCurrentTtsModel(modelId)
+    setTuning({})
+    setPreviewError('')
+
+    const preset = allVoices.find((option) => option.id === selectedPresetId)
+    if (preset && usesCharacterPresets(provider, modelId)) {
+      setVoiceModel(presetVoiceForModel(preset, modelId))
+      return
+    }
+    const next = catalog.find((model) => model.id === modelId)
+    if (!next) return
+    if (next.supportedVoices.length === 0) {
+      // 話者一覧を公開しないモデルは、IDを直接入力して固定する。
+      setVoiceModel('')
+      return
+    }
+    if (!next.supportedVoices.includes(voiceModel)) {
+      setVoiceModel(next.defaultVoice || next.supportedVoices[0])
+    }
   }
 
   // カスタム声質の作成・保存
@@ -274,6 +352,7 @@ export function VoiceSettingsModal({
       voiceName: voiceName || undefined,
       voiceModel: voiceModel || undefined,
       ttsProvider: provider,
+      voiceTuning: normalizeTuning(tuning),
     }
 
     onSaveVoice(updatedVoice)
@@ -393,12 +472,58 @@ export function VoiceSettingsModal({
             </div>
           </div>
 
+          {/* 音声モデル選択（OpenRouter利用時のみ。話者はモデルごとに異なる） */}
+          {provider === 'openrouter' && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5" htmlFor="tts-model-select">
+                  <SparklesIcon className="w-4 h-4 text-amber-500" />
+                  <span>音声モデルを選ぶ:</span>
+                </label>
+                {catalogState === 'loading' && (
+                  <span className="text-[10px] text-stone-400">モデル一覧を取得中…</span>
+                )}
+              </div>
+              <select
+                id="tts-model-select"
+                value={currentTtsModel}
+                onChange={(e) => handleChangeModel(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-white border border-stone-300 rounded-xl focus:border-rose-500 focus:outline-none cursor-pointer"
+              >
+                {catalog.length === 0 && <option value={currentTtsModel}>{currentTtsModel}</option>}
+                <optgroup label="中国語・日本語向け">
+                  {catalog
+                    .filter((model) => model.languages.includes('zh'))
+                    .map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.displayName}（{model.priceNote}）
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="その他のモデル">
+                  {catalog
+                    .filter((model) => !model.languages.includes('zh'))
+                    .map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.displayName}（{model.priceNote}）
+                      </option>
+                    ))}
+                </optgroup>
+              </select>
+              <p className="m-0 mt-1 text-[10px] text-stone-500 leading-snug">
+                {catalogState === 'error'
+                  ? 'モデル一覧を取得できませんでした。設定画面のAPIキーをご確認ください。'
+                  : catalogModel?.note || 'モデルによって使える話者と音質が変わります。'}
+              </p>
+            </div>
+          )}
+
           {/* 声質キャラクター選択セクション */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
                 <SparklesIcon className="w-4 h-4 text-amber-500" />
-                <span>声質キャラクター（話者）を選ぶ:</span>
+                <span>{showsPresetList ? '声質キャラクター（話者）を選ぶ:' : '話者を選ぶ:'}</span>
               </label>
               {provider === 'openrouter' && currentTtsModel.includes('kokoro') && (
                 <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 font-bold rounded-md">
@@ -407,10 +532,74 @@ export function VoiceSettingsModal({
               )}
             </div>
 
-            {/* Qwen Flash選択時のガイドアラート */}
-            <p className="mb-3 text-xs text-stone-600">{provider === 'openrouter' ? '話者を選ぶとKokoroの中国語8話者で声質を切り替えます。API利用料がかかります。ピッチ調整はブラウザ音声専用です。' : '端末にない声は再現できません。声質を変えるにはAI音声を選んでください。'}</p>
+            <p className="mb-3 text-xs text-stone-600">
+              {provider !== 'openrouter'
+                ? '端末にない声は再現できません。声質を変えるにはAI音声を選んでください。'
+                : currentTtsModel.includes('kokoro')
+                  ? '話者を選ぶとKokoroの中国語8話者で声質を切り替えます。API利用料がかかります。ピッチ調整はブラウザ音声専用です。'
+                  : currentTtsModel.includes('qwen')
+                    ? '声質キャラクターはQwenの話者に読み替えて適用します。API利用料がかかります。'
+                    : 'このモデルの話者から選びます。API利用料がかかります。ピッチ調整はブラウザ音声専用です。'}
+            </p>
             {previewError && <p role="alert" className="mb-3 text-xs text-red-700">{previewError}</p>}
 
+            {/* モデル固有の話者選択（声質キャラクター一覧に対応表を持たないモデル） */}
+            {!showsPresetList && (
+              <div className="mb-3 p-3 rounded-2xl border border-stone-200 bg-stone-50/60 space-y-2">
+                {modelVoices.length > 0 ? (
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1" htmlFor="tts-voice-select">
+                      話者（全{modelVoices.length}件）:
+                    </label>
+                    <select
+                      id="tts-voice-select"
+                      value={voiceModel}
+                      onChange={(e) => setVoiceModel(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white border border-stone-300 rounded-xl focus:border-rose-500 focus:outline-none cursor-pointer"
+                    >
+                      {!modelVoices.includes(voiceModel) && <option value={voiceModel}>{voiceModel || '（未選択）'}</option>}
+                      {catalogModel && catalogModel.voicePresets.length > 0 && (
+                        <optgroup label="おすすめ">
+                          {catalogModel.voicePresets.map((preset) => (
+                            <option key={`preset-${preset.id}`} value={preset.id}>{preset.label}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="すべての話者">
+                        {modelVoices.map((voice) => (
+                          <option key={voice} value={voice}>{voice}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+                ) : (
+                  <p className="m-0 text-[11px] text-stone-600 leading-snug">
+                    このモデルは話者一覧を公開していません。下の設定で声を固定・調整できます。
+                  </p>
+                )}
+
+                <VoiceTuningFields
+                  capability={tuningCapability}
+                  tuning={tuning}
+                  onChange={setTuning}
+                  voiceId={modelVoices.length === 0 ? voiceModel : undefined}
+                  onVoiceIdChange={modelVoices.length === 0 ? setVoiceModel : undefined}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => handlePreview()}
+                  className="w-full py-2 text-xs font-bold rounded-xl bg-white border border-stone-300 hover:bg-stone-100 text-stone-700 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <SpeakerIcon className="w-3.5 h-3.5 text-rose-500" />
+                  <span>この設定で試聴</span>
+                </button>
+              </div>
+            )}
+
+            {/* 声質キャラクター一覧。話者IDを読み替えられるモデルとブラウザ音声のみ表示する。 */}
+            {showsPresetList && (
+            <>
             <div className="flex gap-1.5 p-1 bg-stone-100 rounded-xl mb-3">
               <button
                 type="button"
@@ -713,7 +902,7 @@ export function VoiceSettingsModal({
                       ? opt.edgeVoiceName.includes('Online')
                         ? opt.edgeVoiceName.split(' ')[1]
                         : opt.edgeVoiceName
-                      : opt.kokoroVoice
+                      : presetVoiceForModel(opt, currentTtsModel)
 
                   return (
                     <div
@@ -780,6 +969,8 @@ export function VoiceSettingsModal({
                 })
               )}
             </div>
+            </>
+            )}
           </div>
 
           {/* 高度な微調整（アコーディオン） */}

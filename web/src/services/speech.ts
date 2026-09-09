@@ -206,28 +206,22 @@ async function speakWithOpenRouterTts(
 
   let voiceModel = voice?.voiceModel || ''
 
-  if (ttsModel.includes('kokoro')) {
-    // Kokoro用の話者に正規化
-    if (!voiceModel || !voiceModel.startsWith('z')) {
+  // 話者が未指定のときだけ、モデルごとの既定話者に寄せる。
+  // 明示的に選ばれた話者はそのまま送り、そのモデルに無い場合はWorkerがカタログで解決する。
+  if (!voiceModel) {
+    if (ttsModel.includes('kokoro')) {
       voiceModel = isMale ? 'zm_yunxi' : 'zf_xiaoxiao'
-    }
-  } else if (ttsModel.includes('qwen')) {
-    // Qwen用の話者に正規化
-    if (ttsModel.includes('plus')) {
-      if (voiceModel !== 'longanlingxin' && voiceModel !== 'longanlufeng') {
-        voiceModel = isMale ? 'longanlufeng' : 'longanlingxin'
-      }
-    } else {
-      if (voiceModel !== 'loongjohn' && voiceModel !== 'longanhuan_v3.6') {
-        voiceModel = isMale ? 'loongjohn' : 'longanhuan_v3.6'
-      }
+    } else if (ttsModel.includes('qwen')) {
+      if (ttsModel.includes('plus')) voiceModel = isMale ? 'longanlufeng' : 'longanlingxin'
+      else voiceModel = isMale ? 'loongjohn' : 'longanhuan_v3.6'
     }
   }
-  // 上記以外のモデルは話者一覧がモデルごとに異なるため、
-  // 未指定のままWorkerへ渡してカタログ由来の既定話者に解決させる。
 
   const speed = voice?.rate ?? 1.0
-  const cacheKey = `${ttsModel}_${voiceModel}_${speed}_${text}`
+  // 声の調整値が変われば別の音声になるため、キャッシュキーにも含める。
+  const tuning = voice?.voiceTuning
+  const tuningKey = tuning ? JSON.stringify(tuning) : ''
+  const cacheKey = `${ttsModel}_${voiceModel}_${speed}_${tuningKey}_${text}`
 
   try {
     let audioUrl = audioBlobCache.get(cacheKey)
@@ -244,6 +238,7 @@ async function speakWithOpenRouterTts(
           model: ttsModel,
           voice: voiceModel,
           speed,
+          tuning,
           apiKey,
         }),
       })
