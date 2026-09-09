@@ -42,7 +42,7 @@ export function TtsDebugResultCard({ model, result, onRetry, onChange }: Props) 
   }
   return (
     <article className={'tts-debug-card'}>
-      <header><div><b>{model.displayName}</b><small>{model.id}</small></div><strong>{STATUS_LABELS[result.status]}</strong></header>
+      <header><div><b>{model.displayName}</b><small>{model.id}</small></div><strong className={'tts-debug-status'} data-status={result.status}>{STATUS_LABELS[result.status]}</strong></header>
       <dl className={'tts-debug-metrics'}>
         <div><dt>応答ヘッダー</dt><dd>{formatMs(result.metrics.requestToHeadersMs)}</dd></div>
         <div><dt>最初のチャンク</dt><dd>{formatMs(result.metrics.requestToFirstChunkMs)}</dd></div>

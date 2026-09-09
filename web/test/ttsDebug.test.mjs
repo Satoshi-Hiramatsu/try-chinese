@@ -38,6 +38,15 @@ test('Unicode文字数とUTF-8バイト数を区別する', () => {
   assert.equal(units.utf8Bytes, 7)
 })
 
+test('実行を止める理由を入力とモデル選択から判定する', () => {
+  const block = serviceExports.getTtsDebugRunBlockReason
+  assert.equal(block({ text: '你好', selectedCount: 3 }), undefined)
+  assert.equal(block({ text: '   ', selectedCount: 3 }), 'empty-text')
+  assert.equal(block({ text: '你'.repeat(1001), selectedCount: 3 }), 'too-long')
+  assert.equal(block({ text: '你'.repeat(1000), selectedCount: 3 }), undefined)
+  assert.equal(block({ text: '你好', selectedCount: 0 }), 'no-model')
+})
+
 test('モデルごとの課金単位で概算料金を計算する', () => {
   assert.equal(serviceExports.estimateTtsCostUsd('qwen/qwen-audio-3.0-tts-flash', '你好'), 0.00003)
   assert.equal(serviceExports.estimateTtsCostUsd('fish-audio/s2-pro', '你好'), 0.00009)

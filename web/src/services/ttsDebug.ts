@@ -20,6 +20,20 @@ export function countTextUnits(text: string): { characters: number; utf8Bytes: n
   }
 }
 
+export type TtsDebugRunBlockReason = 'empty-text' | 'too-long' | 'no-model'
+
+/**
+ * 実行を止める理由を返す。実行ボタンの無効化と警告文で共有する。
+ * DOMに依存しないため、UIを描画せずにテストできる。
+ * 単体実行の判定には selectedCount に 1 を渡す。
+ */
+export function getTtsDebugRunBlockReason(input: { text: string; selectedCount: number }): TtsDebugRunBlockReason | undefined {
+  if (!input.text.trim()) return 'empty-text'
+  if (countTextUnits(input.text).characters > TTS_DEBUG_MAX_CHARACTERS) return 'too-long'
+  if (input.selectedCount < 1) return 'no-model'
+  return undefined
+}
+
 export function estimateTtsCostUsd(modelId: string, text: string): number | undefined {
   const model = getOpenRouterTtsModel(modelId)
   if (!model || model.priceUsdPerMillionUnit === undefined || model.billingUnit === 'audio-token') {
@@ -146,8 +160,4 @@ export async function runTtsDebugTest(options: RunTtsDebugOptions): Promise<TtsD
       errorMessage: cancelled ? '停止しました' : error instanceof Error ? error.message : 'TTS通信エラーが発生しました',
     }
   }
-}
-
-export function revokeTtsDebugAudio(result: TtsDebugResult): void {
-  if (result.audioUrl) URL.revokeObjectURL(result.audioUrl)
 }
