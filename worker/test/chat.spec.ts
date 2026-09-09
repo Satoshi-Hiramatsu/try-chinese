@@ -53,19 +53,25 @@ describe('T-01: POST /api/chat 実装テスト', () => {
       expect(promptHigh).toContain('HSK 6 級')
     })
 
-    it('完全な中国語返答の徹底（日本語混入禁止）の指示が含まれること', () => {
+    it('中国語本文と日中バイリンガル返答の指示が含まれること', () => {
       const prompt = buildChatSystemPrompt(mockFriend, 2)
-      expect(prompt).toContain('完全な中国語返答')
+      expect(prompt).toContain('日中バイリンガル返答')
       expect(prompt).toContain('100%中国語（簡体字）のみ')
       expect(prompt).toContain('日本語（ひらがな、カタカナ、和製表現）は絶対に混ぜてはいけません')
+      expect(prompt).toContain('你好 は日本語で『こんにちは』という意味だよ')
     })
 
-    it('学習者が日本語で話しかけた場合の2段階対話指示と添削ルールが含まれること', () => {
+    it('日本語・中国語の混在入力に対する2段階対話と添削ルールが含まれること', () => {
       const prompt = buildChatSystemPrompt(mockFriend, 2)
       expect(prompt).toContain('2段階対話')
       expect(prompt).toContain('ステップ1（内容への回答）')
       expect(prompt).toContain('ステップ2（中国語表現の案内・促し）')
-      expect(prompt).toContain('必ず "hasCorrection": true')
+      expect(prompt).toContain('えっと 你好って日本語で什么意思でしたっけ？')
+      expect(prompt).toContain('発話全体を誤り扱いしたりしない')
+      expect(prompt).toContain('意味を尋ねている中国語')
+      expect(prompt).toContain('意図的なコードスイッチング')
+      expect(prompt).toContain('自然な学習質問なら、質問したこと自体を添削せず "hasCorrection": false')
+      expect(prompt).toContain('"correction.hasCorrection" は false')
     })
   })
 
