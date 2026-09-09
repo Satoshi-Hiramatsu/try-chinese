@@ -1,32 +1,24 @@
-# React + TypeScript + Vite
+# しゃべチャイナ Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+しゃべチャイナのブラウザ版フロントエンドです。React 19、Vite、TypeScript strict、Tailwind CSS、PWAで構成されています。機能、セットアップ、画面説明の詳細は[ルートREADME](../README.md)を参照してください。
 
-Currently, two official plugins are available:
+## 開発コマンド
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+リポジトリのルートで実行します。
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm run dev:web
+npm run build:web
+npm test
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## 音声機能
+
+- 通常のマイク入力は1発話ごとの単発認識です。同一の確定結果が再通知されても重複反映しません。
+- HFモードでは継続認識し、相手の回答読み上げ後にマイクを再開します。
+- 音声入力中と音声回答後は入力欄へ自動フォーカスせず、Androidのソフトキーボードが意図せず開くことを防ぎます。
+- 開発環境、または `?ttsDebug=1` 付きURLでは、設定からOpenRouter TTSモデル検証画面を開けます。
+
+## データと秘密情報
+
+APIキー、会話履歴、設定、TTS検証履歴はブラウザ内に保存します。`.env*`、`.dev.vars`、APIキーなどの秘密情報はコミットしないでください。
