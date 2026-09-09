@@ -60,7 +60,7 @@
 .tts-debug-status[data-status=success] { color: #15803d; background: #dcfce7; }
 .tts-debug-status[data-status=error] { color: #b91c1c; background: #fee2e2; }
 .tts-debug-status[data-status=cancelled] { color: #57534e; background: #e7e5e4; }
-.tts-debug-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; font-size: .67rem; }
+.tts-debug-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0; font-size: .67rem; }
 .tts-debug-metrics dt { color: #a8a29e; }
 .tts-debug-metrics dd { margin: 0; overflow: hidden; font-family: monospace; text-overflow: ellipsis; white-space: nowrap; }
 .tts-debug-card audio, .tts-debug-card textarea { width: 100%; margin-top: 10px; }
@@ -72,6 +72,23 @@
 .tts-debug-card footer button { padding: 5px 9px; border: 1px solid #d6d3d1; border-radius: 7px; font-weight: 700; }
 .tts-debug-card footer button:disabled { opacity: .45; cursor: not-allowed; }
 .tts-debug-error { padding: 7px; color: #b91c1c; background: #fef2f2; border-radius: 8px; font-size: .72rem; }
+
+/* モデルカードの話者プリセット */
+.tts-debug-model-id { font-family: monospace; font-size: .58rem; color: #a8a29e; }
+.tts-debug-model-note { line-height: 1.5; white-space: normal; }
+.tts-debug-voice { display: flex; flex-direction: column; gap: 3px; font-size: .63rem; color: #78716c; }
+.tts-debug-voice select { width: 100%; padding: 4px 6px; background: white; border: 1px solid #d6d3d1; border-radius: 7px; font-size: .65rem; }
+.tts-debug-options select { padding: 3px 6px; background: white; border: 1px solid #d6d3d1; border-radius: 7px; font-size: .72rem; }
+
+/* 連続生成の各回 */
+.tts-debug-attempts { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+.tts-debug-attempt { padding: 8px; background: #fafaf9; border: 1px solid #e7e5e4; border-radius: 10px; }
+.tts-debug-attempt[data-status=error] { background: #fef2f2; border-color: #fecaca; }
+.tts-debug-attempt-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: #57534e; font-size: .63rem; }
+.tts-debug-attempt-head b { min-width: 42px; color: #44403c; }
+.tts-debug-attempt-head span:not(.tts-debug-status) { font-family: monospace; }
+.tts-debug-attempt audio { height: 32px; margin-top: 6px; }
+.tts-debug-attempt .tts-debug-error { margin: 6px 0 0; font-size: .66rem; }
 .tts-debug-history { margin-top: 24px; }
 .tts-debug-history h3 { font-size: .9rem; }
 .tts-debug-history div { display: flex; flex-wrap: wrap; gap: 7px; }

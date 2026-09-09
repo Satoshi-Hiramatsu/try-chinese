@@ -1,221 +1,197 @@
 /**
- * OpenRouterで利用できるTTSモデルの比較データ。
+ * OpenRouter TTSモデルの補足情報（オーバーレイ）。
  *
- * 料金・提供状況・レイテンシは変動するため、実行時の請求計算や
- * モデルの利用可否判定には使用せず、音声テストモードの候補一覧と
- * 設定画面の比較表示に使用する。
+ * モデル一覧・話者一覧・価格は OpenRouter の `/api/tts/models` から実行時に取得する。
+ * ここではAPIが返さない情報（課金単位・対応言語の所感・中国語学習向けの推奨話者）だけを持ち、
+ * 未登録のモデルでもカタログ側の情報だけで扱えるようにする。
  */
 
-export type TtsAvailability = 'available' | 'free-preview' | 'preview'
-export type TtsLatencyClass = 'very-fast' | 'fast' | 'unknown'
 export type TtsBillingUnit = 'character' | 'utf8-byte' | 'audio-token'
 
-export interface OpenRouterTtsModel {
+export interface TtsVoicePreset {
   id: string
-  displayName: string
-  provider: string
-  availability: TtsAvailability
-  languages: string[]
-  voiceCount?: string
-  voiceFeatures: string[]
-  billingUnit: TtsBillingUnit
-  priceUsdPerMillionUnit?: number
-  priceNote: string
-  latencyClass: TtsLatencyClass
-  latencyNote: string
-  streaming: 'supported' | 'unknown'
-  responseNote: string
-  supportsVoiceClone: boolean
-  supportsStyleControl: boolean
-  recommendedUse: string
-  sourceUrl: string
-  defaultVoice?: string
-  supportedVoices?: readonly string[]
-  supportsSpeed: boolean
+  label: string
 }
 
-/**
- * 2026年9月に調査したOpenRouter TTS候補。
- * priceUsdPerMillionUnit は各モデルのbillingUnit単位での価格。
- */
-export const OPENROUTER_TTS_MODELS: readonly OpenRouterTtsModel[] = [
-  {
-    id: 'hexgrad/kokoro-82m',
-    displayName: 'Kokoro 82M',
-    provider: 'hexgrad',
-    availability: 'available',
-    languages: ['ja', 'zh'],
-    voiceCount: '54 preset voices',
-    voiceFeatures: ['language-specific voices', 'gender presets'],
-    billingUnit: 'character',
-    priceUsdPerMillionUnit: 0.62,
-    priceNote: '$0.62 / 1M characters',
-    latencyClass: 'very-fast',
-    latencyNote: 'lightweight model; provider latency varies',
-    streaming: 'unknown',
-    responseNote: 'best low-cost baseline for short utterances',
-    supportsVoiceClone: false,
-    supportsStyleControl: false,
-    recommendedUse: 'current default and cached short replies',
-    sourceUrl: 'https://openrouter.ai/hexgrad/kokoro-82m/providers',
-    defaultVoice: 'zf_xiaoxiao',
-    supportedVoices: ['zf_xiaobei', 'zf_xiaoni', 'zf_xiaoxiao', 'zf_xiaoyi', 'zm_yunjian', 'zm_yunxi', 'zm_yunxia', 'zm_yunyang'],
-    supportsSpeed: false,
-  },
-  {
-    id: 'fish-audio/s2.1-pro-free:free',
-    displayName: 'Fish Audio S2.1 Pro Free',
-    provider: 'fish-audio',
-    availability: 'free-preview',
-    languages: ['ja', 'zh'],
-    voiceFeatures: ['emotion tags', 'natural-language style control'],
-    billingUnit: 'character',
-    priceUsdPerMillionUnit: 0,
-    priceNote: 'free preview; no production availability guarantee',
-    latencyClass: 'unknown',
-    latencyNote: 'free route is load-dependent',
-    streaming: 'supported',
-    responseNote: 'use for comparative testing only',
-    supportsVoiceClone: true,
-    supportsStyleControl: true,
-    recommendedUse: 'debug mode and quality audition',
-    sourceUrl: 'https://openrouter.ai/fish-audio/s2.1-pro-free:free',
-    supportsSpeed: false,
-  },
-  {
-    id: 'fish-audio/s2-pro',
-    displayName: 'Fish Audio S2 Pro',
-    provider: 'fish-audio',
-    availability: 'available',
-    languages: ['ja', 'zh'],
-    voiceFeatures: ['emotion tags', 'natural-language style control', 'multi-speaker'],
-    billingUnit: 'utf8-byte',
-    priceUsdPerMillionUnit: 15,
-    priceNote: '$15 / 1M UTF-8 bytes; CJK text costs more per character',
-    latencyClass: 'fast',
-    latencyNote: 'OpenRouter P50 latency was about 0.48s during research',
-    streaming: 'supported',
-    responseNote: 'strong expressive output; measure CJK byte billing',
-    supportsVoiceClone: true,
-    supportsStyleControl: true,
-    recommendedUse: 'expressive voice comparison',
-    sourceUrl: 'https://openrouter.ai/fish-audio/s2-pro',
-    supportsSpeed: false,
-  },
-  {
-    id: 'qwen/qwen-audio-3.0-tts-flash',
-    displayName: 'Qwen-Audio-3.0-TTS Flash',
-    provider: 'qwen',
-    availability: 'available',
-    languages: ['ja', 'zh'],
-    voiceFeatures: ['preset voices', 'style control'],
-    billingUnit: 'character',
-    priceUsdPerMillionUnit: 15,
-    priceNote: '$15 / 1M characters',
-    latencyClass: 'fast',
-    latencyNote: 'OpenRouter latency was not published in the research snapshot',
-    streaming: 'supported',
-    responseNote: 'test separately from self-hosted Qwen3-TTS',
-    supportsVoiceClone: false,
-    supportsStyleControl: true,
-    recommendedUse: 'hosted Qwen comparison',
-    sourceUrl: 'https://openrouter.ai/qwen/qwen-audio-3.0-tts-flash',
-    defaultVoice: 'longanhuan_v3.6',
-    supportedVoices: ['loongjohn', 'longanhuan_v3.6'],
-    supportsSpeed: false,
-  },
-  {
-    id: 'qwen/qwen-audio-3.0-tts-plus',
-    displayName: 'Qwen-Audio-3.0-TTS Plus',
-    provider: 'qwen',
-    availability: 'available',
-    languages: ['ja', 'zh'],
-    voiceFeatures: ['preset voices', 'style control'],
-    billingUnit: 'character',
-    priceUsdPerMillionUnit: 20,
-    priceNote: '$20 / 1M characters',
-    latencyClass: 'unknown',
-    latencyNote: 'OpenRouter latency was not published in the research snapshot',
-    streaming: 'supported',
-    responseNote: 'quality-oriented Qwen hosted option',
-    supportsVoiceClone: false,
-    supportsStyleControl: true,
-    recommendedUse: 'quality comparison against Flash',
-    sourceUrl: 'https://openrouter.ai/qwen/qwen-audio-3.0-tts-plus',
-    defaultVoice: 'longanlingxin',
-    supportedVoices: ['longanlingxin', 'longanlufeng'],
-    supportsSpeed: false,
-  },
-  {
-    id: 'google/gemini-3.1-flash-tts-preview',
-    displayName: 'Gemini 3.1 Flash TTS Preview',
-    provider: 'google',
-    availability: 'preview',
-    languages: ['ja', 'zh'],
-    voiceCount: 'up to 2 speakers per request',
-    voiceFeatures: ['200+ inline audio tags', 'per-speaker style control'],
-    billingUnit: 'audio-token',
-    priceUsdPerMillionUnit: 20,
-    priceNote: '$1 / 1M text tokens + $20 / 1M audio tokens',
-    latencyClass: 'unknown',
-    latencyNote: 'OpenRouter provider latency varies; token billing is not character billing',
-    streaming: 'supported',
-    responseNote: 'strong multi-speaker and expression test candidate',
-    supportsVoiceClone: false,
-    supportsStyleControl: true,
-    recommendedUse: 'multi-speaker and expression experiments',
-    sourceUrl: 'https://openrouter.ai/google/gemini-3.1-flash-tts-preview',
-    defaultVoice: 'Kore',
-    supportedVoices: ['Kore', 'Puck', 'Aoede', 'Charon'],
-    supportsSpeed: false,
-  },
-  {
-    id: 'minimax/speech-2.8-turbo',
-    displayName: 'MiniMax Speech 2.8 Turbo',
-    provider: 'minimax',
-    availability: 'available',
-    languages: ['ja', 'zh'],
-    voiceCount: '45 voices on OpenRouter',
-    voiceFeatures: ['emotion control', 'sound tags', 'voice IDs'],
-    billingUnit: 'character',
-    priceUsdPerMillionUnit: 60,
-    priceNote: '$60 / 1M characters',
-    latencyClass: 'very-fast',
-    latencyNote: 'provider claims sub-200ms TTFB; verify from Japan',
-    streaming: 'supported',
-    responseNote: 'real-time-oriented hosted option',
-    supportsVoiceClone: true,
-    supportsStyleControl: true,
-    recommendedUse: 'low-latency voice interaction comparison',
-    sourceUrl: 'https://openrouter.ai/minimax/speech-2.8-turbo',
-    defaultVoice: 'English_radiant_girl',
-    supportedVoices: ['English_radiant_girl', 'English_magnetic_voiced_man', 'English_CalmWoman'],
-    supportsSpeed: false,
-  },
-  {
-    id: 'microsoft/mai-voice-2',
-    displayName: 'Microsoft MAI-Voice-2',
-    provider: 'microsoft',
-    availability: 'available',
-    languages: ['ja', 'zh'],
-    voiceFeatures: ['expressive speech', 'voice prompting'],
-    billingUnit: 'character',
-    priceUsdPerMillionUnit: 22,
-    priceNote: '$22 / 1M characters',
-    latencyClass: 'unknown',
-    latencyNote: 'provider latency varies; voice prompting requires approval',
-    streaming: 'supported',
-    responseNote: 'requires access and consent checks for cloning features',
-    supportsVoiceClone: true,
-    supportsStyleControl: true,
-    recommendedUse: 'Microsoft hosted voice comparison',
-    sourceUrl: 'https://openrouter.ai/microsoft/mai-voice-2',
-    defaultVoice: 'en-US-Harper:MAI-Voice-2',
-    supportedVoices: ['en-US-Harper:MAI-Voice-2', 'es-MX-Valeria:MAI-Voice-2', 'fr-FR-Soleil:MAI-Voice-2', 'de-DE-Klaus:MAI-Voice-2'],
-    supportsSpeed: true,
-  },
+export interface TtsModelOverlay {
+  /** 課金単位。OpenRouterのAPIは単価だけを返し、単位は返さない。 */
+  billingUnit?: TtsBillingUnit
+  languages?: readonly string[]
+  note?: string
+  recommendedUse?: string
+  /** 中国語会話に適した話者。カタログに存在するものだけが既定候補になる。 */
+  preferredVoices?: readonly string[]
+  /** 話者セレクトの先頭に出す推奨プリセット。 */
+  voicePresets?: readonly TtsVoicePreset[]
+}
+
+const KOKORO_PRESETS: readonly TtsVoicePreset[] = [
+  { id: 'zf_xiaoxiao', label: '中国語 女性 xiaoxiao' },
+  { id: 'zf_xiaobei', label: '中国語 女性 xiaobei' },
+  { id: 'zf_xiaoni', label: '中国語 女性 xiaoni' },
+  { id: 'zf_xiaoyi', label: '中国語 女性 xiaoyi' },
+  { id: 'zm_yunxi', label: '中国語 男性 yunxi' },
+  { id: 'zm_yunjian', label: '中国語 男性 yunjian' },
+  { id: 'zm_yunxia', label: '中国語 男性 yunxia' },
+  { id: 'zm_yunyang', label: '中国語 男性 yunyang' },
+  { id: 'jf_alpha', label: '日本語 女性 alpha' },
+  { id: 'jm_kumo', label: '日本語 男性 kumo' },
 ]
 
-export function getOpenRouterTtsModel(modelId: string): OpenRouterTtsModel | undefined {
-  return OPENROUTER_TTS_MODELS.find((model) => model.id === modelId)
+export const TTS_MODEL_OVERLAY: Readonly<Record<string, TtsModelOverlay>> = {
+  'hexgrad/kokoro-82m': {
+    billingUnit: 'character',
+    languages: ['zh', 'ja'],
+    note: '軽量で低コスト。中国語・日本語それぞれ専用の話者を持つ。',
+    recommendedUse: '既定モデルと短文の使い回し',
+    preferredVoices: ['zf_xiaoxiao', 'zm_yunxi'],
+    voicePresets: KOKORO_PRESETS,
+  },
+  'qwen/qwen-audio-3.0-tts-flash': {
+    billingUnit: 'character',
+    languages: ['zh', 'ja'],
+    note: '中国語話者が中心。速度重視の構成。',
+    recommendedUse: '低遅延の中国語比較',
+    preferredVoices: ['longanhuan_v3.6', 'loongjohn'],
+    voicePresets: [
+      { id: 'longanhuan_v3.6', label: '中国語 女性 longanhuan' },
+      { id: 'loongjohn', label: '中国語 男性 loongjohn' },
+    ],
+  },
+  'qwen/qwen-audio-3.0-tts-plus': {
+    billingUnit: 'character',
+    languages: ['zh', 'ja'],
+    note: 'Flashより品質寄りのQwen構成。',
+    recommendedUse: 'Flashとの品質比較',
+    preferredVoices: ['longanlingxin', 'longanlufeng'],
+    voicePresets: [
+      { id: 'longanlingxin', label: '中国語 女性 lingxin' },
+      { id: 'longanlufeng', label: '中国語 男性 lufeng' },
+    ],
+  },
+  'fish-audio/s1': {
+    billingUnit: 'utf8-byte',
+    languages: ['zh', 'ja'],
+    note: 'UTF-8バイト課金のため、中国語・日本語は1文字あたりの費用が高くなる。',
+    recommendedUse: '感情表現の比較',
+  },
+  'fish-audio/s2-pro': {
+    billingUnit: 'utf8-byte',
+    languages: ['zh', 'ja'],
+    note: 'UTF-8バイト課金。多話者と自然言語による話し方の指定に対応。',
+    recommendedUse: '表現力の比較',
+  },
+  'fish-audio/s2.1-pro': {
+    billingUnit: 'utf8-byte',
+    languages: ['zh', 'ja'],
+    note: 'UTF-8バイト課金。S2 Proの後継。',
+    recommendedUse: '表現力の比較',
+  },
+  'fish-audio/s2.1-pro-free:free': {
+    billingUnit: 'utf8-byte',
+    languages: ['zh', 'ja'],
+    note: '無料プレビュー。混雑状況で遅延が変わるため速度比較には向かない。',
+    recommendedUse: '音質の試聴のみ',
+  },
+  'google/gemini-3.1-flash-tts-preview': {
+    billingUnit: 'audio-token',
+    languages: ['zh', 'ja'],
+    note: 'mp3を受け付けずPCMのみを返すため、受信後にWAVへ変換して再生する。音声トークン課金のため文字数から費用を確定できない。',
+    recommendedUse: '多話者・表現の実験',
+    preferredVoices: ['Kore', 'Puck'],
+    voicePresets: [
+      { id: 'Kore', label: '女性 Kore（落ち着き）' },
+      { id: 'Aoede', label: '女性 Aoede（明るい）' },
+      { id: 'Leda', label: '女性 Leda（若い）' },
+      { id: 'Puck', label: '男性 Puck（軽快）' },
+      { id: 'Charon', label: '男性 Charon（低め）' },
+      { id: 'Fenrir', label: '男性 Fenrir（力強い）' },
+    ],
+  },
+  'minimax/speech-2.8-turbo': {
+    billingUnit: 'character',
+    languages: ['zh', 'ja'],
+    note: '話者IDは英語名だが多言語に対応する。低遅延をうたう構成。',
+    recommendedUse: '低遅延の対話比較',
+    preferredVoices: ['English_radiant_girl', 'English_magnetic_voiced_man'],
+    voicePresets: [
+      { id: 'English_radiant_girl', label: '女性 radiant girl' },
+      { id: 'English_Kind-heartedGirl', label: '女性 kind-hearted' },
+      { id: 'English_CalmWoman', label: '女性 calm' },
+      { id: 'English_magnetic_voiced_man', label: '男性 magnetic' },
+      { id: 'English_Gentle-voiced_man', label: '男性 gentle' },
+      { id: 'English_DecentYoungMan', label: '男性 young' },
+    ],
+  },
+  'minimax/speech-2.8-hd': {
+    billingUnit: 'character',
+    languages: ['zh', 'ja'],
+    note: 'Turboより品質寄り。単価は高い。',
+    recommendedUse: 'Turboとの品質比較',
+    preferredVoices: ['English_radiant_girl', 'English_magnetic_voiced_man'],
+  },
+  'microsoft/mai-voice-2': {
+    billingUnit: 'character',
+    languages: ['zh', 'ja'],
+    note: '話者は4種類のみ。音声クローンは別途承認が必要。',
+    recommendedUse: 'Microsoft系の比較',
+    preferredVoices: ['en-US-Harper:MAI-Voice-2'],
+  },
+  'microsoft/mai-voice-2-flash': {
+    billingUnit: 'character',
+    languages: ['zh', 'ja'],
+    note: 'MAI-Voice-2の速度重視版。',
+    recommendedUse: '速度比較',
+    preferredVoices: ['en-US-Harper:MAI-Voice-2'],
+  },
+  'x-ai/grok-voice-tts-1.0': {
+    billingUnit: 'character',
+    languages: ['zh', 'ja'],
+    note: '話者は5種類。会話向けの自然さを重視した構成。',
+    recommendedUse: '会話調の比較',
+  },
+  'deepgram/aura-2': {
+    billingUnit: 'character',
+    languages: ['ja'],
+    note: '英語中心で日本語話者も持つが、中国語話者は公開されていない。',
+    recommendedUse: '日本語側の読み上げ比較',
+    preferredVoices: ['aura-2-ama-ja'],
+  },
+  'deepgram/flux-tts:free': {
+    billingUnit: 'character',
+    languages: [],
+    note: '英語専用。中国語学習用途には向かない。',
+    recommendedUse: '応答速度の基準測定',
+  },
+  'mistralai/voxtral-mini-tts-2603': {
+    billingUnit: 'character',
+    languages: [],
+    note: '話者IDに感情が含まれる英語中心のモデル。',
+    recommendedUse: '感情指定の比較',
+  },
+  'canopylabs/orpheus-3b-0.1-ft': {
+    billingUnit: 'character',
+    languages: [],
+    note: '英語中心の軽量モデル。',
+    recommendedUse: '応答速度の基準測定',
+  },
+  'sesame/csm-1b': {
+    billingUnit: 'character',
+    languages: [],
+    note: '英語中心の会話音声モデル。',
+    recommendedUse: '応答速度の基準測定',
+  },
+}
+
+/** 未登録モデルの課金単位を推定する。音声トークン課金は文字数から費用を確定できない。 */
+export function inferBillingUnit(modelId: string, audioTokenPriceUsd: number): TtsBillingUnit {
+  const overlay = TTS_MODEL_OVERLAY[modelId]
+  if (overlay?.billingUnit) return overlay.billingUnit
+  if (audioTokenPriceUsd > 0) return 'audio-token'
+  if (modelId.startsWith('fish-audio/')) return 'utf8-byte'
+  return 'character'
+}
+
+export function getTtsModelOverlay(modelId: string): TtsModelOverlay | undefined {
+  return TTS_MODEL_OVERLAY[modelId]
 }

@@ -9,7 +9,22 @@ export interface AppBindings extends Env, ChatEnv, TtsEnv {
 
 const app = new Hono<{ Bindings: AppBindings }>()
 
-app.use('/api/*', cors())
+// 音声検証モードはレスポンスヘッダーの診断情報を読むため、明示的に公開する。
+app.use(
+  '/api/*',
+  cors({
+    origin: '*',
+    exposeHeaders: [
+      'X-Generation-Id',
+      'X-TTS-Model',
+      'X-TTS-Voice',
+      'X-TTS-Format',
+      'X-TTS-Sample-Rate',
+      'X-TTS-Bit-Depth',
+      'X-TTS-Channels',
+    ],
+  })
+)
 
 app.get('/api/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() })

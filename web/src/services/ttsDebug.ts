@@ -1,8 +1,10 @@
-import { getOpenRouterTtsModel } from '../data/openRouterTtsModels'
-import type { TtsDebugResult } from '../types'
+import type { TtsDebugAttempt, TtsDebugResult } from '../types'
+import { createPlayableAudioBlob, readPcmFormat } from './audioFormat'
 import { loadApiKey } from './storage'
 
 export const TTS_DEBUG_MAX_CHARACTERS = 1000
+export const TTS_DEBUG_MAX_ITERATIONS = 5
+export const TTS_DEBUG_DEFAULT_ITERATIONS = 3
 
 export interface RunTtsDebugOptions {
   modelId: string
@@ -11,6 +13,8 @@ export interface RunTtsDebugOptions {
   signal: AbortSignal
   voiceId?: string
   ignoreCache?: boolean
+  /** 1始まりの試行番号。計測結果に記録する。 */
+  attemptIndex?: number
 }
 
 export function countTextUnits(text: string): { characters: number; utf8Bytes: number } {
@@ -20,41 +24,101 @@ export function countTextUnits(text: string): { characters: number; utf8Bytes: n
   }
 }
 
-export type TtsDebugRunBlockReason = 'empty-text' | 'too-long' | 'no-model'
+export type TtsDebugRunBlockReason = 'empty-text' | 'too-long' | 'no-model' | 'bad-iterations'
 
 /**
  * 実行を止める理由を返す。実行ボタンの無効化と警告文で共有する。
  * DOMに依存しないため、UIを描画せずにテストできる。
  * 単体実行の判定には selectedCount に 1 を渡す。
  */
-export function getTtsDebugRunBlockReason(input: { text: string; selectedCount: number }): TtsDebugRunBlockReason | undefined {
+export function getTtsDebugRunBlockReason(input: {
+  text: string
+  selectedCount: number
+  iterations?: number
+}): TtsDebugRunBlockReason | undefined {
   if (!input.text.trim()) return 'empty-text'
   if (countTextUnits(input.text).characters > TTS_DEBUG_MAX_CHARACTERS) return 'too-long'
   if (input.selectedCount < 1) return 'no-model'
+  const iterations = input.iterations ?? 1
+  if (!Number.isInteger(iterations) || iterations < 1 || iterations > TTS_DEBUG_MAX_ITERATIONS) return 'bad-iterations'
   return undefined
 }
 
-export function estimateTtsCostUsd(modelId: string, text: string): number | undefined {
-  const model = getOpenRouterTtsModel(modelId)
-  if (!model || model.priceUsdPerMillionUnit === undefined || model.billingUnit === 'audio-token') {
-    return undefined
-  }
-  const units = countTextUnits(text)
-  const billableUnits = model.billingUnit === 'utf8-byte' ? units.utf8Bytes : units.characters
-  return (billableUnits * model.priceUsdPerMillionUnit) / 1_000_000
-}
-
-export function createPendingTtsResult(modelId: string, text: string): TtsDebugResult {
+export function createPendingTtsResult(
+  modelId: string,
+  text: string,
+  options?: { voiceId?: string; estimatedCostUsd?: number; iterations?: number }
+): TtsDebugResult {
   const units = countTextUnits(text)
   return {
     modelId,
+    voiceId: options?.voiceId,
     status: 'pending',
     timing: { requestStartedAt: 0 },
     metrics: {
       inputCharacterCount: units.characters,
       inputUtf8ByteCount: units.utf8Bytes,
-      estimatedCostUsd: estimateTtsCostUsd(modelId, text),
+      estimatedCostUsd: options?.estimatedCostUsd,
+      attemptCount: options?.iterations,
+      successCount: 0,
     },
+    attempts: [],
+  }
+}
+
+function average(values: readonly number[]): number | undefined {
+  if (values.length === 0) return undefined
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
+}
+
+function collect(attempts: readonly TtsDebugAttempt[], key: 'requestToHeadersMs' | 'requestToFirstChunkMs' | 'requestToCompleteMs'): number[] {
+  return attempts
+    .filter((attempt) => attempt.status === 'success')
+    .map((attempt) => attempt.metrics[key])
+    .filter((value): value is number => value !== undefined)
+}
+
+/**
+ * 各試行の計測値から、結果全体の状態と平均値をまとめる。
+ * 1回目はコネクション確立やモデルのウォームアップを含むため、
+ * 2回目以降だけの平均も併せて出す。
+ */
+export function summarizeAttempts(base: TtsDebugResult, attempts: readonly TtsDebugAttempt[]): TtsDebugResult {
+  if (attempts.length === 0) return { ...base, attempts: [] }
+  const first = attempts[0]
+  const successes = attempts.filter((attempt) => attempt.status === 'success')
+  const failed = attempts.find((attempt) => attempt.status === 'error')
+  const cancelled = attempts.find((attempt) => attempt.status === 'cancelled')
+  const warm = attempts.slice(1)
+
+  const status: TtsDebugResult['status'] =
+    successes.length > 0 ? 'success' : cancelled && !failed ? 'cancelled' : failed ? 'error' : first.status
+
+  return {
+    ...base,
+    status,
+    httpStatus: first.httpStatus,
+    contentType: first.contentType,
+    responseFormat: first.responseFormat,
+    generationId: first.generationId,
+    audioUrl: successes[0]?.audioUrl,
+    audioCacheKey: successes[0]?.generationId,
+    errorMessage: successes.length > 0 ? undefined : (failed || cancelled || first)?.errorMessage,
+    timing: first.timing,
+    metrics: {
+      ...base.metrics,
+      requestToHeadersMs: first.metrics.requestToHeadersMs,
+      requestToFirstChunkMs: first.metrics.requestToFirstChunkMs,
+      requestToCompleteMs: first.metrics.requestToCompleteMs,
+      audioDurationMs: first.metrics.audioDurationMs,
+      attemptCount: attempts.length,
+      successCount: successes.length,
+      averageRequestToHeadersMs: average(collect(attempts, 'requestToHeadersMs')),
+      averageRequestToFirstChunkMs: average(collect(attempts, 'requestToFirstChunkMs')),
+      averageRequestToCompleteMs: average(collect(attempts, 'requestToCompleteMs')),
+      warmAverageRequestToFirstChunkMs: average(collect(warm, 'requestToFirstChunkMs')),
+    },
+    attempts: [...attempts],
   }
 }
 
@@ -71,20 +135,14 @@ async function readErrorMessage(response: Response): Promise<string> {
   return `TTS API エラー (${response.status})`
 }
 
-export async function runTtsDebugTest(options: RunTtsDebugOptions): Promise<TtsDebugResult> {
-  const model = getOpenRouterTtsModel(options.modelId)
-  const units = countTextUnits(options.text)
+/** 1回分の生成を実行して計測する。 */
+export async function runTtsDebugAttempt(options: RunTtsDebugOptions): Promise<TtsDebugAttempt> {
   const requestStartedAt = Date.now()
-  const base: TtsDebugResult = {
-    modelId: options.modelId,
-    voiceId: options.voiceId || model?.defaultVoice,
+  const attempt: TtsDebugAttempt = {
+    index: options.attemptIndex ?? 1,
     status: 'running',
     timing: { requestStartedAt },
-    metrics: {
-      inputCharacterCount: units.characters,
-      inputUtf8ByteCount: units.utf8Bytes,
-      estimatedCostUsd: estimateTtsCostUsd(options.modelId, options.text),
-    },
+    metrics: {},
   }
 
   try {
@@ -101,7 +159,7 @@ export async function runTtsDebugTest(options: RunTtsDebugOptions): Promise<TtsD
       body: JSON.stringify({
         text: options.text,
         model: options.modelId,
-        voice: options.voiceId || model?.defaultVoice,
+        voice: options.voiceId,
         speed: options.speed,
       }),
       signal: options.signal,
@@ -109,11 +167,11 @@ export async function runTtsDebugTest(options: RunTtsDebugOptions): Promise<TtsD
     })
 
     const responseHeadersAt = Date.now()
-    base.httpStatus = response.status
-    base.timing.responseHeadersAt = responseHeadersAt
-    base.metrics.requestToHeadersMs = responseHeadersAt - requestStartedAt
-    base.generationId = response.headers.get('X-Generation-Id') || undefined
-    base.voiceId = response.headers.get('X-TTS-Voice') || base.voiceId
+    attempt.httpStatus = response.status
+    attempt.timing.responseHeadersAt = responseHeadersAt
+    attempt.metrics.requestToHeadersMs = responseHeadersAt - requestStartedAt
+    attempt.generationId = response.headers.get('X-Generation-Id') || undefined
+    attempt.responseFormat = response.headers.get('X-TTS-Format') || undefined
 
     if (!response.ok) throw new Error(await readErrorMessage(response))
     if (!response.body) throw new Error('音声ストリームが空です。')
@@ -137,17 +195,16 @@ export async function runTtsDebugTest(options: RunTtsDebugOptions): Promise<TtsD
       audioBytes.set(chunk, offset)
       offset += chunk.byteLength
     }
-    const blob = new Blob([audioBytes.buffer], { type: contentType })
-    const audioUrl = URL.createObjectURL(blob)
+    // PCMのみ返すモデルは、計測後にWAVへ変換してから再生用URLを作る。
+    const blob = createPlayableAudioBlob(audioBytes, contentType, readPcmFormat(response.headers))
     return {
-      ...base,
+      ...attempt,
       status: 'success',
       contentType,
-      audioUrl,
-      audioCacheKey: base.generationId,
-      timing: { ...base.timing, firstChunkAt, responseCompletedAt },
+      audioUrl: URL.createObjectURL(blob),
+      timing: { ...attempt.timing, firstChunkAt, responseCompletedAt },
       metrics: {
-        ...base.metrics,
+        ...attempt.metrics,
         requestToFirstChunkMs: firstChunkAt ? firstChunkAt - requestStartedAt : undefined,
         requestToCompleteMs: responseCompletedAt - requestStartedAt,
       },
@@ -155,9 +212,52 @@ export async function runTtsDebugTest(options: RunTtsDebugOptions): Promise<TtsD
   } catch (error) {
     const cancelled = options.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')
     return {
-      ...base,
+      ...attempt,
       status: cancelled ? 'cancelled' : 'error',
       errorMessage: cancelled ? '停止しました' : error instanceof Error ? error.message : 'TTS通信エラーが発生しました',
     }
   }
+}
+
+export interface RunTtsDebugSequenceOptions extends Omit<RunTtsDebugOptions, 'attemptIndex'> {
+  /** 連続生成の回数。1回目と2回目以降の応答速度差を見るために使う。 */
+  iterations: number
+  /** 1回終わるたびに途中経過を通知する。 */
+  onProgress?: (result: TtsDebugResult) => void
+}
+
+/**
+ * 同じモデル・同じ話者で連続生成し、各回の計測値と平均をまとめる。
+ * 1回目のコネクション確立や初期化の影響を見分けるため、逐次実行する。
+ */
+export async function runTtsDebugSequence(
+  base: TtsDebugResult,
+  options: RunTtsDebugSequenceOptions
+): Promise<TtsDebugResult> {
+  const attempts: TtsDebugAttempt[] = []
+  const total = Math.max(1, Math.min(TTS_DEBUG_MAX_ITERATIONS, options.iterations))
+
+  for (let index = 1; index <= total; index += 1) {
+    if (options.signal.aborted) {
+      attempts.push({
+        index,
+        status: 'cancelled',
+        timing: { requestStartedAt: Date.now() },
+        metrics: {},
+        errorMessage: '停止しました',
+      })
+      break
+    }
+    const attempt = await runTtsDebugAttempt({ ...options, attemptIndex: index })
+    attempts.push(attempt)
+    if (options.onProgress) {
+      const partial = summarizeAttempts(base, attempts)
+      // まだ残りがある間は実行中として見せ、完了扱いにしない。
+      const stillRunning = index < total && attempt.status !== 'cancelled'
+      options.onProgress(stillRunning ? { ...partial, status: 'running' } : partial)
+    }
+    if (attempt.status === 'cancelled') break
+  }
+
+  return summarizeAttempts(base, attempts)
 }

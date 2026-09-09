@@ -134,11 +134,22 @@ OpenRouter API キー1つで動作します。選択できるモデル:
 | Fish Audio S2.1 Pro Free | 無料枠 | お試し向け |
 | ブラウザ標準音声 | 無料 | 端末内蔵の Web Speech API。通信費ゼロ |
 
+上表は会話画面で使う推奨モデルです。検証モードでは、OpenRouter が音声出力に対応する全モデル（2026年9月時点で18件）を扱えます。
+
 #### TTSモデル検証モード（開発・比較用）
 
 開発環境、またはURLに `?ttsDebug=1` を付けた画面では、設定から **「TTSモデル検証モード」** を開けます。同じ中国語・日本語・日中混合テキストを複数モデルで比較し、応答時間、HTTPステータス、推定費用、使用モデル・話者を確認できます。
 
-検証は実際のOpenRouter APIを呼び出します。複数モデル実行前に表示される推定費用を確認してください。直近10件の測定結果はブラウザのIndexedDBに保存されますが、生成音声そのものは保存されません。
+- **対応モデルは実行時に取得** します。`GET /api/tts/models` が OpenRouter の音声出力モデル一覧を返すため、モデルの追加・価格改定がコード変更なしに反映されます。取得できない場合は既知モデルのみを表示します。
+- **話者プリセット** をモデルごとに選べます。OpenRouterが公開する全話者に加え、中国語学習に向く話者を「おすすめ」として先頭に出します。
+- **連続生成（1〜5回、既定3回）** に対応します。同じモデル・話者で逐次実行し、1回目・2回目…それぞれの応答速度と、全体平均・2回目以降の平均を表示します。初回のみ遅くなるウォームアップの影響を切り分けられます。
+- 各回に個別の再生プレイヤーが付き、発音・自然さ・キャラクター・日中一貫性の5段階評価とメモを残せます。
+
+検証は実際のOpenRouter APIを呼び出します。**課金は「モデル数 × 連続生成回数」分** 発生するため、実行前に表示される推定費用を確認してください。直近10件の測定結果はブラウザのIndexedDBに保存されますが、生成音声そのものは保存されません。
+
+#### 応答形式（mp3 / PCM）
+
+OpenRouterのTTSは `mp3` と `pcm` を返します。既定は `mp3` ですが、**Gemini TTS は `pcm` のみ** を受け付けるため、Workers 側がモデルごとに形式を出し分けます。PCMはヘッダーを持たない生データでブラウザが再生できないため、受信後にWAVヘッダーを付けて再生します（変換はストリーム受信の完了後に行うため、応答速度の計測値には影響しません）。未知のモデルが形式不一致を返した場合も、指定された形式で1回だけ自動再試行します。
 
 ### 6. 音声入力（STT）
 
@@ -287,12 +298,14 @@ web/src/
 │   ├── portraitParts.ts        SVG 立ち絵の髪型・体型パス定義
 │   ├── presetFriends.ts        プリセットの友達（20人）
 │   ├── characterVoices.ts      話者プリセット
-│   └── openRouterTtsModels.ts  TTS検証候補と料金・話者メタデータ
+│   └── openRouterTtsModels.ts  TTSモデルの補足情報（課金単位・推奨話者）
 ├── services/
 │   ├── api.ts                  /api/chat の呼び出し
 │   ├── expression.ts           表情の検証とテキストからの推定
 │   ├── speech.ts               STT / TTS
-│   ├── ttsDebug.ts             TTS検証実行・計測・費用概算
+│   ├── audioFormat.ts          PCM応答のWAV変換
+│   ├── ttsCatalog.ts           OpenRouterの音声モデル一覧の取得・結合
+│   ├── ttsDebug.ts             TTS検証の連続実行・計測・費用概算
 │   ├── ttsDebugStorage.ts      TTS検証履歴のIndexedDB保存
 │   └── storage.ts              ブラウザ保存
 └── preview.tsx                 立ち絵カタログ（開発用・本番ビルドには含まれない）
@@ -301,7 +314,8 @@ web/public/portraits/           立ち絵イラスト20枚（pt-*.jpg / 720x960�
 
 worker/src/
 ├── routes/chat.ts              POST /api/chat
-├── routes/tts.ts               POST /api/tts
+├── routes/tts.ts               POST /api/tts, GET /api/tts/models
+├── services/openRouterCatalog.ts  OpenRouterの音声出力モデル一覧の取得・キャッシュ
 └── lib/prompt.ts               HSK 級別制御・添削・表情指定のプロンプト
 ```
 

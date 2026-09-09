@@ -131,6 +131,29 @@ export interface TtsDebugRatings {
   jaZhConsistency?: number
 }
 
+/** 1回分の生成の計測値。連続生成の1回目・2回目…をそれぞれ保持する。 */
+export interface TtsDebugAttempt {
+  /** 1始まりの試行番号。 */
+  index: number
+  status: TtsDebugStatus
+  httpStatus?: number
+  contentType?: string
+  generationId?: string
+  /** 実際に使われた応答形式（mp3 / pcm など）。 */
+  responseFormat?: string
+  timing: TtsDebugTiming
+  metrics: {
+    requestToHeadersMs?: number
+    requestToFirstChunkMs?: number
+    requestToPlaybackMs?: number
+    requestToCompleteMs?: number
+    audioDurationMs?: number
+  }
+  /** セッション内だけで使う一時URL。永続化時は除外する。 */
+  audioUrl?: string
+  errorMessage?: string
+}
+
 export interface TtsDebugResult {
   modelId: string
   voiceId?: string
@@ -138,8 +161,11 @@ export interface TtsDebugResult {
   status: TtsDebugStatus
   httpStatus?: number
   contentType?: string
+  responseFormat?: string
+  /** 1回目の試行のタイミング。既存の履歴との互換のため残す。 */
   timing: TtsDebugTiming
   metrics: {
+    /** 以下4つは1回目の試行の値。 */
     requestToHeadersMs?: number
     requestToFirstChunkMs?: number
     requestToPlaybackMs?: number
@@ -148,7 +174,17 @@ export interface TtsDebugResult {
     inputCharacterCount: number
     inputUtf8ByteCount: number
     estimatedCostUsd?: number
+    /** 連続生成の実行回数と、成功した試行だけの平均値。 */
+    attemptCount?: number
+    successCount?: number
+    averageRequestToHeadersMs?: number
+    averageRequestToFirstChunkMs?: number
+    averageRequestToCompleteMs?: number
+    /** 2回目以降だけの平均。ウォームアップの影響を除いて比較するために使う。 */
+    warmAverageRequestToFirstChunkMs?: number
   }
+  /** 連続生成の各回。1回だけの実行でも1件入る。 */
+  attempts?: TtsDebugAttempt[]
   /** セッション内だけで使う一時URL。永続化時は除外する。 */
   audioUrl?: string
   audioCacheKey?: string
@@ -164,5 +200,9 @@ export interface TtsDebugRun {
   language: TtsDebugLanguage
   speed: number
   modelIds: string[]
+  /** モデルごとに1回の実行で行った連続生成の回数。 */
+  iterations?: number
+  /** モデルIDごとに指定した話者。 */
+  voiceIds?: Record<string, string>
   results: TtsDebugResult[]
 }

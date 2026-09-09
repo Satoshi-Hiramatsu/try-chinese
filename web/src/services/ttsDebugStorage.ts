@@ -18,9 +18,14 @@ function openDatabase(): Promise<IDBDatabase> {
   })
 }
 
+/** 一時URLはセッション外で無効になるため、各試行の分も含めて保存対象から外す。 */
 function persistentResult(result: TtsDebugResult): TtsDebugResult {
-  const { audioUrl: _audioUrl, ...stored } = result
-  return stored
+  const { audioUrl: _audioUrl, attempts, ...stored } = result
+  if (!attempts) return stored
+  return {
+    ...stored,
+    attempts: attempts.map(({ audioUrl: _attemptAudioUrl, ...attempt }) => attempt),
+  }
 }
 
 export async function saveTtsDebugRun(run: TtsDebugRun): Promise<void> {

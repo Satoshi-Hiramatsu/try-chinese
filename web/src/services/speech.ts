@@ -181,6 +181,7 @@ export function unlockSpeechSynthesis(): void {
 }
 
 import { loadApiKey, loadTtsProvider, loadTtsModel } from './storage'
+import { responseToPlayableBlob } from './audioFormat'
 
 // 再生中のオーディオオブジェクト
 let currentAudio: HTMLAudioElement | null = null
@@ -221,11 +222,9 @@ async function speakWithOpenRouterTts(
         voiceModel = isMale ? 'loongjohn' : 'longanhuan_v3.6'
       }
     }
-  } else {
-    if (!voiceModel) {
-      voiceModel = 'alloy'
-    }
   }
+  // 上記以外のモデルは話者一覧がモデルごとに異なるため、
+  // 未指定のままWorkerへ渡してカタログ由来の既定話者に解決させる。
 
   const speed = voice?.rate ?? 1.0
   const cacheKey = `${ttsModel}_${voiceModel}_${speed}_${text}`
@@ -254,7 +253,8 @@ async function speakWithOpenRouterTts(
         return false
       }
 
-      const blob = await res.blob()
+      // PCMのみ返すモデル(Gemini TTSなど)は再生できる形式へ変換する。
+      const blob = await responseToPlayableBlob(res)
       audioUrl = URL.createObjectURL(blob)
       audioBlobCache.set(cacheKey, audioUrl)
     }
