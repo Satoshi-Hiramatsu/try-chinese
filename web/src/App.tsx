@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import type { Friend, ChatMessage, Voice, VocabularyItem } from './types'
 import { PRESET_FRIENDS } from './data/presetFriends'
 import { Header } from './components/Header'
@@ -163,6 +163,8 @@ export default function App() {
   const [vocabularyList, setVocabularyList] = useState<VocabularyItem[]>(() => loadVocabularyList())
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [areAuxControlsVisible, setAreAuxControlsVisible] = useState(true)
+  const auxControlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 語彙帳に保存済みの単語セット（高速判定用）
   const savedTermsSet = useMemo(() => {
@@ -467,8 +469,40 @@ export default function App() {
 
   const isNovel = viewMode === 'novel'
 
+  const scheduleAuxControlsHide = () => {
+    if (auxControlsTimerRef.current) clearTimeout(auxControlsTimerRef.current)
+    setAreAuxControlsVisible(true)
+    auxControlsTimerRef.current = setTimeout(() => setAreAuxControlsVisible(false), 4000)
+  }
+
+  useEffect(() => {
+    scheduleAuxControlsHide()
+    return () => {
+      if (auxControlsTimerRef.current) clearTimeout(auxControlsTimerRef.current)
+    }
+  }, [])
+
   return (
-    <div className="h-[100svh] overflow-hidden bg-gradient-to-br from-amber-50/60 via-rose-50/40 to-orange-50/50 text-stone-800 flex flex-col items-center p-2 sm:p-4 font-sans select-text">
+    <div
+      className={`app-shell h-[100dvh] overflow-hidden bg-gradient-to-br from-amber-50/60 via-rose-50/40 to-orange-50/50 text-stone-800 flex flex-col items-center font-sans select-text ${areAuxControlsVisible ? '' : 'aux-controls-hidden'}`}
+      onPointerDown={(event) => {
+        if ((event.target as Element).closest('.chat-input-shell')) {
+          if (auxControlsTimerRef.current) clearTimeout(auxControlsTimerRef.current)
+          setAreAuxControlsVisible(false)
+        } else {
+          scheduleAuxControlsHide()
+        }
+      }}
+      onFocusCapture={(event) => {
+        if ((event.target as Element).closest('.chat-input-shell')) {
+          if (auxControlsTimerRef.current) clearTimeout(auxControlsTimerRef.current)
+          setAreAuxControlsVisible(false)
+        }
+      }}
+      onBlurCapture={(event) => {
+        if ((event.target as Element).closest('.chat-input-shell')) scheduleAuxControlsHide()
+      }}
+    >
       {/* Header */}
       <Header
         hskLevel={hskLevel}
@@ -490,7 +524,7 @@ export default function App() {
 
       {/* Main Stage / Chat Container */}
       <main
-        className={`w-full flex-1 flex flex-col min-h-0 py-2 gap-2 ${
+        className={`app-main w-full flex-1 flex flex-col min-h-0 py-2 gap-2 ${
           isNovel ? 'max-w-[1920px]' : 'max-w-3xl sm:gap-3'
         }`}
       >
@@ -557,7 +591,7 @@ export default function App() {
         )}
 
         {/* Chat Input */}
-        <div className={isNovel ? 'vn-measure flex-shrink-0' : 'flex-shrink-0'}>
+        <div className={isNovel ? 'chat-input-wrap vn-measure flex-shrink-0' : 'chat-input-wrap flex-shrink-0'}>
           <ChatInput
             onSendMessage={handleSendMessage}
             isLoading={isLoading}

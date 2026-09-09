@@ -232,7 +232,7 @@ export function ChatInput({
   }
 
   return (
-    <div className="w-full bg-white/95 backdrop-blur-md rounded-2xl p-2 sm:p-3 shadow-md border border-rose-200/80 transition-all">
+    <div className="chat-input-shell w-full bg-white/95 backdrop-blur-md rounded-2xl p-2 sm:p-3 shadow-md border border-rose-200/80">
       {/* ハンズフリー / 音声認識の状態 */}
       {(isListening || handsFreeEnabled) && (
         <div className="mb-2 px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between" aria-live="polite">
