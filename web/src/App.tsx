@@ -138,6 +138,9 @@ export default function App() {
 
   // 音声関連設定
   const [autoPlayTts, setAutoPlayTts] = useState<boolean>(() => loadAutoPlayTts(false))
+  // マイクがページ再読込だけで起動しないよう、ハンズフリーは毎回明示的に開始する
+  const [handsFreeEnabled, setHandsFreeEnabled] = useState(false)
+  const [handsFreeResumeToken, setHandsFreeResumeToken] = useState(0)
   const [speechInputLang, setSpeechInputLang] = useState<'zh-CN' | 'ja-JP'>(() =>
     loadSpeechInputLang('zh-CN')
   )
@@ -230,6 +233,7 @@ export default function App() {
     saveSelectedModel(newModel)
     setAutoPlayTts(newAutoPlay)
     saveAutoPlayTts(newAutoPlay)
+    if (!newAutoPlay) setHandsFreeEnabled(false)
     setSpeechInputLang(newSpeechLang)
     saveSpeechInputLang(newSpeechLang)
     setToneColoring(newToneColoring)
@@ -254,8 +258,19 @@ export default function App() {
     setAutoPlayTts((prev) => {
       const next = !prev
       saveAutoPlayTts(next)
+      if (!next) {
+        setHandsFreeEnabled(false)
+      }
       return next
     })
+  }
+
+  const handleHandsFreeChange = (enabled: boolean) => {
+    setHandsFreeEnabled(enabled)
+    if (enabled && !autoPlayTts) {
+      setAutoPlayTts(true)
+      saveAutoPlayTts(true)
+    }
   }
 
   const handleToggleToneColoring = () => {
@@ -276,13 +291,20 @@ export default function App() {
     )
   }
 
-  const handlePlayText = (text: string) => {
+  const handlePlayText = (text: string, resumeHandsFree = false) => {
     stopSpeaking()
     setPlayingText(text)
+    let completed = false
+    const completePlayback = () => {
+      if (completed) return
+      completed = true
+      setPlayingText(null)
+      if (resumeHandsFree) setHandsFreeResumeToken((prev) => prev + 1)
+    }
     speakChinese(text, currentFriend.voice, {
-      onEnd: () => setPlayingText(null),
+      onEnd: completePlayback,
       onError: (error) => {
-        setPlayingText(null)
+        completePlayback()
         setErrorMessage(error instanceof Error ? error.message : 'Audio playback failed')
       },
     })
@@ -402,12 +424,16 @@ export default function App() {
       // 返答の自動読み上げ（設定がONの場合）
       if (autoPlayTts && response.reply?.zh) {
         setTimeout(() => {
-          handlePlayText(response.reply.zh)
+          handlePlayText(response.reply.zh, handsFreeEnabled)
         }, 120)
+      } else if (handsFreeEnabled) {
+        setHandsFreeResumeToken((prev) => prev + 1)
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '予期せぬエラーが発生しました'
       setErrorMessage(msg)
+
+      if (handsFreeEnabled) setHandsFreeResumeToken((prev) => prev + 1)
 
       if (msg.includes('APIキー') || msg.includes('401')) {
         setIsSettingsModalOpen(true)
@@ -535,6 +561,10 @@ export default function App() {
             isLoading={isLoading}
             speechLang={speechInputLang}
             onSpeechLangChange={handleSpeechLangChange}
+            handsFreeEnabled={handsFreeEnabled}
+            onHandsFreeChange={handleHandsFreeChange}
+            resumeListeningToken={handsFreeResumeToken}
+            isFriendSpeaking={playingText !== null}
             onError={(msg) => setErrorMessage(msg)}
           />
         </div>
