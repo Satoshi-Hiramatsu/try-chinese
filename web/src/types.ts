@@ -111,3 +111,58 @@ export interface AppConfig {
   speechInputLang?: 'zh-CN' | 'ja-JP'
   toneColoring?: boolean
 }
+
+export type TtsDebugLanguage = 'zh' | 'ja' | 'mixed'
+export type TtsDebugStatus = 'pending' | 'running' | 'success' | 'error' | 'cancelled'
+
+export interface TtsDebugTiming {
+  requestStartedAt: number
+  responseHeadersAt?: number
+  firstChunkAt?: number
+  playbackStartedAt?: number
+  responseCompletedAt?: number
+  playbackEndedAt?: number
+}
+
+export interface TtsDebugRatings {
+  pronunciation?: number
+  naturalness?: number
+  characterConsistency?: number
+  jaZhConsistency?: number
+}
+
+export interface TtsDebugResult {
+  modelId: string
+  voiceId?: string
+  generationId?: string
+  status: TtsDebugStatus
+  httpStatus?: number
+  contentType?: string
+  timing: TtsDebugTiming
+  metrics: {
+    requestToHeadersMs?: number
+    requestToFirstChunkMs?: number
+    requestToPlaybackMs?: number
+    requestToCompleteMs?: number
+    audioDurationMs?: number
+    inputCharacterCount: number
+    inputUtf8ByteCount: number
+    estimatedCostUsd?: number
+  }
+  /** セッション内だけで使う一時URL。永続化時は除外する。 */
+  audioUrl?: string
+  audioCacheKey?: string
+  errorMessage?: string
+  ratings?: TtsDebugRatings
+  memo?: string
+}
+
+export interface TtsDebugRun {
+  id: string
+  createdAt: string
+  inputText: string
+  language: TtsDebugLanguage
+  speed: number
+  modelIds: string[]
+  results: TtsDebugResult[]
+}

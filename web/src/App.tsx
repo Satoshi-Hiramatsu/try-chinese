@@ -13,6 +13,7 @@ import { FriendListModal } from './components/FriendListModal'
 import { VoiceSettingsModal } from './components/VoiceSettingsModal'
 import { VocabularyModal } from './components/VocabularyModal'
 import { ReviewModal } from './components/ReviewModal'
+import { TtsDebugModal } from './components/TtsDebugModal'
 import { AlertIcon, CloseIcon } from './components/Icons'
 import { sendMessageToChatApi } from './services/api'
 import { speakChinese, stopSpeaking } from './services/speech'
@@ -158,6 +159,7 @@ export default function App() {
   const [isLogModalOpen, setIsLogModalOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(() => loadViewMode('novel'))
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
+  const [isTtsDebugOpen, setIsTtsDebugOpen] = useState(false)
   const [vocabularyList, setVocabularyList] = useState<VocabularyItem[]>(() => loadVocabularyList())
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -581,7 +583,16 @@ export default function App() {
         autoPlayTts={autoPlayTts}
         speechInputLang={speechInputLang}
         toneColoring={toneColoring}
+        onOpenTtsDebug={() => {
+          setIsSettingsModalOpen(false)
+          setIsTtsDebugOpen(true)
+        }}
         onSave={handleSaveSettings}
+      />
+
+      <TtsDebugModal
+        isOpen={isTtsDebugOpen}
+        onClose={() => setIsTtsDebugOpen(false)}
       />
 
       {/* Voice Settings Modal */}

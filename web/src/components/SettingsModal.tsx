@@ -54,6 +54,7 @@ interface SettingsModalProps {
   autoPlayTts?: boolean
   speechInputLang?: 'zh-CN' | 'ja-JP'
   toneColoring?: boolean
+  onOpenTtsDebug?: () => void
   onSave: (
     apiKey: string,
     model: string,
@@ -83,6 +84,7 @@ export function SettingsModal({
   autoPlayTts = false,
   speechInputLang = 'zh-CN',
   toneColoring = false,
+  onOpenTtsDebug,
   onSave,
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey)
@@ -93,6 +95,8 @@ export function SettingsModal({
   const [inputLang, setInputLang] = useState<'zh-CN' | 'ja-JP'>(speechInputLang)
   const [enableToneColor, setEnableToneColor] = useState(toneColoring)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const showTtsDebug = import.meta.env.DEV
+    || new URLSearchParams(window.location.search).get('ttsDebug') === '1'
 
   useEffect(() => {
     setApiKey(currentApiKey)
@@ -333,6 +337,16 @@ export function SettingsModal({
                 </div>
               )}
             </div>
+
+            {showTtsDebug && onOpenTtsDebug && (
+              <button
+                type={'button'}
+                className={'tts-debug-launch'}
+                onClick={onOpenTtsDebug}
+              >
+                TTSモデル検証モードを開く
+              </button>
+            )}
 
             {/* 自動読み上げトグル */}
             <div className="flex items-center justify-between p-3 bg-stone-50 rounded-2xl border border-stone-200/80">

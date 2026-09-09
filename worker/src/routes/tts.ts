@@ -13,14 +13,18 @@ interface TtsRequestBody {
   model?: string
 }
 
-// 許可する高品質・高コスパTTSモデル（高額なMiniMax等は除外）
-const ALLOWED_TTS_MODELS = [
+const MAX_TTS_CHARACTERS = 1000
+const ALLOWED_TTS_MODELS = new Set([
   'qwen/qwen-audio-3.0-tts-flash',
   'qwen/qwen-audio-3.0-tts-plus',
   'hexgrad/kokoro-82m',
   'fish-audio/s2.1-pro-free:free',
   'fish-audio/s2.1-pro',
-]
+  'fish-audio/s2-pro',
+  'google/gemini-3.1-flash-tts-preview',
+  'minimax/speech-2.8-turbo',
+  'microsoft/mai-voice-2',
+])
 const DEFAULT_TTS_MODEL = 'qwen/qwen-audio-3.0-tts-flash'
 
 const ttsRoute = new Hono<{ Bindings: TtsEnv }>()
@@ -37,6 +41,9 @@ ttsRoute.post('/tts', async (c) => {
 
   if (!text || typeof text !== 'string' || text.trim() === '') {
     return c.json({ error: 'text は必須の文字列です。' }, 400)
+  }
+  if (Array.from(text).length > MAX_TTS_CHARACTERS) {
+    return c.json({ error: `text は${MAX_TTS_CHARACTERS}文字以内にしてください。` }, 400)
   }
 
   // APIキーの解決（リクエスト指定 > ヘッダー > 環境変数）
@@ -57,23 +64,25 @@ ttsRoute.post('/tts', async (c) => {
     )
   }
 
-  // 使用モデルの検証（許可リスト外または未指定の場合は高コスパなデフォルトを使用）
-  const targetModel = model && ALLOWED_TTS_MODELS.includes(model) ? model : DEFAULT_TTS_MODEL
+  if (model && !ALLOWED_TTS_MODELS.has(model)) {
+    return c.json({ error: `許可されていないTTSモデルです: ${model}` }, 400)
+  }
+  const targetModel = model || DEFAULT_TTS_MODEL
 
   // モデルごとの有効話者リストと自動フォールバック
   const isMaleGuess = (v?: string) =>
     v && (v.includes('john') || v.includes('yun') || v.includes('male') || v.includes('onyx') || v.includes('echo'))
 
-  let selectedVoice = voice && voice.trim() !== '' ? voice.trim() : ''
+  let selectedVoice = voice && voice.trim() !== '' ? voice.trim() : undefined
 
   if (targetModel === 'qwen/qwen-audio-3.0-tts-flash') {
     const validQwenVoices = ['loongjohn', 'longanhuan_v3.6']
-    if (!validQwenVoices.includes(selectedVoice)) {
+    if (!selectedVoice || !validQwenVoices.includes(selectedVoice)) {
       selectedVoice = isMaleGuess(selectedVoice) ? 'loongjohn' : 'longanhuan_v3.6'
     }
   } else if (targetModel === 'qwen/qwen-audio-3.0-tts-plus') {
     const validPlusVoices = ['longanlingxin', 'longanlufeng']
-    if (!validPlusVoices.includes(selectedVoice)) {
+    if (!selectedVoice || !validPlusVoices.includes(selectedVoice)) {
       selectedVoice = isMaleGuess(selectedVoice) ? 'longanlufeng' : 'longanlingxin'
     }
   } else if (targetModel.includes('kokoro')) {
@@ -87,14 +96,20 @@ ttsRoute.post('/tts', async (c) => {
       'zm_yunxia',
       'zm_yunyang',
     ]
-    if (!selectedVoice || !selectedVoice.startsWith('z')) {
+    if (!selectedVoice || !validKokoroZhVoices.includes(selectedVoice)) {
       selectedVoice = isMaleGuess(selectedVoice) ? 'zm_yunxi' : 'zf_xiaoxiao'
     }
-  } else if (!selectedVoice) {
-    selectedVoice = 'alloy'
+  } else if (targetModel === 'google/gemini-3.1-flash-tts-preview' && !selectedVoice) {
+    selectedVoice = 'Kore'
+  } else if (targetModel === 'minimax/speech-2.8-turbo' && !selectedVoice) {
+    selectedVoice = 'English_radiant_girl'
+  } else if (targetModel === 'microsoft/mai-voice-2' && !selectedVoice) {
+    selectedVoice = 'en-US-Harper:MAI-Voice-2'
   }
 
-  const clampedSpeed = Math.max(0.25, Math.min(4.0, Number(speed) || 1.0))
+  const clampedSpeed = targetModel === 'microsoft/mai-voice-2'
+    ? Math.max(0.5, Math.min(2.0, Number(speed) || 1.0))
+    : Math.max(0.25, Math.min(4.0, Number(speed) || 1.0))
 
   try {
     const ttsRes = await fetch('https://openrouter.ai/api/v1/audio/speech', {
@@ -106,10 +121,11 @@ ttsRoute.post('/tts', async (c) => {
       body: JSON.stringify({
         model: targetModel,
         input: text.trim(),
-        voice: selectedVoice,
+        ...(selectedVoice ? { voice: selectedVoice } : {}),
         speed: clampedSpeed,
         response_format: 'mp3',
       }),
+      signal: c.req.raw.signal,
     })
 
     if (!ttsRes.ok) {
@@ -120,22 +136,26 @@ ttsRoute.post('/tts', async (c) => {
       } catch {
         errDetail = await ttsRes.text()
       }
-      return c.json(
-        {
-          error: `OpenRouter TTS API エラー (${ttsRes.status}): ${errDetail}`,
-        },
-        ttsRes.status as any
+      return new Response(
+        JSON.stringify({ error: `OpenRouter TTS API エラー (${ttsRes.status}): ${errDetail.slice(0, 2000)}` }),
+        { status: ttsRes.status, headers: { 'Content-Type': 'application/json; charset=UTF-8' } }
       )
     }
 
-    // 音声バイナリ (audio/mpeg) をクライアントへストリーミング返却
-    const audioBuffer = await ttsRes.arrayBuffer()
-    return new Response(audioBuffer, {
+    if (!ttsRes.body) return c.json({ error: 'OpenRouterから空の音声応答が返されました。' }, 502)
+
+    const responseHeaders = new Headers({
+      'Content-Type': ttsRes.headers.get('Content-Type') || 'audio/mpeg',
+      'Cache-Control': 'private, no-store',
+      'X-TTS-Model': targetModel,
+    })
+    const generationId = ttsRes.headers.get('X-Generation-Id')
+    if (generationId) responseHeaders.set('X-Generation-Id', generationId)
+    if (selectedVoice) responseHeaders.set('X-TTS-Voice', selectedVoice)
+
+    return new Response(ttsRes.body, {
       status: 200,
-      headers: {
-        'Content-Type': 'audio/mpeg',
-        'Cache-Control': 'public, max-age=86400',
-      },
+      headers: responseHeaders,
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'OpenRouter TTS通信エラーが発生しました'
@@ -144,4 +164,3 @@ ttsRoute.post('/tts', async (c) => {
 })
 
 export default ttsRoute
-
