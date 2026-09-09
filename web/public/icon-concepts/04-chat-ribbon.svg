@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">チャットリボン</title>
+  <rect x="3" y="3" width="58" height="58" rx="17" fill="#FFF7ED"/>
+  <path d="M14 17h21c8.3 0 15 6.7 15 15S43.3 47 35 47H24l-8 7v-12" fill="none" stroke="#F43F5E" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50 47H29c-8.3 0-15-6.7-15-15s6.7-15 15-15h11l8-7v12" fill="none" stroke="#F59E0B" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M28 28h8v8h-8z" fill="#FFF7ED" transform="rotate(45 32 32)"/>
+</svg>

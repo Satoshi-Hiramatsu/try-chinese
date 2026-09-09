@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">おしゃべりパンダ</title>
+  <rect x="3" y="3" width="58" height="58" rx="17" fill="#F59E0B"/>
+  <circle cx="19" cy="19" r="9" fill="#292524"/>
+  <circle cx="45" cy="19" r="9" fill="#292524"/>
+  <path d="M13 29c0-10 8.5-17 19-17s19 7 19 17v9c0 8.3-6.7 15-15 15H25l-8 5v-9.4A14.9 14.9 0 0 1 13 38z" fill="#FFF7ED"/>
+  <ellipse cx="23.5" cy="31" rx="6.5" ry="8" fill="#292524" transform="rotate(22 23.5 31)"/>
+  <ellipse cx="40.5" cy="31" rx="6.5" ry="8" fill="#292524" transform="rotate(-22 40.5 31)"/>
+  <circle cx="24.5" cy="30" r="2" fill="#FFF7ED"/>
+  <circle cx="39.5" cy="30" r="2" fill="#FFF7ED"/>
+  <path d="M29 41c1.8 2.2 4.2 2.2 6 0" fill="none" stroke="#F43F5E" stroke-width="3.5" stroke-linecap="round"/>
+</svg>

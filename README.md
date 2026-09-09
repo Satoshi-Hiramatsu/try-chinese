@@ -404,7 +404,7 @@ npm run deploy   # ビルドしてから wrangler deploy を実行
 
 ## 変更履歴
 
-すべての変更は [CHANGELOG.md](CHANGELOG.md) に記録しています。最新は **T-43: スマートフォン横画面の会話レイアウト改善** です。
+すべての変更は [CHANGELOG.md](CHANGELOG.md) に記録しています。最新は **T-50: アイコンとファビコンを刷新** です。
 
 ---
 

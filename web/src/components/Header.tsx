@@ -85,7 +85,7 @@ export function Header({
   return (
     <header className="app-header w-full max-w-[1920px] flex items-center border-b border-rose-200/60 flex-shrink-0">
       <div className="app-brand flex items-center flex-shrink min-w-0">
-        <div className="app-logo rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white font-bold shadow-md shadow-rose-500/20 flex-shrink-0"><span className="font-chinese">中</span></div>
+        <img src="/favicon.svg" alt="" aria-hidden="true" className="app-logo rounded-xl shadow-md shadow-rose-500/20 flex-shrink-0" />
         <h1 className="app-title font-bold tracking-tight text-stone-900 m-0 leading-tight truncate">しゃべチャイナ</h1>
       </div>
 

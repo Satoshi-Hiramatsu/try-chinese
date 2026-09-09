@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
-  <title id="title">しゃべチャイナ</title>
+  <title id="title">ふたつの吹き出し</title>
   <rect x="3" y="3" width="58" height="58" rx="17" fill="#F43F5E"/>
   <path d="M13 17.5C13 13.9 15.9 11 19.5 11h17c3.6 0 6.5 2.9 6.5 6.5v10c0 3.6-2.9 6.5-6.5 6.5H25l-8.5 6v-6.7A6.5 6.5 0 0 1 13 27.5z" fill="#FFF7ED"/>
   <path d="M51 31.5c0-3-2.5-5.5-5.5-5.5h-16c-3 0-5.5 2.5-5.5 5.5v8c0 3 2.5 5.5 5.5 5.5H39l7.5 5.5v-6a5.5 5.5 0 0 0 4.5-5.4z" fill="#F59E0B" stroke="#F43F5E" stroke-width="3"/>
