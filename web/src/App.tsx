@@ -113,6 +113,15 @@ const sanitizeWelcomeHistory = (saved: ChatMessage[], friend: Friend, level: num
   return saved
 }
 
+/* 補助操作とヘッダーを自動的に畳むまでの待ち時間 */
+const AUX_CONTROLS_HIDE_DELAY_MS = 4000
+
+/*
+ * 没入レイアウト（立ち絵を画面下端まで通す横画面）を適用する端末条件。
+ * index.css の同条件のメディアクエリと対で維持する。
+ */
+const IMMERSIVE_VIEWPORT_QUERY = '(pointer: coarse) and (orientation: landscape) and (max-height: 560px)'
+
 export default function App() {
   const [hskLevel, setHskLevel] = useState<number>(() => loadHskLevel(2))
   const [apiKey, setApiKey] = useState<string>(() => loadApiKey())
@@ -165,6 +174,9 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [areAuxControlsVisible, setAreAuxControlsVisible] = useState(true)
   const auxControlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const appShellRef = useRef<HTMLDivElement>(null)
+  const chatInputWrapRef = useRef<HTMLDivElement>(null)
+  const hasRequestedFullscreenRef = useRef(false)
 
   // 語彙帳に保存済みの単語セット（高速判定用）
   const savedTermsSet = useMemo(() => {
@@ -469,10 +481,36 @@ export default function App() {
 
   const isNovel = viewMode === 'novel'
 
+  /*
+   * 横画面ではヘッダーごと畳むため、「その他」メニューを開いている間や
+   * ヘッダー内にフォーカスがある間は畳まず、次の機会へ送る。
+   */
+  const canHideAuxControls = () => {
+    if (document.getElementById('header-more-menu')) return false
+    const active = document.activeElement
+    return !(active instanceof Element && active.closest('.app-header'))
+  }
+
   const scheduleAuxControlsHide = () => {
     if (auxControlsTimerRef.current) clearTimeout(auxControlsTimerRef.current)
     setAreAuxControlsVisible(true)
-    auxControlsTimerRef.current = setTimeout(() => setAreAuxControlsVisible(false), 4000)
+    auxControlsTimerRef.current = setTimeout(() => {
+      if (canHideAuxControls()) setAreAuxControlsVisible(false)
+      else scheduleAuxControlsHide()
+    }, AUX_CONTROLS_HIDE_DELAY_MS)
+  }
+
+  /*
+   * スマホ横持ちでは最初のタップで全画面へ入り、ブラウザのアドレスバーを畳む。
+   * 試行は1度きりに留め、拒否・非対応でも通常表示のまま使えるようにする。
+   * 解除はヘッダーの「その他 > 全画面を終了」から行える。
+   */
+  const requestImmersiveFullscreen = () => {
+    if (hasRequestedFullscreenRef.current) return
+    if (document.fullscreenElement || !document.fullscreenEnabled) return
+    if (!window.matchMedia(IMMERSIVE_VIEWPORT_QUERY).matches) return
+    hasRequestedFullscreenRef.current = true
+    void document.documentElement.requestFullscreen().catch(() => {})
   }
 
   useEffect(() => {
@@ -482,10 +520,27 @@ export default function App() {
     }
   }, [])
 
+  /*
+   * テキスト枠が入力欄の下に潜り込まないよう、下余白を入力欄の高さぶん空ける。
+   * 音声入力バーの有無で高さが変わるため、実測値を CSS 変数として渡す。
+   */
+  useEffect(() => {
+    const shell = appShellRef.current
+    const wrap = chatInputWrapRef.current
+    if (!shell || !wrap || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      shell.style.setProperty('--vn-input-h', wrap.offsetHeight + 'px')
+    })
+    observer.observe(wrap)
+    return () => observer.disconnect()
+  }, [isNovel])
+
   return (
     <div
+      ref={appShellRef}
       className={`app-shell h-[100dvh] overflow-hidden bg-gradient-to-br from-amber-50/60 via-rose-50/40 to-orange-50/50 text-stone-800 flex flex-col items-center font-sans select-text ${areAuxControlsVisible ? '' : 'aux-controls-hidden'}`}
       onPointerDown={(event) => {
+        requestImmersiveFullscreen()
         if ((event.target as Element).closest('.chat-input-shell')) {
           if (auxControlsTimerRef.current) clearTimeout(auxControlsTimerRef.current)
           setAreAuxControlsVisible(false)
@@ -525,12 +580,12 @@ export default function App() {
       {/* Main Stage / Chat Container */}
       <main
         className={`app-main w-full flex-1 flex flex-col min-h-0 py-2 gap-2 ${
-          isNovel ? 'max-w-[1920px]' : 'max-w-3xl sm:gap-3'
+          isNovel ? 'app-main-novel max-w-[1920px]' : 'max-w-3xl sm:gap-3'
         }`}
       >
         {/* Error Alert Banner */}
         {errorMessage && (
-          <div className="bg-rose-100 border border-rose-300 text-rose-800 px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center justify-between shadow-xs flex-shrink-0">
+          <div className="app-error-banner bg-rose-100 border border-rose-300 text-rose-800 px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center justify-between shadow-xs flex-shrink-0">
             <span className="flex items-center gap-1.5">
               <AlertIcon className="w-4 h-4 text-rose-700 flex-shrink-0" />
               <span>{errorMessage}</span>
@@ -591,7 +646,10 @@ export default function App() {
         )}
 
         {/* Chat Input */}
-        <div className={isNovel ? 'chat-input-wrap vn-measure flex-shrink-0' : 'chat-input-wrap flex-shrink-0'}>
+        <div
+          ref={chatInputWrapRef}
+          className={isNovel ? 'chat-input-wrap vn-measure flex-shrink-0' : 'chat-input-wrap flex-shrink-0'}
+        >
           <ChatInput
             onSendMessage={handleSendMessage}
             isLoading={isLoading}
