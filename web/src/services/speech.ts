@@ -459,6 +459,7 @@ export interface SpeechRecognitionController {
 
 export interface SpeechRecognitionOptions {
   lang?: 'zh-CN' | 'ja-JP'
+  continuous?: boolean
   onStart?: () => void
   onInterimResult?: (transcript: string) => void
   onFinalResult?: (transcript: string) => void
@@ -476,11 +477,13 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
   if (!SpeechRecognitionAPI) return null
   const recognition = new SpeechRecognitionAPI()
   let aborted = false
+  let previousFinal = ''
+  let previousInterim = ''
 
   recognition.lang = options.lang || 'zh-CN'
   recognition.interimResults = true
-  // 息継ぎや数秒の間が空いても自動切断されないよう継続リスニングを有効化
-  recognition.continuous = true
+  // 通常入力は単発、ハンズフリーは継続リスニングとして利用する
+  recognition.continuous = options.continuous ?? true
   recognition.maxAlternatives = 1
 
   let silenceTimeout: ReturnType<typeof setTimeout> | null = null
@@ -515,8 +518,15 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
       if (item.isFinal) final += item[0].transcript
       else interim += item[0].transcript
     }
-    options.onFinalResult?.(final.trim())
-    options.onInterimResult?.(interim)
+    const normalizedFinal = final.trim()
+    if (normalizedFinal !== previousFinal) {
+      previousFinal = normalizedFinal
+      options.onFinalResult?.(normalizedFinal)
+    }
+    if (interim !== previousInterim) {
+      previousInterim = interim
+      options.onInterimResult?.(interim)
+    }
   }
 
   recognition.onerror = (event: { error: string }) => {

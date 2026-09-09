@@ -21,6 +21,7 @@ interface ChatInputProps {
   isFriendSpeaking?: boolean
   onError?: (message: string) => void
 }
+type InputMethod = 'text' | 'voice'
 
 function joinSpeechText(baseText: string, speechText: string): string {
   if (!baseText) return speechText
@@ -53,6 +54,9 @@ export function ChatInput({
   const onSendMessageRef = useRef(onSendMessage)
   const onErrorRef = useRef(onError)
   const intentionalStopRef = useRef(false)
+  const inputMethodRef = useRef<InputMethod>('text')
+  const restoreTextFocusRef = useRef(false)
+  const wasLoadingRef = useRef(isLoading)
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [restartListeningToken, setRestartListeningToken] = useState(0)
 
@@ -64,11 +68,12 @@ export function ChatInput({
 
   const isSupported = isSpeechRecognitionSupported()
 
-  const sendContent = useCallback((content: string) => {
+  const sendContent = useCallback((content: string, inputMethod = inputMethodRef.current) => {
     const trimmed = content.trim()
     if (!trimmed || isLoadingRef.current || disabledRef.current) return
 
     intentionalStopRef.current = true
+    restoreTextFocusRef.current = inputMethod === 'text'
     recognizerRef.current?.abort()
     recognizerRef.current = null
     setIsListening(false)
@@ -85,6 +90,9 @@ export function ChatInput({
 
     stopSpeaking()
     intentionalStopRef.current = false
+    inputMethodRef.current = 'voice'
+    restoreTextFocusRef.current = false
+    textareaRef.current?.blur()
     const baseText = textRef.current.trim()
     setInterimText('')
     let recognizer: SpeechRecognitionController | null = null
@@ -93,6 +101,7 @@ export function ChatInput({
       lang: speechLang,
       onStart: () => setIsListening(true),
       onInterimResult: (interim) => setInterimText(interim),
+      continuous: handsFreeRef.current,
       onFinalResult: (finalSpeech) => {
         const parsed = parseVoiceSendCommand(finalSpeech, speechLang)
         const next = joinSpeechText(baseText, parsed.content)
@@ -103,7 +112,7 @@ export function ChatInput({
 
         if (parsed.hasSendCommand) {
           if (next) {
-            sendContent(next)
+            sendContent(next, 'voice')
           } else {
             onErrorRef.current?.('送信する内容がありません。続けて話しかけてください。')
             recognizerRef.current?.abort()
@@ -136,7 +145,10 @@ export function ChatInput({
   }, [isSupported, sendContent, speechLang])
 
   useEffect(() => {
-    if (!isLoading && textareaRef.current && !isListening && !handsFreeEnabled) {
+    const wasLoading = wasLoadingRef.current
+    wasLoadingRef.current = isLoading
+    if (wasLoading && !isLoading && restoreTextFocusRef.current && textareaRef.current && !isListening && !handsFreeEnabled) {
+      restoreTextFocusRef.current = false
       textareaRef.current.focus()
     }
   }, [handsFreeEnabled, isLoading, isListening])
@@ -316,7 +328,11 @@ export function ChatInput({
         <textarea
           ref={textareaRef}
           value={text}
+          onFocus={() => {
+            inputMethodRef.current = 'text'
+          }}
           onChange={(e) => {
+            inputMethodRef.current = 'text'
             textRef.current = e.target.value
             setText(e.target.value)
             handleInput()

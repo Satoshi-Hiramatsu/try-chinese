@@ -32,7 +32,12 @@ for (const [lang, greeting] of [['ja-JP', '\u3053\u3093\u306b\u3061\u306f'], ['z
   test(`${lang}: repeated results replace snapshots and preserve intentional repetition`, () => {
     const s = setup()
     let final = '', interim = ''
-    const controller = s.api.createSpeechRecognizer({ lang, onFinalResult: t => final = t, onInterimResult: t => interim = t })
+    const finalUpdates = []
+    const controller = s.api.createSpeechRecognizer({
+      lang,
+      onFinalResult: t => { final = t; finalUpdates.push(t) },
+      onInterimResult: t => interim = t,
+    })
     controller.start()
     const r = s.recognition()
     assert.equal(r.lang, lang)
@@ -43,14 +48,23 @@ for (const [lang, greeting] of [['ja-JP', '\u3053\u3093\u306b\u3061\u306f'], ['z
     r.onresult({ resultIndex: 0, results: [result(greeting)] })
     assert.equal(final, greeting)
     assert.equal(interim, '')
+    assert.deepEqual(finalUpdates, [greeting])
     r.onresult({ resultIndex: 1, results: [result(greeting), result(greeting)] })
     assert.equal(final, greeting + greeting)
     controller.abort()
+    assert.deepEqual(finalUpdates, [greeting, greeting + greeting])
     r.onresult({ resultIndex: 0, results: [result('late')] })
     assert.equal(final, greeting + greeting)
   })
 }
 const flush = () => new Promise(resolve => setImmediate(resolve))
+test('single utterance mode can disable continuous recognition', () => {
+  const s = setup()
+  const controller = s.api.createSpeechRecognizer({ continuous: false })
+  controller.start()
+  assert.equal(s.recognition().continuous, false)
+})
+
 test('each selected speaker keeps its model and distinct speaker ID', async () => {
   const requests = []
   const s = setup(async (_, init) => { requests.push(JSON.parse(init.body)); return { ok: true, blob: async () => new Blob(['audio']) } })
