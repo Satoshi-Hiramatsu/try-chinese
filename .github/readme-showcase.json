@@ -65,7 +65,7 @@
       "id": "mobile-landscape",
       "path": "docs/screenshots/mobile_landscape.png",
       "url": "http://localhost:5177/",
-      "alt": "スマートフォン横画面。立ち絵が左、テキスト枠が右の2カラムレイアウト",
+      "alt": "スマートフォン横画面。ヘッダーが畳まれ、立ち絵が画面の下端まで届く2カラムレイアウト",
       "viewport": { "width": 844, "height": 390 },
       "waitFor": "main section[aria-label]",
       "steps": [
@@ -75,7 +75,8 @@
             "shabe_china_onboarding_completed": "true",
             "shabe_china_selected_friend_id": "friend-nuan"
           }
-        }
+        },
+        { "action": "wait", "milliseconds": 5000 }
       ]
     },
     {
