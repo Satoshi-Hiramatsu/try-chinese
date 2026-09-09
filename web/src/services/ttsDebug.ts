@@ -1,4 +1,5 @@
-import type { TtsDebugAttempt, TtsDebugResult } from '../types'
+import type { TtsDebugAttempt, TtsDebugResult, TtsVoiceTuning } from '../types'
+import { normalizeTuning } from '../data/ttsVoiceTuning'
 import { createPlayableAudioBlob, readPcmFormat } from './audioFormat'
 import { loadApiKey } from './storage'
 
@@ -12,6 +13,8 @@ export interface RunTtsDebugOptions {
   speed: number
   signal: AbortSignal
   voiceId?: string
+  /** 声の揺らぎや話し方の指定。空の項目はWorkerへ送らない。 */
+  tuning?: TtsVoiceTuning
   ignoreCache?: boolean
   /** 1始まりの試行番号。計測結果に記録する。 */
   attemptIndex?: number
@@ -47,12 +50,13 @@ export function getTtsDebugRunBlockReason(input: {
 export function createPendingTtsResult(
   modelId: string,
   text: string,
-  options?: { voiceId?: string; estimatedCostUsd?: number; iterations?: number }
+  options?: { voiceId?: string; estimatedCostUsd?: number; iterations?: number; tuning?: TtsVoiceTuning }
 ): TtsDebugResult {
   const units = countTextUnits(text)
   return {
     modelId,
     voiceId: options?.voiceId,
+    tuning: normalizeTuning(options?.tuning),
     status: 'pending',
     timing: { requestStartedAt: 0 },
     metrics: {
@@ -161,6 +165,7 @@ export async function runTtsDebugAttempt(options: RunTtsDebugOptions): Promise<T
         model: options.modelId,
         voice: options.voiceId,
         speed: options.speed,
+        tuning: normalizeTuning(options.tuning),
       }),
       signal: options.signal,
       cache: options.ignoreCache ? 'no-store' : 'default',

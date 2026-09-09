@@ -11,6 +11,24 @@ export interface TtsEnv {
   OPENAI_API_KEY?: string
 }
 
+/**
+ * 話者プリセットを持たないモデル向けの声の調整値。
+ * どの項目がどこに載るかはプロバイダごとに異なるため、
+ * クライアントは意味で指定し、Workerが送信先に振り分ける。
+ */
+export interface TtsTuningInput {
+  temperature?: number
+  topP?: number
+  repetitionPenalty?: number
+  volume?: number
+  latency?: string
+  instructions?: string
+  style?: string
+  styleDegree?: number
+  /** provider.options へそのまま渡す値。未知のモデルを試すための逃げ道。 */
+  providerOptions?: Record<string, unknown>
+}
+
 interface TtsRequestBody {
   text: string
   voice?: string
@@ -19,6 +37,8 @@ interface TtsRequestBody {
   model?: string
   /** 省略時はモデルごとの既定形式を使う。検証モードから明示指定できる。 */
   format?: string
+  /** 声の揺らぎや話し方の指定。対応しない項目はモデルごとに落とす。 */
+  tuning?: TtsTuningInput
 }
 
 const MAX_TTS_CHARACTERS = 1000
@@ -113,6 +133,80 @@ export function resolveVoice(
 }
 
 /**
+ * provider.options のキー。OpenRouterはモデルの提供元スラッグで振り分けるため、
+ * モデルIDの接頭辞と一致しないものだけを対応表に持つ。
+ */
+const PROVIDER_SLUGS: readonly { pattern: RegExp; slug: string }[] = [
+  { pattern: /^microsoft\/mai-voice/i, slug: 'azure' },
+]
+
+export function resolveProviderSlug(modelId: string): string {
+  return PROVIDER_SLUGS.find((entry) => entry.pattern.test(modelId))?.slug || modelId.split('/')[0] || ''
+}
+
+function clamp(value: unknown, min: number, max: number): number | undefined {
+  const parsed = typeof value === 'number' ? value : Number.NaN
+  if (!Number.isFinite(parsed)) return undefined
+  return Math.max(min, Math.min(max, parsed))
+}
+
+function trimmedText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+}
+
+const LATENCY_VALUES: readonly string[] = ['normal', 'balanced', 'low']
+
+/**
+ * 調整値を上流のリクエスト本文へ振り分ける。
+ *
+ * Fish Audio は temperature / top_p / repetition_penalty を本文直下で受け取り、
+ * prosody と latency は provider.options 側で受け取る。
+ * Azure(MAI-Voice) は style / styledegree、OpenAI は instructions を provider.options で受け取る。
+ * 対応しない項目は送らない。未知のモデルは providerOptions だけを素通しする。
+ */
+export function buildTuningPayload(modelId: string, tuning?: TtsTuningInput): Record<string, unknown> {
+  if (!tuning) return {}
+  const slug = resolveProviderSlug(modelId)
+  const isFish = modelId.startsWith('fish-audio/')
+  const topLevel: Record<string, unknown> = {}
+  const options: Record<string, unknown> = {}
+
+  if (isFish) {
+    const temperature = clamp(tuning.temperature, 0, 1)
+    const topP = clamp(tuning.topP, 0, 1)
+    const repetitionPenalty = clamp(tuning.repetitionPenalty, 0.5, 2)
+    const volume = clamp(tuning.volume, -20, 20)
+    if (temperature !== undefined) topLevel.temperature = temperature
+    if (topP !== undefined) topLevel.top_p = topP
+    if (repetitionPenalty !== undefined) topLevel.repetition_penalty = repetitionPenalty
+    if (volume !== undefined) options.prosody = { volume }
+    if (tuning.latency && LATENCY_VALUES.includes(tuning.latency)) options.latency = tuning.latency
+  }
+
+  if (slug === 'azure') {
+    const style = trimmedText(tuning.style)
+    const styleDegree = clamp(tuning.styleDegree, 0.01, 2)
+    if (style) options.style = style
+    if (styleDegree !== undefined) options.styledegree = styleDegree
+  }
+
+  const instructions = trimmedText(tuning.instructions)
+  if (instructions && (slug === 'openai' || tuning.providerOptions?.instructions === undefined)) {
+    // instructions を持たないプロバイダでは無視されるため、送っても既存の動作は変わらない。
+    options.instructions = instructions
+  }
+
+  if (tuning.providerOptions && typeof tuning.providerOptions === 'object') {
+    Object.assign(options, tuning.providerOptions)
+  }
+
+  if (Object.keys(options).length > 0 && slug !== '') {
+    topLevel.provider = { options: { [slug]: options } }
+  }
+  return topLevel
+}
+
+/**
  * OpenRouterで音声出力できるモデルの一覧。
  * 検証モードのモデル選択と話者プリセットの生成元になる。
  */
@@ -144,7 +238,7 @@ ttsRoute.post('/tts', async (c) => {
     return c.json({ error: 'リクエストボディが有効な JSON ではありません。' }, 400)
   }
 
-  const { text, voice, speed = 1.0, apiKey, model, format } = body
+  const { text, voice, speed = 1.0, apiKey, model, format, tuning } = body
 
   if (!text || typeof text !== 'string' || text.trim() === '') {
     return c.json({ error: 'text は必須の文字列です。' }, 400)
@@ -199,6 +293,7 @@ ttsRoute.post('/tts', async (c) => {
         input: text.trim(),
         ...(selectedVoice ? { voice: selectedVoice } : {}),
         ...(sendsSpeed ? { speed: clampedSpeed } : {}),
+        ...buildTuningPayload(targetModel, tuning),
         response_format: responseFormat,
       }),
       signal: c.req.raw.signal,

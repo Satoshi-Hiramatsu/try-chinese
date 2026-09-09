@@ -39,10 +39,10 @@
 .tts-debug-models { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .tts-debug-models article { display: flex; flex-direction: column; gap: 5px; padding: 11px; background: white; border: 1px solid #e7e5e4; border-radius: 14px; }
 .tts-debug-models article[data-selected=true] { background: #fff1f2; border-color: #fda4af; }
-.tts-debug-models label { display: flex; gap: 7px; font-size: .75rem; }
-.tts-debug-models small { color: #78716c; font-size: .63rem; overflow-wrap: anywhere; }
-.tts-debug-models button { margin-top: auto; padding: 6px; background: white; border: 1px solid #d6d3d1; border-radius: 8px; font-size: .68rem; font-weight: 700; }
-.tts-debug-models button:disabled { opacity: .45; cursor: not-allowed; }
+.tts-debug-models > article > label { display: flex; gap: 7px; font-size: .75rem; }
+.tts-debug-models > article > small { color: #78716c; font-size: .63rem; overflow-wrap: anywhere; }
+.tts-debug-models > article > button { margin-top: auto; padding: 6px; background: white; border: 1px solid #d6d3d1; border-radius: 8px; font-size: .68rem; font-weight: 700; }
+.tts-debug-models > article > button:disabled { opacity: .45; cursor: not-allowed; }
 .tts-debug-results-section { margin-top: 24px; }
 .tts-debug-results-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .tts-debug-results-header div { display: flex; align-items: center; gap: 10px; color: #78716c; font-size: .72rem; }
@@ -95,3 +95,8 @@
 .tts-debug-history button { display: flex; flex-direction: column; padding: 8px 10px; text-align: left; background: white; border: 1px solid #e7e5e4; border-radius: 10px; font-size: .67rem; }
 @media (max-width: 760px) { .tts-debug-input { grid-template-columns: 1fr; } .tts-debug-input aside { grid-column: 1; grid-row: auto; } .tts-debug-models { grid-template-columns: repeat(2, 1fr); } .tts-debug-results { grid-template-columns: 1fr; } }
 @media (max-width: 440px) { .tts-debug-overlay { padding: 0; } .tts-debug-modal { border-radius: 0; } .tts-debug-content { padding: 10px; } .tts-debug-models { grid-template-columns: 1fr; } .tts-debug-ratings { grid-template-columns: repeat(2, 1fr); } }
+
+/* 声の固定・チューニングパネル（中身はTailwindで組むため、カード側の指定を打ち消す） */
+.tts-debug-tuning { border-top: 1px dashed #e7e5e4; padding-top: 6px; }
+.tts-debug-tuning > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; color: #57534e; font-size: .68rem; font-weight: 700; cursor: pointer; }
+.tts-debug-tuning > summary em { color: #be123c; font-size: .62rem; font-style: normal; font-weight: 600; overflow-wrap: anywhere; }

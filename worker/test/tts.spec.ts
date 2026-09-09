@@ -239,6 +239,100 @@ describe('TTS API (/api/tts)', () => {
       'English_magnetic_voiced_man',
     ])
   })
+
+  it('Fish Audio の調整値は本文直下とprovider.optionsへ振り分ける', async () => {
+    const calls = stubOpenRouter({
+      catalog: [{ id: 'fish-audio/s1', supported_voices: [] }],
+      speech: () => audioResponse(),
+    })
+    await worker.fetch(
+      ttsRequest({
+        text: '你好',
+        model: 'fish-audio/s1',
+        voice: 'ref-voice-1',
+        tuning: { temperature: 0.1, topP: 0.3, repetitionPenalty: 1.2, volume: -3, latency: 'balanced' },
+      }),
+      env,
+      createExecutionContext()
+    )
+
+    // 話者IDを指定しないと生成のたびに音色が変わるため、指定はそのまま通す。
+    expect(calls[0].voice).toBe('ref-voice-1')
+    expect(calls[0].temperature).toBe(0.1)
+    expect(calls[0].top_p).toBe(0.3)
+    expect(calls[0].repetition_penalty).toBe(1.2)
+    expect(calls[0].provider).toEqual({ options: { 'fish-audio': { prosody: { volume: -3 }, latency: 'balanced' } } })
+  })
+
+  it('範囲外の調整値は丸め、対応しない項目は送らない', async () => {
+    const calls = stubOpenRouter({
+      catalog: [{ id: 'fish-audio/s1', supported_voices: [] }],
+      speech: () => audioResponse(),
+    })
+    await worker.fetch(
+      ttsRequest({
+        text: '你好',
+        model: 'fish-audio/s1',
+        tuning: { temperature: 5, volume: -99, latency: 'turbo', style: 'cheerful' },
+      }),
+      env,
+      createExecutionContext()
+    )
+
+    expect(calls[0].temperature).toBe(1)
+    expect(calls[0].provider).toEqual({ options: { 'fish-audio': { prosody: { volume: -20 } } } })
+    // style は Azure 系だけの項目なので Fish には送らない。
+    expect(JSON.stringify(calls[0])).not.toContain('cheerful')
+  })
+
+  it('MAI-Voice の感情スタイルは azure の provider.options へ送る', async () => {
+    const calls = stubOpenRouter({
+      catalog: [{ id: 'microsoft/mai-voice-2', supported_voices: ['en-US-Harper:MAI-Voice-2'] }],
+      speech: () => audioResponse(),
+    })
+    await worker.fetch(
+      ttsRequest({
+        text: '你好',
+        model: 'microsoft/mai-voice-2',
+        tuning: { style: 'cheerful', styleDegree: 1.4, temperature: 0.2 },
+      }),
+      env,
+      createExecutionContext()
+    )
+
+    expect(calls[0].provider).toEqual({ options: { azure: { style: 'cheerful', styledegree: 1.4 } } })
+    // temperature は Fish 系だけの項目。
+    expect(calls[0].temperature).toBeUndefined()
+  })
+
+  it('未知のモデルでも providerOptions はそのまま素通しする', async () => {
+    const calls = stubOpenRouter({
+      catalog: [{ id: 'minimax/speech-2.8-turbo', supported_voices: ['English_radiant_girl'] }],
+      speech: () => audioResponse(),
+    })
+    await worker.fetch(
+      ttsRequest({
+        text: '你好',
+        model: 'minimax/speech-2.8-turbo',
+        tuning: { providerOptions: { emotion: 'happy' } },
+      }),
+      env,
+      createExecutionContext()
+    )
+
+    expect(calls[0].provider).toEqual({ options: { minimax: { emotion: 'happy' } } })
+  })
+
+  it('調整値がなければ従来どおりのリクエストのままにする', async () => {
+    const calls = stubOpenRouter({
+      catalog: [{ id: 'hexgrad/kokoro-82m', supported_voices: ['zf_xiaoxiao'] }],
+      speech: () => audioResponse(),
+    })
+    await worker.fetch(ttsRequest({ text: '你好', model: 'hexgrad/kokoro-82m' }), env, createExecutionContext())
+
+    expect(calls[0].provider).toBeUndefined()
+    expect(calls[0].temperature).toBeUndefined()
+  })
 })
 
 describe('TTSモデル一覧 (/api/tts/models)', () => {

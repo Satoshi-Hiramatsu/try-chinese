@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { TtsDebugLanguage, TtsDebugResult, TtsDebugRun } from '../types'
+import type { TtsDebugLanguage, TtsDebugResult, TtsDebugRun, TtsVoiceTuning } from '../types'
+import { describeTuning, getTtsTuningCapability } from '../data/ttsVoiceTuning'
+import { VoiceTuningFields } from './VoiceTuningFields'
 import {
   countTextUnits,
   createPendingTtsResult,
@@ -45,6 +47,8 @@ export function TtsDebugModal({ isOpen, onClose }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   /** モデルIDごとに選んだ話者。未設定ならカタログ由来の既定話者を使う。 */
   const [voiceIds, setVoiceIds] = useState<Record<string, string>>({})
+  /** モデルIDごとの声の調整値。話者一覧を持たないモデルの声を固定するために使う。 */
+  const [tunings, setTunings] = useState<Record<string, TtsVoiceTuning>>({})
   const [results, setResults] = useState<TtsDebugResult[]>([])
   const [runId, setRunId] = useState<string>()
   const [runCreatedAt, setRunCreatedAt] = useState<string>()
@@ -72,6 +76,7 @@ export function TtsDebugModal({ isOpen, onClose }: Props) {
     (modelId: string) => voiceIds[modelId] || catalogById.get(modelId)?.defaultVoice,
     [catalogById, voiceIds]
   )
+  const tuningOf = useCallback((modelId: string) => tunings[modelId] || {}, [tunings])
 
   const releaseAudio = useCallback((modelId: string) => {
     const urls = audioUrls.current.get(modelId)
@@ -124,10 +129,10 @@ export function TtsDebugModal({ isOpen, onClose }: Props) {
 
   useEffect(() => {
     if (!runId || !runCreatedAt || results.length === 0) return
-    const run: TtsDebugRun = { id: runId, createdAt: runCreatedAt, inputText: text, language, speed, iterations, voiceIds, modelIds: results.map((item) => item.modelId), results }
+    const run: TtsDebugRun = { id: runId, createdAt: runCreatedAt, inputText: text, language, speed, iterations, voiceIds, tunings, modelIds: results.map((item) => item.modelId), results }
     const timer = window.setTimeout(() => void saveTtsDebugRun(run).then(() => loadRecentTtsDebugRuns()).then(setHistory).catch(() => setMessage('検証結果を保存できませんでした。')), 150)
     return () => window.clearTimeout(timer)
-  }, [iterations, language, results, runCreatedAt, runId, speed, text, voiceIds])
+  }, [iterations, language, results, runCreatedAt, runId, speed, text, tunings, voiceIds])
 
   useEffect(() => {
     const urls = audioUrls.current
@@ -152,6 +157,7 @@ export function TtsDebugModal({ isOpen, onClose }: Props) {
       voiceId: voiceOf(modelId),
       estimatedCostUsd: model ? estimateCatalogCostUsd(model, text) : undefined,
       iterations,
+      tuning: tuningOf(modelId),
     })
     updateResult({ ...base, status: 'running', timing: { requestStartedAt: Date.now() } })
     const result = await runTtsDebugSequence(base, {
@@ -159,6 +165,7 @@ export function TtsDebugModal({ isOpen, onClose }: Props) {
       text: text.trim(),
       speed,
       voiceId: voiceOf(modelId),
+      tuning: tuningOf(modelId),
       signal: controller.signal,
       ignoreCache,
       iterations,
@@ -170,7 +177,7 @@ export function TtsDebugModal({ isOpen, onClose }: Props) {
     controllers.current.delete(modelId)
     trackAudio(modelId, result)
     updateResult(result)
-  }, [catalogById, ignoreCache, iterations, releaseAudio, speed, text, trackAudio, updateResult, voiceOf])
+  }, [catalogById, ignoreCache, iterations, releaseAudio, speed, text, trackAudio, tuningOf, updateResult, voiceOf])
 
   const stopAll = useCallback(() => {
     controllers.current.forEach((controller) => controller.abort())
@@ -225,6 +232,7 @@ export function TtsDebugModal({ isOpen, onClose }: Props) {
       voiceId: voiceOf(model.id),
       estimatedCostUsd: estimateCatalogCostUsd(model, text),
       iterations,
+      tuning: tuningOf(model.id),
     })))
     setMessage('')
     let index = 0
@@ -253,7 +261,7 @@ export function TtsDebugModal({ isOpen, onClose }: Props) {
     setMessage('')
     setResults((current) => current.some((item) => item.modelId === model.id)
       ? current
-      : [...current, createPendingTtsResult(model.id, text, { voiceId: voiceOf(model.id), estimatedCostUsd: estimateCatalogCostUsd(model, text), iterations })])
+      : [...current, createPendingTtsResult(model.id, text, { voiceId: voiceOf(model.id), estimatedCostUsd: estimateCatalogCostUsd(model, text), iterations, tuning: tuningOf(model.id) })])
     await executeModel(model.id)
   }
 
@@ -279,6 +287,7 @@ export function TtsDebugModal({ isOpen, onClose }: Props) {
     setSpeed(run.speed)
     setIterations(run.iterations ?? 1)
     setVoiceIds(run.voiceIds ?? {})
+    setTunings(run.tunings ?? {})
     setSelectedIds(new Set(run.modelIds))
     setResults(run.results)
     setMessage('保存済み結果です。音声は保存されないため、聴き直すには再試行してください。')
@@ -290,7 +299,7 @@ export function TtsDebugModal({ isOpen, onClose }: Props) {
       ...result,
       attempts: attempts?.map(({ audioUrl: _attemptUrl, ...attempt }) => attempt),
     }))
-    const run: TtsDebugRun = { id: runId, createdAt: runCreatedAt, inputText: text, language, speed, iterations, voiceIds, modelIds: results.map((item) => item.modelId), results: storedResults }
+    const run: TtsDebugRun = { id: runId, createdAt: runCreatedAt, inputText: text, language, speed, iterations, voiceIds, tunings, modelIds: results.map((item) => item.modelId), results: storedResults }
     await navigator.clipboard.writeText(JSON.stringify(run, null, 2))
     setMessage('JSONをコピーしました。')
   }
@@ -353,8 +362,23 @@ export function TtsDebugModal({ isOpen, onClose }: Props) {
                         </optgroup>
                       </select>
                     </label>
-                  : <small>話者:プロバイダ既定</small>}
+                  : <small>話者一覧なし:プロバイダ既定（下の調整で固定できる）</small>}
                 {model.note ? <small className={'tts-debug-model-note'}>{model.note}</small> : null}
+                <details className={'tts-debug-tuning'} open={selectedIds.has(model.id) && describeTuning(tuningOf(model.id)) !== ''}>
+                  <summary>
+                    声の固定・チューニング
+                    {describeTuning(tuningOf(model.id)) ? <em>{describeTuning(tuningOf(model.id))}</em> : null}
+                  </summary>
+                  <VoiceTuningFields
+                    capability={getTtsTuningCapability(model.id)}
+                    tuning={tuningOf(model.id)}
+                    onChange={(next) => setTunings((current) => ({ ...current, [model.id]: next }))}
+                    voiceId={model.supportedVoices.length === 0 ? voiceIds[model.id] || '' : undefined}
+                    onVoiceIdChange={model.supportedVoices.length === 0
+                      ? (next) => setVoiceIds((current) => ({ ...current, [model.id]: next }))
+                      : undefined}
+                  />
+                </details>
                 <button type={'button'} onClick={() => void runOne(model)} disabled={isRunning}>このモデルだけ試す</button>
               </article>
             ))}

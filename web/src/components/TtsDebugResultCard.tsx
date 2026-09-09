@@ -1,6 +1,7 @@
 import type { TtsCatalogModel } from '../services/ttsCatalog'
 import type { TtsDebugAttempt, TtsDebugRatings, TtsDebugResult } from '../types'
 import type { SyntheticEvent } from 'react'
+import { describeTuning } from '../data/ttsVoiceTuning'
 
 interface Props {
   /** カタログ取得前や履歴復元時はモデル情報が無いことがある。 */
@@ -88,6 +89,7 @@ export function TtsDebugResultCard({ model, result, onRetry, onChange }: Props) 
         <div><dt>形式</dt><dd>{result.responseFormat || result.contentType || '—'}</dd></div>
         <div><dt>推定費用</dt><dd>{metrics.estimatedCostUsd === undefined ? '算出不可' : '$' + (metrics.estimatedCostUsd * (attemptCount || 1)).toFixed(6)}</dd></div>
       </dl>
+      {describeTuning(result.tuning) ? <small className={'tts-debug-model-note'}>調整:{describeTuning(result.tuning)}</small> : null}
       {result.generationId ? <small>Generation:{result.generationId}</small> : null}
       {result.errorMessage ? <p className={'tts-debug-error'}>{result.errorMessage}</p> : null}
       {attempts.length

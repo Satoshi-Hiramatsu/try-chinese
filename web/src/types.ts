@@ -26,6 +26,33 @@ export function isExpression(value: unknown): value is Expression {
   return typeof value === 'string' && (EXPRESSIONS as readonly string[]).includes(value)
 }
 
+/**
+ * 話者プリセットを持たないモデル向けの声の作り込み設定。
+ *
+ * Fish Audio のように話者を指定しないと生成ごとに音色が変わるモデルがあるため、
+ * 揺らぎの抑制（temperature / topP）や話し方の指定をモデル横断の形で保持する。
+ * どの項目が実際に効くかはモデルごとに異なり、data/ttsVoiceTuning.ts が対応表を持つ。
+ */
+export interface TtsVoiceTuning {
+  /** 生成の揺らぎ。低いほど毎回の音色・抑揚が揃う。 */
+  temperature?: number
+  /** 候補語彙の広さ。低いほど無難で安定した読み上げになる。 */
+  topP?: number
+  /** 同じ音の繰り返しを抑える強さ。 */
+  repetitionPenalty?: number
+  /** 音量調整(dB)。 */
+  volume?: number
+  /** 遅延と品質のどちらを優先するか。 */
+  latency?: 'normal' | 'balanced' | 'low'
+  /** 話し方の自然言語指定。 */
+  instructions?: string
+  /** 感情スタイル名と強さ。 */
+  style?: string
+  styleDegree?: number
+  /** 上級者向け。provider.options へそのまま渡す値。 */
+  providerOptions?: Record<string, unknown>
+}
+
 export interface Voice {
   quality: 'standard' | 'natural' | 'high'
   gender: 'male' | 'female'
@@ -35,6 +62,8 @@ export interface Voice {
   ttsModel?: string
   rate?: number
   pitch?: number
+  /** 話者一覧を持たないモデルで声を安定させるための調整値。 */
+  voiceTuning?: TtsVoiceTuning
 }
 
 export interface Friend {
@@ -157,6 +186,8 @@ export interface TtsDebugAttempt {
 export interface TtsDebugResult {
   modelId: string
   voiceId?: string
+  /** 実行時に適用した声の調整値。比較のため結果と一緒に残す。 */
+  tuning?: TtsVoiceTuning
   generationId?: string
   status: TtsDebugStatus
   httpStatus?: number
@@ -204,5 +235,7 @@ export interface TtsDebugRun {
   iterations?: number
   /** モデルIDごとに指定した話者。 */
   voiceIds?: Record<string, string>
+  /** モデルIDごとに指定した声の調整値。 */
+  tunings?: Record<string, TtsVoiceTuning>
   results: TtsDebugResult[]
 }
