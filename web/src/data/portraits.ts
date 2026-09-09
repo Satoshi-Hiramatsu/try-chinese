@@ -434,7 +434,8 @@ export function getPortraitImage(id?: string): string | null {
  * キャラクターを描き替えても背景が動かない。
  * 差分の生成は `scripts/sheet-to-portraits.mjs` を参照。
  *
- * 差分がまだ無い立ち絵は、背景が描き込まれた1枚絵（`getPortraitImage`）のまま表示する。
+ * 差分がまだ無い立ち絵はロック（選択不可）とする。`isPortraitLocked` を参照。
+ * 残り12体の生成手順は docs/表情差分の追加手順.md に記録してある。
  */
 export const PORTRAIT_EXPRESSION_IDS: ReadonlySet<string> = new Set([
   'pt-meiling',
@@ -450,6 +451,17 @@ export const PORTRAIT_EXPRESSION_IDS: ReadonlySet<string> = new Set([
 /** 表情差分（透過画像）を持つ立ち絵かどうか。 */
 export function hasPortraitExpressions(id?: string): boolean {
   return !!id && PORTRAIT_EXPRESSION_IDS.has(id)
+}
+
+/**
+ * 表情差分がまだ無いためロック中の立ち絵かどうか。
+ *
+ * プリセットの友達は表情差分の生成が済むまで選択できないようにする。
+ * 差分を10枚用意して `PORTRAIT_EXPRESSION_IDS` に追加すれば、そのまま解放される。
+ * カスタム友達は SVG 立ち絵で10表情を持つため、この判定の対象外。
+ */
+export function isPortraitLocked(id?: string): boolean {
+  return !!id && !!PORTRAITS[id] && !PORTRAIT_EXPRESSION_IDS.has(id)
 }
 
 /**

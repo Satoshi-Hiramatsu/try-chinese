@@ -10,10 +10,11 @@ import {
   SparklesIcon,
   MaleIcon,
   FemaleIcon,
+  LockIcon,
 } from './Icons'
 import { FriendAvatar } from './FriendAvatar'
 import { PortraitFace } from './PortraitFace'
-import { PORTRAITS } from '../data/portraits'
+import { PORTRAITS, isPortraitLocked } from '../data/portraits'
 import {
   CHARACTER_VOICE_OPTIONS,
   type CharacterVoiceOption,
@@ -262,6 +263,8 @@ export function FriendListModal({
               {friends.map((friend) => {
                 const isSelected = friend.id === currentFriendId
                 const isCustom = friend.id?.startsWith('custom-')
+                // 表情差分がまだ無いプリセットの友達は、生成が済むまで選べない。
+                const isLocked = !isCustom && !isSelected && isPortraitLocked(friend.portraitId)
 
                 return (
                   <div
@@ -269,10 +272,12 @@ export function FriendListModal({
                     className={`p-4 rounded-2xl border transition-all flex items-start justify-between gap-3 ${
                       isSelected
                         ? 'bg-rose-50/80 border-rose-300 shadow-xs'
-                        : 'bg-white border-stone-200/80 hover:border-rose-200'
+                        : isLocked
+                          ? 'bg-stone-50 border-stone-200/80'
+                          : 'bg-white border-stone-200/80 hover:border-rose-200'
                     }`}
                   >
-                    <div className="flex items-start gap-3 min-w-0">
+                    <div className={`flex items-start gap-3 min-w-0 ${isLocked ? 'opacity-55' : ''}`}>
                       <FriendAvatar friend={friend} size="md" shape="rounded" />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -305,6 +310,12 @@ export function FriendListModal({
                               会話中
                             </span>
                           )}
+                          {isLocked && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-stone-200 text-stone-600 rounded font-medium flex items-center gap-1">
+                              <LockIcon className="w-3 h-3" />
+                              <span>準備中</span>
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-stone-600 mt-1 mb-2 leading-relaxed">
                           {friend.personality}
@@ -323,6 +334,11 @@ export function FriendListModal({
                     </div>
 
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                      {isLocked ? (
+                        <p className="text-[11px] text-stone-500 m-0 text-right leading-relaxed max-w-[8.5rem]">
+                          立ち絵の表情差分を準備中です
+                        </p>
+                      ) : (
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
@@ -351,6 +367,7 @@ export function FriendListModal({
                           </span>
                         )}
                       </div>
+                      )}
 
                       {isCustom && onDeleteFriend && (
                         <button

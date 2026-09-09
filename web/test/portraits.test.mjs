@@ -35,8 +35,14 @@ function load(relPath, requireImpl = () => ({})) {
   return exports
 }
 
-const { PORTRAITS, PORTRAIT_EXPRESSION_IDS, SCENE_IMAGE_IDS, getPortraitLayer, getSceneImage } =
-  load('../src/data/portraits.ts')
+const {
+  PORTRAITS,
+  PORTRAIT_EXPRESSION_IDS,
+  SCENE_IMAGE_IDS,
+  getPortraitLayer,
+  getSceneImage,
+  isPortraitLocked,
+} = load('../src/data/portraits.ts')
 const { PRESET_FRIENDS } = load('../src/data/presetFriends.ts')
 const { BACK_HAIR_PATHS, FRONT_HAIR_PATHS } = load('../src/data/portraitParts.ts')
 const { inferExpression, resolveExpression } = load('../src/services/expression.ts', () => ({
@@ -128,6 +134,26 @@ test('表情差分の画像が揃っている立ち絵は、すべて有効に�
     )
     assert.ok(!complete, `${id} は10表情が揃っている。PORTRAIT_EXPRESSION_IDS へ追加すること`)
   }
+})
+
+test('表情差分が無い立ち絵はロックされ、揃った立ち絵は解放される', () => {
+  for (const id of Object.keys(PORTRAITS)) {
+    assert.equal(
+      isPortraitLocked(id),
+      !PORTRAIT_EXPRESSION_IDS.has(id),
+      `${id} のロック状態が表情差分の有無と食い違っている`
+    )
+  }
+  // 未定義のIDやカスタム友達の未設定立ち絵をロック扱いにしない
+  assert.equal(isPortraitLocked(undefined), false)
+  assert.equal(isPortraitLocked('pt-unknown'), false)
+})
+
+test('初期表示の友達はロックされていない', () => {
+  // App が既定で選ぶ friend-meiling が選べないと、起動直後に会話できなくなる。
+  const first = PRESET_FRIENDS[0]
+  assert.equal(first.id, 'friend-meiling')
+  assert.equal(isPortraitLocked(first.portraitId), false)
 })
 
 test('シーン背景が未生成でも、透過立ち絵の背後は必ず埋まる', () => {
