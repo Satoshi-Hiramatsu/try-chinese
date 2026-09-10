@@ -14,9 +14,10 @@ export function parseVoiceSendCommand(
   lang: 'zh-CN' | 'ja-JP'
 ): VoiceSendCommandResult {
   const trimmed = transcript.trim()
+  // 「送信」だけでも送れるようにする。認識ゆれ（送信して／そうしん 等）も同じ合図として扱う。
   const command = lang === 'zh-CN'
-    ? new RegExp(`(?:发送|發送)(?:吧|一下)?${TRAILING_PUNCTUATION}$`, 'u')
-    : new RegExp(`(?:送って|送信して)${TRAILING_PUNCTUATION}$`, 'u')
+    ? new RegExp(`(?:发送|發送|送信)(?:吧|一下|して|します)?${TRAILING_PUNCTUATION}$`, 'u')
+    : new RegExp(`(?:送信|そうしん|送って)(?:して|します|ください)?${TRAILING_PUNCTUATION}$`, 'u')
   const match = command.exec(trimmed)
 
   if (!match || match.index === undefined) {

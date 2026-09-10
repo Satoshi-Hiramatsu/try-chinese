@@ -34,3 +34,24 @@ test('silence and ordinary speech never become a send command', () => {
   )
   assert.equal(exports.parseVoiceSendCommand('那个……我想一想', 'zh-CN').hasSendCommand, false)
 })
+
+test('「送信」だけでも送信の合図になる', () => {
+  for (const [transcript, content] of [
+    ['今日は映画を見ました。送信', '今日は映画を見ました。'],
+    ['今日は映画を見ました、送信して。', '今日は映画を見ました、'],
+    ['そうしん', ''],
+  ]) {
+    assert.deepEqual(
+      { ...exports.parseVoiceSendCommand(transcript, 'ja-JP') },
+      { hasSendCommand: true, content }
+    )
+  }
+  assert.equal(exports.parseVoiceSendCommand('送信ボタンを押しました', 'ja-JP').hasSendCommand, false)
+})
+
+test('中国語入力中でも「送信」で送れる', () => {
+  assert.deepEqual(
+    { ...exports.parseVoiceSendCommand('我昨天去了电影院。送信', 'zh-CN') },
+    { hasSendCommand: true, content: '我昨天去了电影院。' }
+  )
+})

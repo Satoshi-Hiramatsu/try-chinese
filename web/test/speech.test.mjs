@@ -11,9 +11,12 @@ function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob([
   let recognition
   const played = []
   const exports = {}
+  const timers = new Map()
+  let nextTimerId = 1
   const context = {
     exports, console, Blob, URL,
-    setTimeout: () => 1, clearTimeout: () => {},
+    setTimeout: (fn, ms) => { const id = nextTimerId++; timers.set(id, { fn, ms }); return id },
+    clearTimeout: (id) => { timers.delete(id) },
     require: () => ({ loadApiKey: () => 'test-key', loadTtsProvider: () => 'openrouter', loadTtsModel: () => 'qwen/qwen-audio-3.0-tts-flash' }),
     window: { SpeechRecognition: class {
       constructor() { recognition = this }
@@ -25,7 +28,18 @@ function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob([
     Audio: class { constructor(url) { this.url = url } async play() { played.push(this.url) } pause() {} },
   }
   vm.runInNewContext(source, context)
-  return { api: exports, recognition: () => recognition, played }
+  // 指定した遅延で登録された最初のタイマーだけを発火させる
+  const runTimer = (ms) => {
+    for (const [id, timer] of timers) {
+      if (timer.ms !== ms) continue
+      timers.delete(id)
+      timer.fn()
+      return true
+    }
+    return false
+  }
+  const pendingTimers = (ms) => [...timers.values()].filter((t) => t.ms === ms).length
+  return { api: exports, recognition: () => recognition, played, runTimer, pendingTimers }
 }
 const result = (transcript, isFinal = true) => ({ 0: { transcript }, isFinal })
 for (const [lang, greeting] of [['ja-JP', '\u3053\u3093\u306b\u3061\u306f'], ['zh-CN', '\u4f60\u597d']]) {
@@ -91,4 +105,76 @@ test('failed cloud synthesis reports an error instead of replacing the voice', a
   await flush()
   assert.ok(error)
   assert.equal(s.played.length, 0)
+})
+
+test('a browser cutoff reopens the microphone and keeps the text so far', () => {
+  const s = setup()
+  const finals = []
+  let ended = 0
+  const controller = s.api.createSpeechRecognizer({
+    lang: 'ja-JP',
+    silenceTimeoutMs: 20000,
+    onFinalResult: (t) => finals.push(t),
+    onEnd: () => { ended++ },
+  })
+  controller.start()
+  const r = s.recognition()
+  assert.equal(r.continuous, true)
+  r.onresult({ resultIndex: 0, results: [result('昨日は')] })
+  assert.deepEqual(finals, ['昨日は'])
+
+  // 考えている間にブラウザが勝手に打ち切っても、終了扱いにせず開き直す
+  r.onend()
+  assert.equal(ended, 0)
+  assert.equal(s.runTimer(250), true)
+  // 開き直しても無音の持ち時間は延長しない
+  assert.equal(s.pendingTimers(20000), 1)
+
+  // 再開後の確定は前のテキストに積み上がる
+  r.onresult({ resultIndex: 0, results: [result('映画を見ました')] })
+  assert.deepEqual(finals, ['昨日は', '昨日は映画を見ました'])
+})
+
+test('a short no-speech gap does not surface an error or end the session', () => {
+  const s = setup()
+  let error, ended = 0
+  const controller = s.api.createSpeechRecognizer({ onError: (e) => { error = e }, onEnd: () => { ended++ } })
+  controller.start()
+  const r = s.recognition()
+  r.onerror({ error: 'no-speech' })
+  r.onend()
+  assert.equal(error, undefined)
+  assert.equal(ended, 0)
+  assert.equal(s.pendingTimers(250), 1)
+})
+
+test('only a long silence stops listening, and it never sends', () => {
+  const s = setup()
+  const finals = []
+  let ended = 0
+  const controller = s.api.createSpeechRecognizer({
+    silenceTimeoutMs: 20000,
+    onFinalResult: (t) => finals.push(t),
+    onEnd: () => { ended++ },
+  })
+  controller.start()
+  const r = s.recognition()
+  r.onresult({ resultIndex: 0, results: [result('你好')] })
+  // 発話のたびに無音の持ち時間は取り直される
+  assert.equal(s.pendingTimers(20000), 1)
+  assert.equal(s.runTimer(20000), true)
+  assert.equal(ended, 1)
+  assert.deepEqual(finals, ['你好'])
+  // 無音停止のあとは開き直さない
+  assert.equal(s.pendingTimers(250), 0)
+  controller.abort()
+})
+
+test('the silence budget defaults to well over a thinking pause', () => {
+  const s = setup()
+  const controller = s.api.createSpeechRecognizer({})
+  controller.start()
+  assert.ok(s.api.DEFAULT_SILENCE_TIMEOUT_MS >= 15000)
+  assert.equal(s.pendingTimers(s.api.DEFAULT_SILENCE_TIMEOUT_MS), 1)
+  controller.abort()
 })

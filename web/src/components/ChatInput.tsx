@@ -125,7 +125,8 @@ export function ChatInput({
       lang: speechLang,
       onStart: () => setIsListening(true),
       onInterimResult: (interim) => setInterimText(interim),
-      continuous: handsFreeRef.current,
+      // 通常入力でも短い沈黙で打ち切らせない。停止は「完了」ボタンか無音タイムアウトに任せる。
+      continuous: true,
       onFinalResult: (finalSpeech) => {
         const parsed = parseVoiceSendCommand(finalSpeech, speechLang)
         const next = joinSpeechText(baseText, parsed.content)
@@ -330,9 +331,7 @@ export function ChatInput({
           {isListening && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <span className="text-[10px] text-stone-500 hidden sm:inline">
-              {handsFreeEnabled
-                ? `「${speechLang === 'zh-CN' ? '发送' : '送って'}」で送信`
-                : '話し終えたら'}
+              {`「${speechLang === 'zh-CN' ? '发送' : '送信'}」と言えば送信`}
             </span>
             <button
               type="button"
