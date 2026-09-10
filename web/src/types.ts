@@ -53,6 +53,19 @@ export interface TtsVoiceTuning {
   providerOptions?: Record<string, unknown>
 }
 
+/**
+ * 1つの音声モデルに対する話者IDと調整値の組。
+ *
+ * 話者IDはモデルごとに体系が異なるため（Kokoro の zf_xiaoxiao、Fish Audio の reference_id など）、
+ * モデルを切り替えても前のモデルで作り込んだ設定を失わないようモデルIDごとに覚えておく。
+ */
+export interface VoiceModelBinding {
+  /** そのモデルでの話者ID。 */
+  voiceModel?: string
+  /** そのモデルでの声の調整値。 */
+  voiceTuning?: TtsVoiceTuning
+}
+
 export interface Voice {
   quality: 'standard' | 'natural' | 'high'
   gender: 'male' | 'female'
@@ -64,6 +77,11 @@ export interface Voice {
   pitch?: number
   /** 話者一覧を持たないモデルで声を安定させるための調整値。 */
   voiceTuning?: TtsVoiceTuning
+  /**
+   * モデルIDごとの話者ID・調整値。選択中モデルの値は voiceModel / voiceTuning にも入る。
+   * 既存の保存データには存在しないため、読み出し側は未定義を許容する。
+   */
+  voiceByModel?: Record<string, VoiceModelBinding>
 }
 
 export interface Friend {
