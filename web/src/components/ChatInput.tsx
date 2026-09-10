@@ -59,18 +59,41 @@ export function ChatInput({
   const wasLoadingRef = useRef(isLoading)
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [restartListeningToken, setRestartListeningToken] = useState(0)
+  const isFriendSpeakingRef = useRef(isFriendSpeaking)
+  const wasFriendSpeakingRef = useRef(isFriendSpeaking)
+  // 再開はトークンが増えた瞬間だけ行う。isLoading などの再評価では起動させない。
+  const consumedResumeTokenRef = useRef(resumeListeningToken)
+  const consumedRestartTokenRef = useRef(restartListeningToken)
+  // 条件が揃わず見送った再開要求は、破棄せず条件が整うまで保持する。
+  const pendingRestartRef = useRef(false)
+  // 送信後は App が発行する再開トークンだけを再開の合図として扱う。
+  const awaitingResumeRef = useRef(false)
 
   handsFreeRef.current = handsFreeEnabled
   isLoadingRef.current = isLoading
   disabledRef.current = disabled
+  isFriendSpeakingRef.current = isFriendSpeaking
   onSendMessageRef.current = onSendMessage
   onErrorRef.current = onError
 
   const isSupported = isSpeechRecognitionSupported()
 
+  const clearRestartTimer = useCallback(() => {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current)
+      restartTimerRef.current = null
+    }
+  }, [])
+
   const sendContent = useCallback((content: string, inputMethod = inputMethodRef.current) => {
     const trimmed = content.trim()
     if (!trimmed || isLoadingRef.current || disabledRef.current) return
+
+    // 送信後の再開は App の再開トークンに一本化する。
+    // 保留中の再開要求をここで捨てないと、読み上げが始まる前にマイクが開いてしまう。
+    clearRestartTimer()
+    pendingRestartRef.current = false
+    awaitingResumeRef.current = handsFreeRef.current
 
     intentionalStopRef.current = true
     restoreTextFocusRef.current = inputMethod === 'text'
@@ -83,12 +106,13 @@ export function ChatInput({
     textRef.current = ''
     setText('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-  }, [])
+  }, [clearRestartTimer])
 
   const startListening = useCallback(() => {
     if (!isSupported || isLoadingRef.current || disabledRef.current || recognizerRef.current) return
 
     stopSpeaking()
+    pendingRestartRef.current = false
     intentionalStopRef.current = false
     inputMethodRef.current = 'voice'
     restoreTextFocusRef.current = false
@@ -131,7 +155,9 @@ export function ChatInput({
         if (recognizerRef.current === recognizer) recognizerRef.current = null
         setIsListening(false)
         setInterimText('')
-        if (!intentionalStopRef.current && handsFreeRef.current && !isLoadingRef.current && !disabledRef.current) {
+        // 返答待ち中に終了しても要求だけは発行する。起動の可否は requestListening が判断する。
+        // ここで捨てると、返答後に再開するきっかけが失われる。
+        if (!intentionalStopRef.current && handsFreeRef.current && !disabledRef.current) {
           setRestartListeningToken((prev) => prev + 1)
         }
         intentionalStopRef.current = false
@@ -153,19 +179,58 @@ export function ChatInput({
     }
   }, [handsFreeEnabled, isLoading, isListening])
 
-  useEffect(() => {
-    if (restartListeningToken === 0 || !handsFreeEnabled) return
-    restartTimerRef.current = setTimeout(startListening, 350)
-    return () => {
-      if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
+  // 起動できる状態なら即座に、無理なら保留して条件が整うのを待つ。
+  const requestListening = useCallback(() => {
+    if (!handsFreeRef.current || disabledRef.current) return
+    // 送信後は App の再開トークンが来るまで動かない。
+    if (awaitingResumeRef.current) return
+    if (isLoadingRef.current || isFriendSpeakingRef.current) {
+      pendingRestartRef.current = true
+      return
     }
-  }, [handsFreeEnabled, restartListeningToken, startListening])
+    startListening()
+  }, [startListening])
 
+  // 認識が自然終了したときの再開。トークンが増えたときだけ間を置いて起動する。
   useEffect(() => {
-    if (resumeListeningToken > 0 && handsFreeEnabled && !isLoading && !isFriendSpeaking) {
-      startListening()
-    }
-  }, [handsFreeEnabled, isFriendSpeaking, isLoading, resumeListeningToken, startListening])
+    if (restartListeningToken === consumedRestartTokenRef.current) return
+    consumedRestartTokenRef.current = restartListeningToken
+    if (!handsFreeEnabled) return
+    clearRestartTimer()
+    restartTimerRef.current = setTimeout(() => {
+      restartTimerRef.current = null
+      requestListening()
+    }, 350)
+  }, [clearRestartTimer, handsFreeEnabled, requestListening, restartListeningToken])
+
+  // App からの再開トークン（読み上げ終了・エラー時）による再開。
+  useEffect(() => {
+    if (resumeListeningToken === consumedResumeTokenRef.current) return
+    consumedResumeTokenRef.current = resumeListeningToken
+    awaitingResumeRef.current = false
+    if (!handsFreeEnabled) return
+    requestListening()
+  }, [handsFreeEnabled, requestListening, resumeListeningToken])
+
+  // 友達が話し始めたらマイクを閉じる。読み上げ音声を自分の発話として拾わせない。
+  useEffect(() => {
+    const wasSpeaking = wasFriendSpeakingRef.current
+    wasFriendSpeakingRef.current = isFriendSpeaking
+    if (!isFriendSpeaking || wasSpeaking || !recognizerRef.current) return
+    intentionalStopRef.current = true
+    recognizerRef.current.abort()
+    recognizerRef.current = null
+    setIsListening(false)
+    setInterimText('')
+  }, [isFriendSpeaking])
+
+  // 保留していた再開要求を、返答待ちと読み上げが終わった時点で実行する。
+  useEffect(() => {
+    if (!pendingRestartRef.current) return
+    if (!handsFreeEnabled || isLoading || isFriendSpeaking || awaitingResumeRef.current) return
+    pendingRestartRef.current = false
+    startListening()
+  }, [handsFreeEnabled, isFriendSpeaking, isLoading, startListening])
 
   useEffect(() => () => {
     if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
@@ -205,6 +270,9 @@ export function ChatInput({
         handsFreeRef.current = false
         onHandsFreeChange?.(false)
       }
+      clearRestartTimer()
+      pendingRestartRef.current = false
+      awaitingResumeRef.current = false
       recognizerRef.current?.stop()
       return
     }
@@ -219,6 +287,9 @@ export function ChatInput({
     const next = !handsFreeRef.current
     handsFreeRef.current = next
     onHandsFreeChange?.(next)
+    clearRestartTimer()
+    pendingRestartRef.current = false
+    awaitingResumeRef.current = false
     if (next) {
       unlockSpeechSynthesis()
       startListening()
