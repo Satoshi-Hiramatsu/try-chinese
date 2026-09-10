@@ -130,9 +130,67 @@ test('a browser cutoff reopens the microphone and keeps the text so far', () => 
   // 開き直しても無音の持ち時間は延長しない
   assert.equal(s.pendingTimers(20000), 1)
 
+  // 開き直しは新しい実体で行う（前セッションの results を持ち越さないため）
+  const r2 = s.recognition()
+  assert.notEqual(r2, r)
+
   // 再開後の確定は前のテキストに積み上がる
-  r.onresult({ resultIndex: 0, results: [result('映画を見ました')] })
+  r2.onresult({ resultIndex: 0, results: [result('映画を見ました')] })
   assert.deepEqual(finals, ['昨日は', '昨日は映画を見ました'])
+})
+
+test('a reopened microphone never repeats the utterance it already captured', () => {
+  const s = setup()
+  const finals = []
+  const controller = s.api.createSpeechRecognizer({
+    lang: 'zh-CN',
+    silenceTimeoutMs: 20000,
+    onFinalResult: (t) => finals.push(t),
+  })
+  controller.start()
+  const r = s.recognition()
+  r.onresult({ resultIndex: 0, results: [result('我已经结婚了')] })
+  assert.deepEqual(finals, ['我已经结婚了'])
+
+  r.onend()
+  assert.equal(s.runTimer(250), true)
+
+  // 前のセッションが遅れて同じ結果を投げても、二重には積まない
+  r.onresult({ resultIndex: 0, results: [result('我已经结婚了')] })
+  assert.deepEqual(finals, ['我已经结婚了'])
+
+  // 新しい実体は空から始まるので、蓄積済みと同じ結果が来ても重ならない
+  const r2 = s.recognition()
+  r2.onresult({ resultIndex: 0, results: [result('对', false)] })
+  assert.deepEqual(finals, ['我已经结婚了'])
+})
+
+test('running out of silence between sessions still ends listening', () => {
+  const s = setup()
+  let ended = 0
+  const controller = s.api.createSpeechRecognizer({ silenceTimeoutMs: 20000, onEnd: () => { ended++ } })
+  controller.start()
+  const r = s.recognition()
+  // 開き直しを待っている最中に無音を使い切る
+  r.onend()
+  assert.equal(s.pendingTimers(250), 1)
+  assert.equal(s.runTimer(20000), true)
+  assert.equal(ended, 1)
+  // マイクは開き直さない
+  assert.equal(s.pendingTimers(250), 0)
+})
+
+test('starting twice does not open a second recognition stream', () => {
+  const s = setup()
+  const finals = []
+  const controller = s.api.createSpeechRecognizer({ onFinalResult: (t) => finals.push(t) })
+  controller.start()
+  const r = s.recognition()
+  controller.start()
+  assert.equal(s.recognition(), r)
+  r.onresult({ resultIndex: 0, results: [result('你好')] })
+  assert.deepEqual(finals, ['你好'])
+  controller.abort()
 })
 
 test('a short no-speech gap does not surface an error or end the session', () => {

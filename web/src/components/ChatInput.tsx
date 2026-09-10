@@ -77,6 +77,9 @@ export function ChatInput({
   // 送信後は App が発行する再開トークンだけを再開の合図として扱う。
   const awaitingResumeRef = useRef(false)
   const silenceTimeoutRef = useRef(clampSilenceTimeoutMs(silenceTimeoutMs))
+  // 送信要求から isLoading が立つまでの隙間で二重送信されないようにする。
+  // 認識結果が重複して届いても、同じ発話が2回投稿されることはない。
+  const sendingRef = useRef(false)
 
   handsFreeRef.current = handsFreeEnabled
   isLoadingRef.current = isLoading
@@ -97,7 +100,8 @@ export function ChatInput({
 
   const sendContent = useCallback((content: string, inputMethod = inputMethodRef.current) => {
     const trimmed = content.trim()
-    if (!trimmed || isLoadingRef.current || disabledRef.current) return
+    if (!trimmed || isLoadingRef.current || disabledRef.current || sendingRef.current) return
+    sendingRef.current = true
 
     // 送信後の再開は App の再開トークンに一本化する。
     // 保留中の再開要求をここで捨てないと、読み上げが始まる前にマイクが開いてしまう。
@@ -196,6 +200,8 @@ export function ChatInput({
   useEffect(() => {
     const wasLoading = wasLoadingRef.current
     wasLoadingRef.current = isLoading
+    // isLoading が反映されたら、以降は isLoadingRef が二重送信を止める。
+    if (isLoading !== wasLoading) sendingRef.current = false
     if (wasLoading && !isLoading && restoreTextFocusRef.current && textareaRef.current && !isListening && !handsFreeEnabled) {
       restoreTextFocusRef.current = false
       textareaRef.current.focus()

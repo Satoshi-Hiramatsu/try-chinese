@@ -506,14 +506,22 @@ function joinTranscript(head: string, tail: string): string {
  * ブラウザは短い沈黙でも認識セッションを終了してしまうため、
  * 無音タイムアウトに達するまでは内部で自動的に開き直し、
  * 確定テキストはセッションをまたいで蓄積する。
+ *
+ * 開き直すときは認識インスタンスを必ず作り直す。同じインスタンスを再利用すると
+ * 前のセッションの結果が results に残るブラウザがあり、蓄積済みテキストと
+ * 二重に足されて「同じ発話が2回入る」原因になる。
  */
 export function createSpeechRecognizer(options: SpeechRecognitionOptions): SpeechRecognitionController | null {
   if (!isSpeechRecognitionSupported()) return null
 
   const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition
   if (!SpeechRecognitionAPI) return null
-  const recognition = new SpeechRecognitionAPI()
+
   const silenceTimeoutMs = clampSilenceTimeoutMs(options.silenceTimeoutMs ?? DEFAULT_SILENCE_TIMEOUT_MS)
+  const lang = options.lang || 'zh-CN'
+  // 短い沈黙で確定させないため、既定は継続リスニング
+  const continuous = options.continuous ?? true
+
   let aborted = false
   // 明示的な停止・無音タイムアウト・致命的エラーで立てる。立つまでは自動で開き直す。
   let finished = false
@@ -521,15 +529,18 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
   let committedFinal = ''
   let previousFinal = ''
   let previousInterim = ''
-
-  recognition.lang = options.lang || 'zh-CN'
-  recognition.interimResults = true
-  // 短い沈黙で確定させないため、既定は継続リスニング
-  recognition.continuous = options.continuous ?? true
-  recognition.maxAlternatives = 1
+  // 動いている実体は常にひとつだけ。古い実体からの通知はすべて捨てる。
+  let active: RecognitionInstance | null = null
 
   let silenceTimeout: ReturnType<typeof setTimeout> | null = null
   let restartTimer: ReturnType<typeof setTimeout> | null = null
+
+  const clearRestartTimer = () => {
+    if (restartTimer) {
+      clearTimeout(restartTimer)
+      restartTimer = null
+    }
+  }
 
   const clearTimers = () => {
     if (silenceTimeout) {
@@ -537,10 +548,13 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
       silenceTimeout = null
       options.onSilenceWindowChange?.(null)
     }
-    if (restartTimer) {
-      clearTimeout(restartTimer)
-      restartTimer = null
-    }
+    clearRestartTimer()
+  }
+
+  const finish = () => {
+    clearTimers()
+    active = null
+    if (!aborted) options.onEnd?.()
   }
 
   const startSilenceTimer = () => {
@@ -550,126 +564,159 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
     silenceTimeout = setTimeout(() => {
       silenceTimeout = null
       finished = true
+      // 再開待ちのタイマーを消しておかないと、閉じたはずのマイクが開き直してしまう。
+      clearRestartTimer()
       options.onSilenceWindowChange?.(null)
       // 停止より先に通知する。ハンズフリーの自動送信はここを合図にする。
       options.onSilenceTimeout?.()
+      if (aborted) return
+      const running = active
+      // セッションの切れ目なら stop() を受け取る実体がない。そのまま終わりを伝える。
+      if (!running) {
+        finish()
+        return
+      }
       try {
-        recognition.stop()
+        running.stop()
       } catch {
-        // ignore
+        finish()
       }
     }, silenceTimeoutMs)
   }
 
-  recognition.onstart = () => {
-    if (aborted) return
-    // 内部再開のときは無音の持ち時間を延長しない
-    if (!silenceTimeout) startSilenceTimer()
-    options.onStart?.()
-  }
+  const createInstance = (): RecognitionInstance => {
+    const recognition = new SpeechRecognitionAPI()
+    recognition.lang = lang
+    recognition.interimResults = true
+    recognition.continuous = continuous
+    recognition.maxAlternatives = 1
 
-  recognition.onresult = (event: RecognitionResultEvent) => {
-    if (aborted) return
-    startSilenceTimer()
-    // results is a session snapshot. A repeated final index must replace,
-    // never append to, the previously displayed recognition text.
-    let final = ''
-    let interim = ''
-    for (let i = 0; i < event.results.length; i++) {
-      const item = event.results[i]
-      if (item.isFinal) final += item[0].transcript
-      else interim += item[0].transcript
+    // 開き直しの前後で通知が重なっても、いま動いている実体の分だけを受け取る。
+    const isStale = () => aborted || recognition !== active
+
+    recognition.onstart = () => {
+      if (isStale()) return
+      // 内部再開のときは無音の持ち時間を延長しない
+      if (!silenceTimeout && !finished) startSilenceTimer()
+      options.onStart?.()
     }
-    const normalizedFinal = joinTranscript(committedFinal, final.trim())
-    if (normalizedFinal !== previousFinal) {
-      previousFinal = normalizedFinal
-      options.onFinalResult?.(normalizedFinal)
+
+    recognition.onresult = (event: RecognitionResultEvent) => {
+      if (isStale()) return
+      startSilenceTimer()
+      // results is a session snapshot. A repeated final index must replace,
+      // never append to, the previously displayed recognition text.
+      let final = ''
+      let interim = ''
+      for (let i = 0; i < event.results.length; i++) {
+        const item = event.results[i]
+        if (item.isFinal) final += item[0].transcript
+        else interim += item[0].transcript
+      }
+      const normalizedFinal = joinTranscript(committedFinal, final.trim())
+      if (normalizedFinal !== previousFinal) {
+        previousFinal = normalizedFinal
+        options.onFinalResult?.(normalizedFinal)
+      }
+      if (interim !== previousInterim) {
+        previousInterim = interim
+        options.onInterimResult?.(interim)
+      }
     }
-    if (interim !== previousInterim) {
-      previousInterim = interim
-      options.onInterimResult?.(interim)
+
+    recognition.onerror = (event: { error: string }) => {
+      if (isStale()) return
+      // 一時的な無音・中断は打ち切らず、onend 側の自動再開に任せる
+      if (event.error === 'no-speech' || event.error === 'aborted') return
+
+      finished = true
+      clearTimers()
+      let message = '音声認識エラーが発生しました'
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        message = 'マイクの使用が許可されていません。ブラウザの設定でマイクを許可してください。'
+      } else if (event.error === 'network') {
+        message = '音声認識のネットワーク通信エラーが発生しました'
+      }
+      options.onError?.(message)
     }
-  }
 
-  recognition.onerror = (event: { error: string }) => {
-    if (aborted) return
-    // 一時的な無音・中断は打ち切らず、onend 側の自動再開に任せる
-    if (event.error === 'no-speech' || event.error === 'aborted') return
+    recognition.onend = () => {
+      if (isStale()) return
+      // この実体はもう終わり。以降この実体からの通知は受け取らない。
+      active = null
 
-    finished = true
-    clearTimers()
-    let message = '音声認識エラーが発生しました'
-    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-      message = 'マイクの使用が許可されていません。ブラウザの設定でマイクを許可してください。'
-    } else if (event.error === 'network') {
-      message = '音声認識のネットワーク通信エラーが発生しました'
-    }
-    options.onError?.(message)
-  }
+      if (finished) {
+        finish()
+        return
+      }
 
-  const finish = () => {
-    clearTimers()
-    if (!aborted) options.onEnd?.()
-  }
-
-  recognition.onend = () => {
-    if (aborted) return
-
-    if (!finished) {
       // ブラウザ都合の終了。確定済みを引き継いでマイクを開き直す。
       committedFinal = previousFinal
       if (previousInterim !== '') {
         previousInterim = ''
         options.onInterimResult?.('')
       }
-      if (restartTimer) clearTimeout(restartTimer)
+      clearRestartTimer()
       restartTimer = setTimeout(() => {
         restartTimer = null
+        if (aborted || finished) return
         try {
-          recognition.start()
+          const next = createInstance()
+          active = next
+          next.start()
         } catch (err) {
           console.warn('SpeechRecognition restart error:', err)
           finished = true
           finish()
         }
       }, AUTO_RESTART_DELAY_MS)
-      return
     }
 
-    finish()
+    return recognition
   }
 
   return {
     start: () => {
+      // 二重起動すると認識が二重に届く。動いている間の start は無視する。
+      if (active && !aborted) return
+      aborted = false
+      finished = false
+      committedFinal = ''
+      previousFinal = ''
+      previousInterim = ''
+      clearTimers()
       try {
-        aborted = false
-        finished = false
-        committedFinal = ''
-        previousFinal = ''
-        previousInterim = ''
-        recognition.start()
+        const next = createInstance()
+        active = next
+        next.start()
       } catch (err) {
         console.warn('SpeechRecognition start error:', err)
+        active = null
       }
     },
     stop: () => {
       finished = true
-      if (restartTimer) {
-        clearTimeout(restartTimer)
-        restartTimer = null
+      clearRestartTimer()
+      const running = active
+      if (!running) {
+        finish()
+        return
       }
       try {
-        recognition.stop()
+        running.stop()
       } catch {
-        // ignore
+        finish()
       }
     },
     abort: () => {
       aborted = true
       finished = true
       clearTimers()
+      const running = active
+      active = null
+      if (!running) return
       try {
-        recognition.abort()
+        running.abort()
       } catch {
         // ignore
       }
