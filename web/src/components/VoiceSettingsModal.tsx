@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import type { Friend, TtsVoiceTuning, Voice } from '../types'
+import type { Friend, TtsVoiceTuning, Voice, VoiceModelBinding } from '../types'
 import {
   CloseIcon,
   SpeakerIcon,
@@ -13,6 +13,7 @@ import {
   FemaleIcon,
   GlobeIcon,
   SettingsIcon,
+  RotateCwIcon,
 } from './Icons'
 import { FriendAvatar } from './FriendAvatar'
 import {
@@ -32,23 +33,34 @@ import {
 } from '../services/storage'
 import {
   CHARACTER_VOICE_OPTIONS,
+  hasPresetVoiceForModel,
+  resolveVoiceIdForModel,
   type CharacterVoiceOption,
 } from '../data/characterVoices'
 import { getTtsTuningCapability, normalizeTuning } from '../data/ttsVoiceTuning'
-import { loadTtsCatalog, type TtsCatalogModel } from '../services/ttsCatalog'
+import { switchVoiceModel, rememberCurrentBinding } from '../data/voiceAssignment'
+import {
+  getTtsCatalogShared,
+  invalidateTtsCatalog,
+  type TtsCatalogModel,
+} from '../services/ttsCatalog'
 import { VoiceTuningFields } from './VoiceTuningFields'
 
 /**
  * 声質キャラクターの話者IDを、選択中のモデルの話者へ読み替える。
- * 対応表を持つのは Kokoro と Qwen だけで、他のモデルはモデル側の話者一覧から選ぶ。
+ * ブラウザ音声は端末側の音声名で鳴らすため、表示用に Kokoro の話者IDを流用する。
  */
 function presetVoiceForModel(preset: CharacterVoiceOption, modelId: string): string {
-  return modelId.includes('qwen') ? preset.qwenVoice : preset.kokoroVoice
+  return resolveVoiceIdForModel(preset, modelId) || preset.kokoroVoice
 }
 
 /** 声質キャラクター一覧で話者を選べるモデルか。 */
-function usesCharacterPresets(provider: 'browser' | 'openrouter', modelId: string): boolean {
-  return provider === 'browser' || modelId.includes('kokoro') || modelId.includes('qwen')
+function usesCharacterPresets(
+  provider: 'browser' | 'openrouter',
+  modelId: string,
+  options: readonly CharacterVoiceOption[]
+): boolean {
+  return provider === 'browser' || hasPresetVoiceForModel(options, modelId)
 }
 
 interface VoiceSettingsModalProps {
@@ -115,9 +127,17 @@ export function VoiceSettingsModal({
   const [previewError, setPreviewError] = useState('')
   /** OpenRouterで音声出力できるモデル一覧。話者はモデルごとに異なるため実行時に取得する。 */
   const [catalog, setCatalog] = useState<TtsCatalogModel[]>([])
-  const [catalogState, setCatalogState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [catalogState, setCatalogState] = useState<'idle' | 'loading' | 'ready'>('idle')
+  /** OpenRouterから取得できず、コード内の既知モデルだけを表示している状態。 */
+  const [catalogStale, setCatalogStale] = useState(false)
+  /** 取得のやり直し用。値が変わるたびに取得し直す。 */
+  const [catalogAttempt, setCatalogAttempt] = useState(0)
   /** 話者一覧を持たないモデルで声を固定するための調整値。 */
   const [tuning, setTuning] = useState<TtsVoiceTuning>(() => friend.voice?.voiceTuning || {})
+  /** モデルIDごとに覚えておく話者ID・調整値。モデルを往復しても設定を失わないために持つ。 */
+  const [voiceByModel, setVoiceByModel] = useState<Record<string, VoiceModelBinding> | undefined>(
+    () => friend.voice?.voiceByModel
+  )
 
   // 全声質リスト（プリセット＋カスタム）
   const allVoices = useMemo(() => {
@@ -160,6 +180,7 @@ export function VoiceSettingsModal({
       setVoiceName(friend.voice?.voiceName || '')
       setVoiceModel(friend.voice?.voiceModel || 'longanhuan_v3.6')
       setTuning(friend.voice?.voiceTuning || {})
+      setVoiceByModel(friend.voice?.voiceByModel)
 
       // 初回タブ選択: 友達の性別に合わせる
       setVoiceTab(friend.voice?.gender === 'male' ? 'male' : 'female')
@@ -185,32 +206,60 @@ export function VoiceSettingsModal({
   }, [])
 
   // 利用できるモデルと話者はOpenRouter側で随時変わるため、開いた時点で取得する。
+  // 取得状態を依存に入れると、取得開始の状態更新でこの効果自身がキャンセルされてしまうため、
+  // 依存は「開いているか」「どのエンジンか」だけに絞る。
   useEffect(() => {
-    if (!isOpen || provider !== 'openrouter' || !hasApiKey || catalogState !== 'idle') return
+    if (!isOpen || provider !== 'openrouter') return
     let cancelled = false
     setCatalogState('loading')
-    loadTtsCatalog()
-      .then(({ models }) => {
-        if (cancelled) return
-        setCatalog(models)
-        setCatalogState('ready')
-      })
-      .catch(() => {
-        if (cancelled) return
-        setCatalogState('error')
-      })
+    // 取得できないときも既知のモデルが返るため、失敗でセレクトが空になることはない。
+    getTtsCatalogShared().then(({ models, stale }) => {
+      if (cancelled) return
+      setCatalog(models)
+      setCatalogStale(stale)
+      setCatalogState('ready')
+    })
     return () => {
       cancelled = true
     }
-  }, [catalogState, hasApiKey, isOpen, provider])
+  }, [catalogAttempt, isOpen, provider])
 
   const catalogModel = useMemo(
     () => catalog.find((model) => model.id === currentTtsModel),
     [catalog, currentTtsModel]
   )
   const tuningCapability = useMemo(() => getTtsTuningCapability(currentTtsModel), [currentTtsModel])
-  const showsPresetList = usesCharacterPresets(provider, currentTtsModel)
+  const showsPresetList = usesCharacterPresets(provider, currentTtsModel, allVoices)
   const modelVoices = catalogModel?.supportedVoices ?? []
+  // 選択中モデルがカタログに無いときも、そのモデルを選択肢として残す。
+  const modelOptions = useMemo(() => {
+    if (catalog.some((model) => model.id === currentTtsModel)) return catalog
+    return [
+      {
+        id: currentTtsModel,
+        displayName: currentTtsModel,
+        languages: [] as readonly string[],
+        priceNote: '',
+      } as TtsCatalogModel,
+      ...catalog,
+    ]
+  }, [catalog, currentTtsModel])
+  const chineseModels = modelOptions.filter((model) => model.languages.includes('zh'))
+  const otherModels = modelOptions.filter((model) => !model.languages.includes('zh'))
+
+  /** いま画面で編集している内容を Voice の形にまとめる。 */
+  const buildDraftVoice = (): Voice => ({
+    ttsModel: currentTtsModel,
+    quality: 'natural',
+    gender,
+    rate,
+    pitch,
+    voiceName: voiceName || undefined,
+    voiceModel: voiceModel || undefined,
+    ttsProvider: provider,
+    voiceTuning: normalizeTuning(tuning),
+    voiceByModel,
+  })
 
   if (!isOpen) return null
 
@@ -251,6 +300,10 @@ export function VoiceSettingsModal({
     setSelectedPresetId(preset.id)
     // モデルは選択中のものを保つ。話者IDだけをそのモデル向けに読み替える。
     const selectedVoiceModel = presetVoiceForModel(preset, currentTtsModel)
+    setVoiceByModel((current) => ({
+      ...(current || {}),
+      [currentTtsModel]: { voiceModel: selectedVoiceModel, voiceTuning: normalizeTuning(tuning) },
+    }))
 
     setGender(preset.gender)
     setRate(preset.defaultRate)
@@ -272,28 +325,30 @@ export function VoiceSettingsModal({
 
   /**
    * 音声モデルを切り替える。
-   * 話者IDはモデルごとに異なるため、選択中の話者が使えないときだけ差し替える。
+   *
+   * 切替前の話者ID・調整値はモデルIDごとに覚えておき、戻ってきたときに復元する。
+   * 初めて選ぶモデルでは、声質キャラクターの対応表かカタログの既定話者から埋める。
    */
   const handleChangeModel = (modelId: string) => {
-    setCurrentTtsModel(modelId)
-    setTuning({})
     setPreviewError('')
 
     const preset = allVoices.find((option) => option.id === selectedPresetId)
-    if (preset && usesCharacterPresets(provider, modelId)) {
-      setVoiceModel(presetVoiceForModel(preset, modelId))
-      return
-    }
+    const presetVoice = preset ? resolveVoiceIdForModel(preset, modelId) : undefined
     const next = catalog.find((model) => model.id === modelId)
-    if (!next) return
-    if (next.supportedVoices.length === 0) {
-      // 話者一覧を公開しないモデルは、IDを直接入力して固定する。
-      setVoiceModel('')
-      return
-    }
-    if (!next.supportedVoices.includes(voiceModel)) {
-      setVoiceModel(next.defaultVoice || next.supportedVoices[0])
-    }
+    // 話者一覧を公開しないモデル（Fish Audio など）は空にして、IDの入力で固定する。
+    const catalogVoice = next && next.supportedVoices.length > 0 ? next.defaultVoice : undefined
+    const switched = switchVoiceModel(buildDraftVoice(), modelId, presetVoice || catalogVoice)
+
+    setCurrentTtsModel(modelId)
+    setVoiceByModel(switched.voiceByModel)
+    setVoiceModel(switched.voiceModel || '')
+    setTuning(switched.voiceTuning || {})
+  }
+
+  /** モデル一覧を取得し直す。通信できずに既知モデルだけを出しているときに使う。 */
+  const handleReloadCatalog = () => {
+    invalidateTtsCatalog()
+    setCatalogAttempt((current) => current + 1)
   }
 
   // カスタム声質の作成・保存
@@ -343,17 +398,8 @@ export function VoiceSettingsModal({
 
     saveTtsProvider(provider)
 
-    const updatedVoice: Voice = {
-      ttsModel: currentTtsModel,
-      quality: 'natural',
-      gender,
-      rate,
-      pitch,
-      voiceName: voiceName || undefined,
-      voiceModel: voiceModel || undefined,
-      ttsProvider: provider,
-      voiceTuning: normalizeTuning(tuning),
-    }
+    // 選択中モデルの話者ID・調整値も voiceByModel に残し、次に開いたとき復元できるようにする。
+    const updatedVoice = rememberCurrentBinding(buildDraftVoice())
 
     onSaveVoice(updatedVoice)
     onClose()
@@ -480,8 +526,12 @@ export function VoiceSettingsModal({
                   <SparklesIcon className="w-4 h-4 text-amber-500" />
                   <span>音声モデルを選ぶ:</span>
                 </label>
-                {catalogState === 'loading' && (
+                {catalogState === 'loading' ? (
                   <span className="text-[10px] text-stone-400">モデル一覧を取得中…</span>
+                ) : (
+                  <span className="text-[10px] text-stone-400">
+                    {modelOptions.length}件から選べます
+                  </span>
                 )}
               </div>
               <select
@@ -490,31 +540,45 @@ export function VoiceSettingsModal({
                 onChange={(e) => handleChangeModel(e.target.value)}
                 className="w-full px-3 py-2 text-xs bg-white border border-stone-300 rounded-xl focus:border-rose-500 focus:outline-none cursor-pointer"
               >
-                {catalog.length === 0 && <option value={currentTtsModel}>{currentTtsModel}</option>}
-                <optgroup label="中国語・日本語向け">
-                  {catalog
-                    .filter((model) => model.languages.includes('zh'))
-                    .map((model) => (
+                {chineseModels.length > 0 && (
+                  <optgroup label="中国語・日本語向け">
+                    {chineseModels.map((model) => (
                       <option key={model.id} value={model.id}>
-                        {model.displayName}（{model.priceNote}）
+                        {model.displayName}
+                        {model.priceNote ? `（${model.priceNote}）` : ''}
                       </option>
                     ))}
-                </optgroup>
-                <optgroup label="その他のモデル">
-                  {catalog
-                    .filter((model) => !model.languages.includes('zh'))
-                    .map((model) => (
+                  </optgroup>
+                )}
+                {otherModels.length > 0 && (
+                  <optgroup label="その他のモデル">
+                    {otherModels.map((model) => (
                       <option key={model.id} value={model.id}>
-                        {model.displayName}（{model.priceNote}）
+                        {model.displayName}
+                        {model.priceNote ? `（${model.priceNote}）` : ''}
                       </option>
                     ))}
-                </optgroup>
+                  </optgroup>
+                )}
               </select>
               <p className="m-0 mt-1 text-[10px] text-stone-500 leading-snug">
-                {catalogState === 'error'
-                  ? 'モデル一覧を取得できませんでした。設定画面のAPIキーをご確認ください。'
-                  : catalogModel?.note || 'モデルによって使える話者と音質が変わります。'}
+                {catalogModel?.note || 'モデルによって使える話者と音質が変わります。'}
               </p>
+              {catalogStale && catalogState === 'ready' && (
+                <div className="mt-1.5 flex items-start justify-between gap-2 p-2 rounded-xl bg-amber-50 border border-amber-200">
+                  <p className="m-0 text-[10px] text-amber-800 leading-snug">
+                    最新のモデル一覧を取得できなかったため、既知のモデルのみ表示しています。価格と話者一覧は表示されません。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleReloadCatalog}
+                    className="flex-shrink-0 flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded-lg bg-white border border-amber-300 text-amber-800 hover:bg-amber-100 cursor-pointer"
+                  >
+                    <RotateCwIcon className="w-3 h-3" />
+                    <span>再取得</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

@@ -4,6 +4,7 @@
  */
 
 import {
+  TTS_MODEL_OVERLAY,
   getTtsModelOverlay,
   inferBillingUnit,
   type TtsBillingUnit,
@@ -91,19 +92,78 @@ export interface TtsCatalog {
   stale: boolean
 }
 
-export async function loadTtsCatalog(signal?: AbortSignal): Promise<TtsCatalog> {
-  const response = await fetch('/api/tts/models', { signal })
-  if (!response.ok) throw new Error(`モデル一覧を取得できませんでした (${response.status})`)
-  const payload = (await response.json()) as { models?: CatalogResponseModel[]; stale?: boolean }
-  const models = (payload.models || []).map(toCatalogModel)
-  // 中国語・日本語に使えるモデルを先に、その中では安い順に並べる。
-  models.sort((left, right) => {
+/** 中国語・日本語に使えるモデルを先に、その中では安い順に並べる。 */
+function sortForChineseLearning(models: TtsCatalogModel[]): TtsCatalogModel[] {
+  return models.sort((left, right) => {
     const leftScore = left.languages.includes('zh') ? 0 : left.curated ? 1 : 2
     const rightScore = right.languages.includes('zh') ? 0 : right.curated ? 1 : 2
     if (leftScore !== rightScore) return leftScore - rightScore
     return left.unitPriceUsd - right.unitPriceUsd
   })
+}
+
+export async function loadTtsCatalog(signal?: AbortSignal): Promise<TtsCatalog> {
+  const response = await fetch('/api/tts/models', { signal })
+  if (!response.ok) throw new Error(`モデル一覧を取得できませんでした (${response.status})`)
+  const payload = (await response.json()) as { models?: CatalogResponseModel[]; stale?: boolean }
+  const models = sortForChineseLearning((payload.models || []).map(toCatalogModel))
+  if (models.length === 0) return buildOfflineCatalog()
   return { models, stale: payload.stale === true }
+}
+
+/**
+ * 取得に失敗したときに使う、コード内の既知モデルだけのカタログ。
+ *
+ * モデルを選ぶセレクトが空になると設定作業そのものが行えなくなるため、
+ * 通信できない状況でも既知のモデルは必ず選べるようにしておく。
+ * 価格と話者一覧はAPIからしか得られないので、その旨を注記に出す。
+ */
+export function buildOfflineCatalog(): TtsCatalog {
+  const models = Object.entries(TTS_MODEL_OVERLAY).map(([id, overlay]) => {
+    const presets = overlay.voicePresets || []
+    return {
+      id,
+      displayName: id.split('/')[1] || id,
+      provider: id.split('/')[0],
+      description: '',
+      supportedVoices: [],
+      voicePresets: presets,
+      defaultVoice: overlay.preferredVoices?.[0] || presets[0]?.id,
+      billingUnit: inferBillingUnit(id, 0),
+      unitPriceUsd: 0,
+      audioTokenPriceUsd: 0,
+      priceNote: '価格は取得できませんでした',
+      languages: overlay.languages || [],
+      note: overlay.note || '',
+      recommendedUse: overlay.recommendedUse || '',
+      sourceUrl: `https://openrouter.ai/${id.replace(/:free$/, '')}`,
+      curated: true,
+    } satisfies TtsCatalogModel
+  })
+  return { models: sortForChineseLearning(models), stale: true }
+}
+
+/**
+ * 画面をまたいで共有するカタログ取得。
+ *
+ * 声質カスタマイズ画面・声の管理ダッシュボード・検証モードが同時に開いても取得は1回で済ませる。
+ * 失敗した取得は保持せず、次の呼び出しでやり直せるようにする。
+ */
+let sharedCatalog: Promise<TtsCatalog> | undefined
+
+export function getTtsCatalogShared(): Promise<TtsCatalog> {
+  if (!sharedCatalog) {
+    sharedCatalog = loadTtsCatalog().catch(() => {
+      sharedCatalog = undefined
+      return buildOfflineCatalog()
+    })
+  }
+  return sharedCatalog
+}
+
+/** 「再取得」操作用。次の取得でOpenRouterへ問い合わせ直す。 */
+export function invalidateTtsCatalog(): void {
+  sharedCatalog = undefined
 }
 
 /**
