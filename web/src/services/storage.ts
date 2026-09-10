@@ -1,4 +1,5 @@
 import type { ChatMessage, Friend, Voice, VocabularyItem } from '../types'
+import { DEFAULT_SILENCE_TIMEOUT_MS, clampSilenceTimeoutMs } from './speech'
 import type { CharacterVoiceOption } from '../data/characterVoices'
 
 const STORAGE_KEYS = {
@@ -13,6 +14,7 @@ const STORAGE_KEYS = {
   SELECTED_MODEL: 'shabe_china_selected_model',
   AUTO_PLAY_TTS: 'shabe_china_auto_play_tts',
   SPEECH_INPUT_LANG: 'shabe_china_speech_input_lang',
+  SILENCE_TIMEOUT_MS: 'shabe_china_silence_timeout_ms',
   FRIEND_VOICE_PREFIX: 'shabe_china_voice_',
   VOCABULARY_LIST: 'shabe_china_vocabulary_list',
   TONE_COLORING: 'shabe_china_tone_coloring',
@@ -280,6 +282,27 @@ export function loadSpeechInputLang(defaultLang: 'zh-CN' | 'ja-JP' = 'zh-CN'): '
 export function saveSpeechInputLang(lang: 'zh-CN' | 'ja-JP'): void {
   try {
     localStorage.setItem(STORAGE_KEYS.SPEECH_INPUT_LANG, lang)
+  } catch {
+    // ignore
+  }
+}
+
+/** 音声入力を打ち切るまでの無音許容時間(ms) */
+export function loadSilenceTimeoutMs(defaultMs: number = DEFAULT_SILENCE_TIMEOUT_MS): number {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.SILENCE_TIMEOUT_MS)
+    if (!raw) return defaultMs
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed)) return defaultMs
+    return clampSilenceTimeoutMs(parsed)
+  } catch {
+    return defaultMs
+  }
+}
+
+export function saveSilenceTimeoutMs(ms: number): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.SILENCE_TIMEOUT_MS, String(clampSilenceTimeoutMs(ms)))
   } catch {
     // ignore
   }

@@ -156,6 +156,8 @@ export interface AppConfig {
   ttsProvider?: 'browser' | 'openrouter'
   autoPlayTts?: boolean
   speechInputLang?: 'zh-CN' | 'ja-JP'
+  /** 音声入力を打ち切るまでの無音許容時間(ms) */
+  silenceTimeoutMs?: number
   toneColoring?: boolean
 }
 

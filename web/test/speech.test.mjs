@@ -178,3 +178,63 @@ test('the silence budget defaults to a thinking pause, not a breath', () => {
   assert.equal(s.pendingTimers(s.api.DEFAULT_SILENCE_TIMEOUT_MS), 1)
   controller.abort()
 })
+
+test('the silence budget is published so the countdown can show it, and rewinds when speech returns', () => {
+  const s = setup()
+  const windows = []
+  const controller = s.api.createSpeechRecognizer({
+    silenceTimeoutMs: 20000,
+    onSilenceWindowChange: (deadline) => windows.push(deadline),
+  })
+  controller.start()
+  // 聞き取り開始と同時に期限が知らされる
+  assert.equal(windows.length, 1)
+  assert.ok(windows[0] - Date.now() > 19000)
+
+  const r = s.recognition()
+  const firstDeadline = windows[0]
+  r.onresult({ resultIndex: 0, results: [result('你好', false)] })
+  // 声が入ったら期限は先送りされる（カウントダウンは満タンに戻る）
+  assert.equal(windows.length, 2)
+  assert.ok(windows[1] >= firstDeadline)
+
+  assert.equal(s.runTimer(20000), true)
+  // 使い切ったらカウントダウンは消える
+  assert.equal(windows.at(-1), null)
+  controller.abort()
+})
+
+test('running out of silence is announced before listening stops', () => {
+  const s = setup()
+  const order = []
+  const controller = s.api.createSpeechRecognizer({
+    silenceTimeoutMs: 20000,
+    onSilenceTimeout: () => order.push('timeout'),
+    onEnd: () => order.push('end'),
+  })
+  controller.start()
+  assert.equal(s.runTimer(20000), true)
+  assert.deepEqual(order, ['timeout', 'end'])
+})
+
+test('stopping by hand clears the countdown instead of leaving it hanging', () => {
+  const s = setup()
+  const windows = []
+  const controller = s.api.createSpeechRecognizer({ onSilenceWindowChange: (d) => windows.push(d) })
+  controller.start()
+  controller.abort()
+  assert.equal(windows.at(-1), null)
+})
+
+test('the silence budget stays inside a usable range', () => {
+  const s = setup()
+  const { clampSilenceTimeoutMs, MIN_SILENCE_TIMEOUT_MS, MAX_SILENCE_TIMEOUT_MS } = s.api
+  assert.equal(clampSilenceTimeoutMs(500), MIN_SILENCE_TIMEOUT_MS)
+  assert.equal(clampSilenceTimeoutMs(60000), MAX_SILENCE_TIMEOUT_MS)
+  assert.equal(clampSilenceTimeoutMs(Number.NaN), s.api.DEFAULT_SILENCE_TIMEOUT_MS)
+  // 0.5秒刻みに丸める
+  assert.equal(clampSilenceTimeoutMs(4321), 4500)
+  // 設定値はそのまま無音タイマーの長さになる
+  s.api.createSpeechRecognizer({ silenceTimeoutMs: 4321 })?.start()
+  assert.equal(s.pendingTimers(4500), 1)
+})

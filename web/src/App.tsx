@@ -40,6 +40,8 @@ import {
   saveAutoPlayTts,
   loadSpeechInputLang,
   saveSpeechInputLang,
+  loadSilenceTimeoutMs,
+  saveSilenceTimeoutMs,
   loadFriendVoice,
   saveFriendVoice,
   loadVocabularyList,
@@ -159,6 +161,8 @@ export default function App() {
     loadSpeechInputLang('zh-CN')
   )
   const [toneColoring, setToneColoring] = useState<boolean>(() => loadToneColoring(false))
+  // 音声入力を打ち切る（ハンズフリーでは自動送信する）までの無音許容時間
+  const [silenceTimeoutMs, setSilenceTimeoutMs] = useState<number>(() => loadSilenceTimeoutMs())
   const [ttsModel, setTtsModel] = useState<string>(() => loadTtsModel())
   const [ttsProvider, setTtsProvider] = useState<'browser' | 'openrouter'>(() => loadTtsProvider('openrouter'))
   /** 声質カスタマイズの対象。null のあいだはモーダルを閉じる。管理画面から別の友達を開くために持つ。 */
@@ -273,6 +277,7 @@ export default function App() {
     newAutoPlay: boolean,
     newSpeechLang: 'zh-CN' | 'ja-JP',
     newToneColoring: boolean,
+    newSilenceTimeoutMs: number,
     newTtsModel?: string,
     newTtsProvider?: 'browser' | 'openrouter'
   ) => {
@@ -287,6 +292,8 @@ export default function App() {
     saveSpeechInputLang(newSpeechLang)
     setToneColoring(newToneColoring)
     saveToneColoring(newToneColoring)
+    setSilenceTimeoutMs(newSilenceTimeoutMs)
+    saveSilenceTimeoutMs(newSilenceTimeoutMs)
     if (newTtsModel !== undefined) {
       setTtsModel(newTtsModel)
       saveTtsModel(newTtsModel)
@@ -696,6 +703,7 @@ export default function App() {
             onHandsFreeChange={handleHandsFreeChange}
             resumeListeningToken={handsFreeResumeToken}
             isFriendSpeaking={playingText !== null}
+            silenceTimeoutMs={silenceTimeoutMs}
             onError={(msg) => setErrorMessage(msg)}
           />
         </div>
@@ -712,6 +720,7 @@ export default function App() {
         autoPlayTts={autoPlayTts}
         speechInputLang={speechInputLang}
         toneColoring={toneColoring}
+        silenceTimeoutMs={silenceTimeoutMs}
         onOpenTtsDebug={() => {
           setIsSettingsModalOpen(false)
           setIsTtsDebugOpen(true)

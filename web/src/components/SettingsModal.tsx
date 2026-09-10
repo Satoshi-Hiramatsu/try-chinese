@@ -12,6 +12,12 @@ import {
   ChinaFlagIcon,
   JapanFlagIcon,
 } from './Icons'
+import {
+  DEFAULT_SILENCE_TIMEOUT_MS,
+  MIN_SILENCE_TIMEOUT_MS,
+  MAX_SILENCE_TIMEOUT_MS,
+  clampSilenceTimeoutMs,
+} from '../services/speech'
 
 export const PRESET_TTS_MODELS = [
   {
@@ -54,6 +60,8 @@ interface SettingsModalProps {
   autoPlayTts?: boolean
   speechInputLang?: 'zh-CN' | 'ja-JP'
   toneColoring?: boolean
+  /** 音声入力を打ち切る（ハンズフリーでは自動送信する）までの無音許容時間(ms) */
+  silenceTimeoutMs?: number
   onOpenTtsDebug?: () => void
   /** 声の管理ダッシュボード（全キャラクターの声設定）を開く。 */
   onOpenVoiceAdmin?: () => void
@@ -63,6 +71,7 @@ interface SettingsModalProps {
     autoPlayTts: boolean,
     speechInputLang: 'zh-CN' | 'ja-JP',
     toneColoring: boolean,
+    silenceTimeoutMs: number,
     ttsModel?: string,
     ttsProvider?: 'browser' | 'openrouter'
   ) => void
@@ -86,6 +95,7 @@ export function SettingsModal({
   autoPlayTts = false,
   speechInputLang = 'zh-CN',
   toneColoring = false,
+  silenceTimeoutMs = DEFAULT_SILENCE_TIMEOUT_MS,
   onOpenTtsDebug,
   onOpenVoiceAdmin,
   onSave,
@@ -97,6 +107,7 @@ export function SettingsModal({
   const [autoPlay, setAutoPlay] = useState(autoPlayTts)
   const [inputLang, setInputLang] = useState<'zh-CN' | 'ja-JP'>(speechInputLang)
   const [enableToneColor, setEnableToneColor] = useState(toneColoring)
+  const [silenceMs, setSilenceMs] = useState(clampSilenceTimeoutMs(silenceTimeoutMs))
   const scrollRef = useRef<HTMLDivElement>(null)
   const showTtsDebug = import.meta.env.DEV
     || new URLSearchParams(window.location.search).get('ttsDebug') === '1'
@@ -109,12 +120,13 @@ export function SettingsModal({
     setAutoPlay(autoPlayTts)
     setInputLang(speechInputLang)
     setEnableToneColor(toneColoring)
-  }, [currentApiKey, currentModel, currentTtsModel, currentTtsProvider, autoPlayTts, speechInputLang, toneColoring, isOpen])
+    setSilenceMs(clampSilenceTimeoutMs(silenceTimeoutMs))
+  }, [currentApiKey, currentModel, currentTtsModel, currentTtsProvider, autoPlayTts, speechInputLang, toneColoring, silenceTimeoutMs, isOpen])
 
   if (!isOpen) return null
 
   const handleSave = () => {
-    onSave(apiKey, model, autoPlay, inputLang, enableToneColor, ttsModel, ttsProvider)
+    onSave(apiKey, model, autoPlay, inputLang, enableToneColor, silenceMs, ttsModel, ttsProvider)
     onClose()
   }
 
@@ -424,6 +436,38 @@ export function SettingsModal({
                   <JapanFlagIcon className="w-3.5 h-3.5" />
                   <span>日本語</span>
                 </button>
+              </div>
+            </div>
+
+            {/* 無音の待機時間（ハンズフリーの自動送信タイミング） */}
+            <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-stone-800 block">
+                    無音の待機時間（自動送信までの長さ）
+                  </span>
+                  <span className="text-[11px] text-stone-500 block mt-0.5">
+                    話し終えてこの時間だけ黙ると、ハンズフリーでは自動送信、通常の音声入力ではマイクを停止します
+                  </span>
+                </div>
+                <span className="text-sm font-bold text-rose-600 tabular-nums flex-shrink-0">
+                  {(silenceMs / 1000).toFixed(1)}秒
+                </span>
+              </div>
+              <input
+                type="range"
+                min={MIN_SILENCE_TIMEOUT_MS}
+                max={MAX_SILENCE_TIMEOUT_MS}
+                step={500}
+                value={silenceMs}
+                onChange={(e) => setSilenceMs(clampSilenceTimeoutMs(Number(e.target.value)))}
+                aria-label="無音の待機時間"
+                className="w-full mt-2.5 accent-rose-500 cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-stone-400 mt-0.5">
+                <span>{MIN_SILENCE_TIMEOUT_MS / 1000}秒（テンポ重視）</span>
+                <span>既定 {DEFAULT_SILENCE_TIMEOUT_MS / 1000}秒</span>
+                <span>{MAX_SILENCE_TIMEOUT_MS / 1000}秒（じっくり考える）</span>
               </div>
             </div>
 

@@ -455,11 +455,19 @@ export interface SpeechRecognitionController {
 export interface SpeechRecognitionOptions {
   lang?: 'zh-CN' | 'ja-JP'
   continuous?: boolean
-  /** 無音がこの時間続いたときだけ自動停止する（※送信は行わない） */
+  /** 無音がこの時間続いたときだけ認識を止める */
   silenceTimeoutMs?: number
   onStart?: () => void
   onInterimResult?: (transcript: string) => void
   onFinalResult?: (transcript: string) => void
+  /**
+   * 無音の持ち時間が始まった／リセットされた／消えたときの通知。
+   * deadline は「この時刻に無音タイムアウトへ到達する」絶対時刻(ms)。null は計測なし。
+   * 残り時間の可視化（カウントダウン表示）に使う。
+   */
+  onSilenceWindowChange?: (deadline: number | null) => void
+  /** 無音タイムアウトに到達した瞬間。認識が止まる直前に呼ばれる。 */
+  onSilenceTimeout?: () => void
   onError?: (error: string) => void
   onEnd?: () => void
 }
@@ -469,6 +477,17 @@ export interface SpeechRecognitionOptions {
  * ブラウザ既定の打ち切り（1〜2秒程度）より十分長く取る。
  */
 export const DEFAULT_SILENCE_TIMEOUT_MS = 7000
+
+/** 無音許容時間としてユーザーが選べる範囲 */
+export const MIN_SILENCE_TIMEOUT_MS = 2000
+export const MAX_SILENCE_TIMEOUT_MS = 20000
+
+/** 設定値を許容範囲（0.5秒刻み）に丸める */
+export function clampSilenceTimeoutMs(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_SILENCE_TIMEOUT_MS
+  const rounded = Math.round(value / 500) * 500
+  return Math.min(MAX_SILENCE_TIMEOUT_MS, Math.max(MIN_SILENCE_TIMEOUT_MS, rounded))
+}
 
 /** ブラウザが勝手に認識を終えたあと、開き直すまでの待ち時間 */
 const AUTO_RESTART_DELAY_MS = 250
@@ -494,7 +513,7 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
   const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition
   if (!SpeechRecognitionAPI) return null
   const recognition = new SpeechRecognitionAPI()
-  const silenceTimeoutMs = options.silenceTimeoutMs ?? DEFAULT_SILENCE_TIMEOUT_MS
+  const silenceTimeoutMs = clampSilenceTimeoutMs(options.silenceTimeoutMs ?? DEFAULT_SILENCE_TIMEOUT_MS)
   let aborted = false
   // 明示的な停止・無音タイムアウト・致命的エラーで立てる。立つまでは自動で開き直す。
   let finished = false
@@ -516,6 +535,7 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
     if (silenceTimeout) {
       clearTimeout(silenceTimeout)
       silenceTimeout = null
+      options.onSilenceWindowChange?.(null)
     }
     if (restartTimer) {
       clearTimeout(restartTimer)
@@ -525,10 +545,14 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
 
   const startSilenceTimer = () => {
     if (silenceTimeout) clearTimeout(silenceTimeout)
-    // 完全な無音が続いたときだけ安全のために自動停止（※送信は行わない）
+    // 声が入るたびに持ち時間を巻き戻す。残り時間は画面側でカウントダウン表示する。
+    options.onSilenceWindowChange?.(Date.now() + silenceTimeoutMs)
     silenceTimeout = setTimeout(() => {
       silenceTimeout = null
       finished = true
+      options.onSilenceWindowChange?.(null)
+      // 停止より先に通知する。ハンズフリーの自動送信はここを合図にする。
+      options.onSilenceTimeout?.()
       try {
         recognition.stop()
       } catch {

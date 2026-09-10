@@ -5,9 +5,12 @@ import {
   isSpeechRecognitionSupported,
   unlockSpeechSynthesis,
   stopSpeaking,
+  clampSilenceTimeoutMs,
+  DEFAULT_SILENCE_TIMEOUT_MS,
   type SpeechRecognitionController,
 } from '../services/speech'
 import { parseVoiceSendCommand } from '../services/voiceCommand'
+import { SilenceCountdownRing } from './SilenceCountdownRing'
 
 interface ChatInputProps {
   onSendMessage: (content: string) => void
@@ -19,6 +22,8 @@ interface ChatInputProps {
   onHandsFreeChange?: (enabled: boolean) => void
   resumeListeningToken?: number
   isFriendSpeaking?: boolean
+  /** 無音がこの時間続いたら認識を終える。ハンズフリーではそのまま自動送信する。 */
+  silenceTimeoutMs?: number
   onError?: (message: string) => void
 }
 type InputMethod = 'text' | 'voice'
@@ -40,11 +45,14 @@ export function ChatInput({
   onHandsFreeChange,
   resumeListeningToken = 0,
   isFriendSpeaking = false,
+  silenceTimeoutMs = DEFAULT_SILENCE_TIMEOUT_MS,
   onError,
 }: ChatInputProps) {
   const [text, setText] = useState('')
   const [isListening, setIsListening] = useState(false)
   const [interimText, setInterimText] = useState('')
+  // 無音タイムアウトに到達する時刻。カウントダウン表示のためだけに持つ。
+  const [silenceDeadline, setSilenceDeadline] = useState<number | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const recognizerRef = useRef<SpeechRecognitionController | null>(null)
   const textRef = useRef('')
@@ -68,6 +76,7 @@ export function ChatInput({
   const pendingRestartRef = useRef(false)
   // 送信後は App が発行する再開トークンだけを再開の合図として扱う。
   const awaitingResumeRef = useRef(false)
+  const silenceTimeoutRef = useRef(clampSilenceTimeoutMs(silenceTimeoutMs))
 
   handsFreeRef.current = handsFreeEnabled
   isLoadingRef.current = isLoading
@@ -75,6 +84,7 @@ export function ChatInput({
   isFriendSpeakingRef.current = isFriendSpeaking
   onSendMessageRef.current = onSendMessage
   onErrorRef.current = onError
+  silenceTimeoutRef.current = clampSilenceTimeoutMs(silenceTimeoutMs)
 
   const isSupported = isSpeechRecognitionSupported()
 
@@ -101,6 +111,7 @@ export function ChatInput({
     recognizerRef.current = null
     setIsListening(false)
     setInterimText('')
+    setSilenceDeadline(null)
     unlockSpeechSynthesis()
     onSendMessageRef.current(trimmed)
     textRef.current = ''
@@ -127,6 +138,15 @@ export function ChatInput({
       onInterimResult: (interim) => setInterimText(interim),
       // 通常入力でも短い沈黙で打ち切らせない。停止は「完了」ボタンか無音タイムアウトに任せる。
       continuous: true,
+      silenceTimeoutMs: silenceTimeoutRef.current,
+      // 声が入るたびに持ち時間が巻き戻る。その残りをリングで見せる。
+      onSilenceWindowChange: (deadline) => setSilenceDeadline(deadline),
+      onSilenceTimeout: () => {
+        // ハンズフリーは無音の使い切りが送信の合図。通常モードはマイクを閉じるだけ。
+        if (!handsFreeRef.current) return
+        const pending = textRef.current.trim()
+        if (pending) sendContent(pending, 'voice')
+      },
       onFinalResult: (finalSpeech) => {
         const parsed = parseVoiceSendCommand(finalSpeech, speechLang)
         const next = joinSpeechText(baseText, parsed.content)
@@ -150,12 +170,14 @@ export function ChatInput({
       onError: (err) => {
         setIsListening(false)
         setInterimText('')
+        setSilenceDeadline(null)
         onErrorRef.current?.(err)
       },
       onEnd: () => {
         if (recognizerRef.current === recognizer) recognizerRef.current = null
         setIsListening(false)
         setInterimText('')
+        setSilenceDeadline(null)
         // 返答待ち中に終了しても要求だけは発行する。起動の可否は requestListening が判断する。
         // ここで捨てると、返答後に再開するきっかけが失われる。
         if (!intentionalStopRef.current && handsFreeRef.current && !disabledRef.current) {
@@ -223,6 +245,7 @@ export function ChatInput({
     recognizerRef.current = null
     setIsListening(false)
     setInterimText('')
+    setSilenceDeadline(null)
   }, [isFriendSpeaking])
 
   // 保留していた再開要求を、返答待ちと読み上げが終わった時点で実行する。
@@ -300,6 +323,7 @@ export function ChatInput({
       recognizerRef.current = null
       setIsListening(false)
       setInterimText('')
+      setSilenceDeadline(null)
     }
   }
 
@@ -330,7 +354,12 @@ export function ChatInput({
           </div>
           {isListening && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            <span className="text-[10px] text-stone-500 hidden sm:inline">
+            <SilenceCountdownRing
+              deadline={silenceDeadline}
+              totalMs={clampSilenceTimeoutMs(silenceTimeoutMs)}
+              mode={handsFreeEnabled ? 'send' : 'stop'}
+            />
+            <span className="text-[10px] text-stone-500 hidden lg:inline">
               {`「${speechLang === 'zh-CN' ? '发送' : '送信'}」と言えば送信`}
             </span>
             <button
