@@ -55,6 +55,8 @@ interface SettingsModalProps {
   speechInputLang?: 'zh-CN' | 'ja-JP'
   toneColoring?: boolean
   onOpenTtsDebug?: () => void
+  /** 声の管理ダッシュボード（全キャラクターの声設定）を開く。 */
+  onOpenVoiceAdmin?: () => void
   onSave: (
     apiKey: string,
     model: string,
@@ -85,6 +87,7 @@ export function SettingsModal({
   speechInputLang = 'zh-CN',
   toneColoring = false,
   onOpenTtsDebug,
+  onOpenVoiceAdmin,
   onSave,
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey)
@@ -337,6 +340,17 @@ export function SettingsModal({
                 </div>
               )}
             </div>
+
+            {onOpenVoiceAdmin && (
+              <button
+                type="button"
+                onClick={onOpenVoiceAdmin}
+                className="w-full mt-2 py-2.5 px-3 rounded-2xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <SettingsIcon className="w-3.5 h-3.5 text-rose-500" />
+                <span>声の管理ダッシュボードを開く（全キャラクターの声設定）</span>
+              </button>
+            )}
 
             {showTtsDebug && onOpenTtsDebug && (
               <button

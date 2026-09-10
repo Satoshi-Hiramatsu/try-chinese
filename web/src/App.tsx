@@ -14,6 +14,7 @@ import { VoiceSettingsModal } from './components/VoiceSettingsModal'
 import { VocabularyModal } from './components/VocabularyModal'
 import { ReviewModal } from './components/ReviewModal'
 import { TtsDebugModal } from './components/TtsDebugModal'
+import { VoiceAdminDashboard } from './components/VoiceAdminDashboard'
 import { AlertIcon, CloseIcon } from './components/Icons'
 import { sendMessageToChatApi } from './services/api'
 import { speakChinese, stopSpeaking } from './services/speech'
@@ -127,6 +128,8 @@ export default function App() {
   const [apiKey, setApiKey] = useState<string>(() => loadApiKey())
   const [model, setModel] = useState<string>(() => loadSelectedModel('google/gemini-2.5-flash'))
   const [customFriends, setCustomFriends] = useState<Friend[]>(() => loadCustomFriends())
+  /** 声設定の保存を検知して友達リストを組み直すための世代番号。 */
+  const [voiceRevision, setVoiceRevision] = useState(0)
 
   // 全友達リスト（プリセット＋カスタム）※保存された個別声質設定をマージ
   const allFriends = useMemo(() => {
@@ -136,7 +139,8 @@ export default function App() {
       const savedVoice = loadFriendVoice(f.id)
       return savedVoice ? { ...f, voice: savedVoice } : f
     })
-  }, [customFriends])
+    // voiceRevision は保存のたびに増える。プリセットの声はlocalStorage側にあるため再読込が要る。
+  }, [customFriends, voiceRevision])
 
   // 現在の友達
   const [currentFriend, setCurrentFriend] = useState<Friend>(() => {
@@ -157,7 +161,10 @@ export default function App() {
   const [toneColoring, setToneColoring] = useState<boolean>(() => loadToneColoring(false))
   const [ttsModel, setTtsModel] = useState<string>(() => loadTtsModel())
   const [ttsProvider, setTtsProvider] = useState<'browser' | 'openrouter'>(() => loadTtsProvider('openrouter'))
-  const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false)
+  /** 声質カスタマイズの対象。null のあいだはモーダルを閉じる。管理画面から別の友達を開くために持つ。 */
+  const [voiceSettingsFriend, setVoiceSettingsFriend] = useState<Friend | null>(null)
+  /** 声の管理ダッシュボード。URLハッシュ #admin で開く。 */
+  const [isAdminOpen, setIsAdminOpen] = useState(false)
   const [playingText, setPlayingText] = useState<string | null>(null)
 
   // モーダル状態
@@ -206,6 +213,32 @@ export default function App() {
     setVocabularyList((prev) =>
       prev.map((v) => (v.id === id ? { ...v, mastered: !v.mastered } : v))
     )
+  }
+
+  /**
+   * 声の管理ダッシュボードの開閉。
+   *
+   * 通常の会話画面と混ざらないよう、URLハッシュ `#admin` を入口にする。
+   * 直接URLを開いた場合と、戻る操作で閉じた場合の両方を拾う。
+   */
+  useEffect(() => {
+    const syncFromHash = () => setIsAdminOpen(window.location.hash === '#admin')
+    syncFromHash()
+    window.addEventListener('hashchange', syncFromHash)
+    return () => window.removeEventListener('hashchange', syncFromHash)
+  }, [])
+
+  const openAdmin = () => {
+    window.location.hash = '#admin'
+    setIsAdminOpen(true)
+  }
+
+  const closeAdmin = () => {
+    if (window.location.hash === '#admin') {
+      // ハッシュだけを消して、履歴に空のエントリを積まないようにする。
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+    setIsAdminOpen(false)
   }
 
   // 友達別の会話履歴
@@ -297,14 +330,18 @@ export default function App() {
     })
   }
 
-  const handleSaveFriendVoice = (updatedVoice: Voice) => {
-    if (!currentFriend.id) return
-    saveFriendVoice(currentFriend.id, updatedVoice)
-    const updated = { ...currentFriend, voice: updatedVoice }
-    setCurrentFriend(updated)
+  /**
+   * 1人分の声設定を保存する。
+   * プリセットの友達の声は localStorage にしか無いため、世代番号を進めて一覧を組み直す。
+   */
+  const handleSaveVoiceForFriend = (friendId: string, updatedVoice: Voice) => {
+    saveFriendVoice(friendId, updatedVoice)
     setCustomFriends((prev) =>
-      prev.map((f) => (f.id === currentFriend.id ? { ...f, voice: updatedVoice } : f))
+      prev.map((f) => (f.id === friendId ? { ...f, voice: updatedVoice } : f))
     )
+    setCurrentFriend((prev) => (prev.id === friendId ? { ...prev, voice: updatedVoice } : prev))
+    setVoiceSettingsFriend((prev) => (prev && prev.id === friendId ? { ...prev, voice: updatedVoice } : prev))
+    setVoiceRevision((current) => current + 1)
   }
 
   const handlePlayText = (text: string, resumeHandsFree = false) => {
@@ -616,7 +653,7 @@ export default function App() {
             onSaveVocabulary={handleAddVocabulary}
             onOpenLog={() => setIsLogModalOpen(true)}
             onOpenFriendList={() => setIsFriendListOpen(true)}
-            onOpenVoiceSettings={() => setIsVoiceSettingsOpen(true)}
+            onOpenVoiceSettings={() => setVoiceSettingsFriend(currentFriend)}
             logCount={messages.length}
           />
         ) : (
@@ -625,7 +662,7 @@ export default function App() {
             <FriendCard
               friend={currentFriend}
               onOpenFriendList={() => setIsFriendListOpen(true)}
-              onOpenVoiceSettings={() => setIsVoiceSettingsOpen(true)}
+              onOpenVoiceSettings={() => setVoiceSettingsFriend(currentFriend)}
             />
 
             {/* Chat Message List */}
@@ -679,6 +716,10 @@ export default function App() {
           setIsSettingsModalOpen(false)
           setIsTtsDebugOpen(true)
         }}
+        onOpenVoiceAdmin={() => {
+          setIsSettingsModalOpen(false)
+          openAdmin()
+        }}
         onSave={handleSaveSettings}
       />
 
@@ -687,13 +728,26 @@ export default function App() {
         onClose={() => setIsTtsDebugOpen(false)}
       />
 
+      {/* 声の管理ダッシュボード（#admin） */}
+      <VoiceAdminDashboard
+        isOpen={isAdminOpen}
+        onClose={closeAdmin}
+        friends={allFriends}
+        onSaveVoice={handleSaveVoiceForFriend}
+        onEditFriend={(friend) => setVoiceSettingsFriend(friend)}
+      />
+
       {/* Voice Settings Modal */}
       <VoiceSettingsModal
-        isOpen={isVoiceSettingsOpen}
-        onClose={() => setIsVoiceSettingsOpen(false)}
-        friend={currentFriend}
-        onSaveVoice={handleSaveFriendVoice}
+        isOpen={voiceSettingsFriend !== null}
+        onClose={() => setVoiceSettingsFriend(null)}
+        friend={voiceSettingsFriend || currentFriend}
+        onSaveVoice={(updatedVoice) => {
+          const targetId = (voiceSettingsFriend || currentFriend).id
+          if (targetId) handleSaveVoiceForFriend(targetId, updatedVoice)
+        }}
       />
+
 
       {/* Onboarding Modal */}
       <OnboardingModal
