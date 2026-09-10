@@ -468,7 +468,7 @@ export interface SpeechRecognitionOptions {
  * 考え込んでいる間に打ち切られないための無音許容時間。
  * ブラウザ既定の打ち切り（1〜2秒程度）より十分長く取る。
  */
-export const DEFAULT_SILENCE_TIMEOUT_MS = 20000
+export const DEFAULT_SILENCE_TIMEOUT_MS = 7000
 
 /** ブラウザが勝手に認識を終えたあと、開き直すまでの待ち時間 */
 const AUTO_RESTART_DELAY_MS = 250

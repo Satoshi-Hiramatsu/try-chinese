@@ -170,11 +170,11 @@ test('only a long silence stops listening, and it never sends', () => {
   controller.abort()
 })
 
-test('the silence budget defaults to well over a thinking pause', () => {
+test('the silence budget defaults to a thinking pause, not a breath', () => {
   const s = setup()
   const controller = s.api.createSpeechRecognizer({})
   controller.start()
-  assert.ok(s.api.DEFAULT_SILENCE_TIMEOUT_MS >= 15000)
+  assert.equal(s.api.DEFAULT_SILENCE_TIMEOUT_MS, 7000)
   assert.equal(s.pendingTimers(s.api.DEFAULT_SILENCE_TIMEOUT_MS), 1)
   controller.abort()
 })
