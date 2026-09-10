@@ -13,9 +13,48 @@ export interface CharacterVoiceOption {
   edgeVoiceName: string
   qwenVoice: string
   kokoroVoice: string
+  /**
+   * モデルID接頭辞ごとの話者ID。例: { 'fish-audio/': '<reference_id>' }
+   *
+   * 話者IDの体系はモデルごとに違うため、Kokoro / Qwen 以外のモデルはここへ登録する。
+   * 未登録のモデルでは声質キャラクター一覧を出さず、モデル側の話者一覧や自由入力に任せる。
+   */
+  voiceIdsByModel?: Record<string, string>
   defaultRate: number
   defaultPitch: number
   isCustom?: boolean
+}
+
+/**
+ * 選択中のモデルでの話者IDを解決する。
+ *
+ * 1. voiceIdsByModel の接頭辞一致（より長い接頭辞を優先）
+ * 2. Kokoro / Qwen は既存フィールドで解決する
+ * 3. どれにも当たらなければ undefined（＝この声質キャラクターはそのモデルでは使えない）
+ */
+export function resolveVoiceIdForModel(
+  option: CharacterVoiceOption,
+  modelId: string
+): string | undefined {
+  const table = option.voiceIdsByModel
+  if (table) {
+    const matched = Object.keys(table)
+      .filter((prefix) => modelId.startsWith(prefix))
+      .sort((left, right) => right.length - left.length)[0]
+    const voiceId = matched ? table[matched] : undefined
+    if (voiceId && voiceId.trim() !== '') return voiceId.trim()
+  }
+  if (modelId.includes('kokoro')) return option.kokoroVoice
+  if (modelId.includes('qwen')) return option.qwenVoice
+  return undefined
+}
+
+/** そのモデルで話者IDを解決できる声質キャラクターが1件でもあるか。 */
+export function hasPresetVoiceForModel(
+  options: readonly CharacterVoiceOption[],
+  modelId: string
+): boolean {
+  return options.some((option) => resolveVoiceIdForModel(option, modelId) !== undefined)
 }
 
 export const CHARACTER_VOICE_OPTIONS: CharacterVoiceOption[] = [
