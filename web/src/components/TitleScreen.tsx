@@ -9,6 +9,7 @@ import {
 } from '../data/portraits'
 import { CharacterPortrait, EXPRESSION_LABELS } from './CharacterPortrait'
 import { SceneBackdrop } from './SceneBackdrop'
+import { promptInstall, useInstallMode } from '../services/installPrompt'
 
 /**
  * 起動時のタイトル画面。
@@ -79,6 +80,9 @@ export function TitleScreen({
   // モーション削減時は待機フェーズ自体を飛ばしてメニューを直接出す
   const [phase, setPhase] = useState<Phase>(() => (prefersReducedMotion() ? 'menu' : 'idle'))
   const [idleExpression, setIdleExpression] = useState<Expression>('neutral')
+  // 「アプリとして追加」。Chromium は純正ダイアログ、Safari は手順案内を出す
+  const installMode = useInstallMode()
+  const [isInstallGuideOpen, setIsInstallGuideOpen] = useState(false)
 
   const portrait = resolvePortrait(friend)
   const portraitImage = getPortraitImage(portrait.id)
@@ -147,6 +151,19 @@ export function TitleScreen({
         { key: 'new', label: 'はじめから', note: '友達をえらんで新しく話す', onClick: onNewGame },
         { key: 'choose', label: '友達をえらぶ', note: undefined, onClick: onChooseFriend },
         { key: 'settings', label: 'せってい', note: undefined, onClick: onOpenSettings },
+        ...(installMode !== 'unavailable'
+          ? [
+              {
+                key: 'install',
+                label: 'アプリとして追加',
+                note: 'ホーム画面から直接ひらけるようにする',
+                onClick: () => {
+                  if (installMode === 'prompt') void promptInstall()
+                  else setIsInstallGuideOpen(true)
+                },
+              },
+            ]
+          : []),
       ]
 
   return (
@@ -240,6 +257,50 @@ export function TitleScreen({
             </button>
           ))}
         </nav>
+      )}
+
+      {/* ------------------------------------------------- Safari 向けの追加手順 */}
+      {isInstallGuideOpen && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/55 px-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="install-guide-title"
+          onClick={(event) => {
+            event.stopPropagation()
+            setIsInstallGuideOpen(false)
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white/95 text-stone-800 p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="install-guide-title" className="text-lg font-bold mb-3">
+              ホーム画面に追加する
+            </h2>
+            <ol className="list-decimal pl-5 space-y-2 text-sm leading-relaxed">
+              <li>
+                Safari 下部（iPad は上部）の <span className="font-semibold">共有</span> ボタン
+                <span aria-hidden="true"> ⎋ </span>をタップ
+              </li>
+              <li>
+                メニューから <span className="font-semibold">「ホーム画面に追加」</span> をえらぶ
+              </li>
+              <li>右上の「追加」をタップ</li>
+            </ol>
+            <p className="mt-3 text-xs text-stone-500">
+              ホーム画面のアイコンからひらくと、ブラウザの枠なしで全画面で使えます。
+            </p>
+            <button
+              type="button"
+              autoFocus
+              className="mt-4 w-full rounded-xl bg-rose-500 text-white py-2.5 font-semibold hover:bg-rose-600"
+              onClick={() => setIsInstallGuideOpen(false)}
+            >
+              とじる
+            </button>
+          </div>
+        </div>
       )}
     </section>
   )
