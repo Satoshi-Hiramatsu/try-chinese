@@ -17,6 +17,7 @@ import { ReviewModal } from './components/ReviewModal'
 import { TtsDebugModal } from './components/TtsDebugModal'
 import { VoiceAdminDashboard } from './components/VoiceAdminDashboard'
 import { DevConsole } from './components/DevConsole'
+import { TitleScreen, type ContinueSummary } from './components/TitleScreen'
 import { AlertIcon, CloseIcon } from './components/Icons'
 import { sendMessageToChatApi } from './services/api'
 import { speakChinese, stopSpeaking } from './services/speech'
@@ -178,9 +179,20 @@ export default function App() {
   const [isDevOpen, setIsDevOpen] = useState(false)
   const [playingText, setPlayingText] = useState<string | null>(null)
 
+  /*
+   * 起動直後はタイトル画面を出し、メニューから会話画面へ入る。
+   * #admin / #dev で直接開いたときは管理・開発用途なのでタイトルを飛ばす。
+   */
+  const [appPhase, setAppPhase] = useState<'title' | 'play'>(() =>
+    window.location.hash === '#admin' || window.location.hash === '#dev' ? 'play' : 'title'
+  )
+  /** タイトルの「はじめから」「友達をえらぶ」から友達一覧を開いたときの用途。null は通常の切り替え */
+  const [titleFriendPick, setTitleFriendPick] = useState<'new' | 'choose' | null>(null)
+
   // モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => !isOnboardingCompleted())
+  // 初回のオンボーディングはタイトルの「はじめる」から開く
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false)
   const [isFriendListOpen, setIsFriendListOpen] = useState(false)
   const [isVocabularyModalOpen, setIsVocabularyModalOpen] = useState(false)
   const [isLogModalOpen, setIsLogModalOpen] = useState(false)
@@ -496,6 +508,43 @@ export default function App() {
     }
   }
 
+  /* ---------------------------------------------------------------- タイトル画面 */
+
+  /** 「つづきから」に添える直近セッションの要約。ウェルカムしか無ければ null */
+  const continueSummary = useMemo<ContinueSummary | null>(() => {
+    const turns = messages.filter((m) => m.role === 'user').length
+    if (turns === 0) return null
+    const last = messages[messages.length - 1]
+    return { lastAt: last.timestamp, turns }
+  }, [messages])
+
+  const enterPlay = () => {
+    setTitleFriendPick(null)
+    setAppPhase('play')
+  }
+
+  /** 友達一覧で友達を選んだとき。タイトルから開いた場合は用途に応じて会話を整えてから入る */
+  const handlePickFriend = (friend: Friend) => {
+    if (titleFriendPick === null) {
+      handleSelectFriend(friend)
+      return
+    }
+    const friendId = friend.id || 'friend-meiling'
+    const hasHistory = loadFriendMessages(friendId).some((m) => m.role === 'user')
+    if (titleFriendPick === 'new' && hasHistory) {
+      if (!confirm(`「${friend.name}」との会話履歴を消して、はじめから話しますか？`)) return
+      clearFriendMessages(friendId)
+    }
+    handleSelectFriend(friend)
+    if (titleFriendPick === 'new') {
+      // 同じ友達を選び直した場合は handleSelectFriend が早期リターンするので、ここで確実に新規にする
+      const savedVoice = loadFriendVoice(friendId)
+      setCurrentFriend(savedVoice ? { ...friend, voice: savedVoice } : friend)
+      setMessages([buildWelcomeMessage(friend, hskLevel)])
+    }
+    enterPlay()
+  }
+
   const handleSendMessage = async (text: string) => {
     stopSpeaking()
     setPlayingText(null)
@@ -669,6 +718,25 @@ export default function App() {
         if ((event.target as Element).closest('.chat-input-shell')) scheduleAuxControlsHide()
       }}
     >
+      {appPhase === 'title' ? (
+        <TitleScreen
+          friend={currentFriend}
+          continueSummary={continueSummary}
+          isFirstLaunch={!isOnboardingCompleted()}
+          onContinue={enterPlay}
+          onNewGame={() => {
+            setTitleFriendPick('new')
+            setIsFriendListOpen(true)
+          }}
+          onChooseFriend={() => {
+            setTitleFriendPick('choose')
+            setIsFriendListOpen(true)
+          }}
+          onOpenSettings={() => setIsSettingsModalOpen(true)}
+          onBegin={() => setIsOnboardingOpen(true)}
+        />
+      ) : (
+        <>
       {/* Header */}
       <Header
         hskLevel={hskLevel}
@@ -775,6 +843,8 @@ export default function App() {
           />
         </div>
       </main>
+        </>
+      )}
 
       {/* Settings Modal (BYO-AI & Model Selection & Audio) */}
       <SettingsModal
@@ -853,16 +923,21 @@ export default function App() {
           if (messages.length <= 1) {
             setMessages([buildWelcomeMessage(friend, level)])
           }
+          if (appPhase === 'title') enterPlay()
         }}
       />
 
       {/* Friend List / Create Modal */}
       <FriendListModal
         isOpen={isFriendListOpen}
-        onClose={() => setIsFriendListOpen(false)}
+        onClose={() => {
+          setIsFriendListOpen(false)
+          setTitleFriendPick(null)
+        }}
         friends={allFriends}
-        currentFriendId={currentFriend.id}
-        onSelectFriend={handleSelectFriend}
+        /* タイトルから開いたときは今の友達も選び直せるよう、選択中の扱いを外す */
+        currentFriendId={titleFriendPick ? undefined : currentFriend.id}
+        onSelectFriend={handlePickFriend}
         onCreateFriend={handleCreateFriend}
         onUpdateFriend={handleUpdateFriend}
         onDeleteFriend={handleDeleteFriend}
