@@ -5,6 +5,7 @@ import type { CharacterVoiceOption } from '../data/characterVoices'
 
 const STORAGE_KEYS = {
   API_KEY: 'shabe_china_api_key',
+  API_KEY_STATUS: 'shabe_china_api_key_status',
   HSK_LEVEL: 'shabe_china_hsk_level',
   CHAT_MESSAGES: 'shabe_china_chat_messages',
   ONBOARDING_COMPLETED: 'shabe_china_onboarding_completed',
@@ -61,6 +62,31 @@ export function saveApiKey(key: string): void {
       localStorage.setItem(STORAGE_KEYS.API_KEY, key.trim())
     } else {
       localStorage.removeItem(STORAGE_KEYS.API_KEY)
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * キーの検査結果のキャッシュ。中身の型は services/openRouterKey.ts が決める。
+ * 次回起動時の初期表示と、無料モードに落とすべきキー（無効・残高切れ）の判定に使う。
+ */
+export function loadApiKeyStatusRaw(): unknown {
+  try {
+    const val = localStorage.getItem(STORAGE_KEYS.API_KEY_STATUS)
+    return val ? JSON.parse(val) : null
+  } catch {
+    return null
+  }
+}
+
+export function saveApiKeyStatusRaw(status: unknown): void {
+  try {
+    if (status === null || status === undefined) {
+      localStorage.removeItem(STORAGE_KEYS.API_KEY_STATUS)
+    } else {
+      localStorage.setItem(STORAGE_KEYS.API_KEY_STATUS, JSON.stringify(status))
     }
   } catch {
     // ignore

@@ -23,6 +23,15 @@ import { sendMessageToChatApi } from './services/api'
 import { speakChinese, stopSpeaking } from './services/speech'
 import { prefetchPinyin } from './services/pinyin'
 import {
+  NO_KEY_STATUS,
+  checkApiKey,
+  isApiKeyUsable,
+  loadApiKeyStatus,
+  publishApiKeyStatus,
+  subscribeApiKeyStatus,
+  type ApiKeyStatus,
+} from './services/openRouterKey'
+import {
   loadApiKey,
   saveApiKey,
   loadHskLevel,
@@ -135,6 +144,13 @@ const IMMERSIVE_VIEWPORT_QUERY = '(pointer: coarse) and (orientation: landscape)
 export default function App() {
   const [hskLevel, setHskLevel] = useState<number>(() => loadHskLevel(2))
   const [apiKey, setApiKey] = useState<string>(() => loadApiKey())
+  /**
+   * キーの検査結果。金額は持たず「有効 / 無効 / 切れている」だけを見る。
+   * 前回の結果を初期表示にし、起動時に1回だけ検査し直す。
+   */
+  const [apiKeyStatus, setApiKeyStatus] = useState<ApiKeyStatus>(() =>
+    loadApiKey() ? loadApiKeyStatus() ?? { state: 'checking' } : NO_KEY_STATUS
+  )
   const [model, setModel] = useState<string>(() => loadSelectedModel())
   const [customFriends, setCustomFriends] = useState<Friend[]>(() => loadCustomFriends())
   /** 声設定・プロフィール上書きの保存を検知して友達リストを組み直すための世代番号。 */
@@ -302,6 +318,32 @@ export default function App() {
     prefetchPinyin()
   }, [])
 
+  // 会話や音声の途中で 402 を受けたときも、ここ経由で画面の表示が変わる。
+  useEffect(() => subscribeApiKeyStatus(setApiKeyStatus), [])
+
+  /** キーを検査して結果を保存・配信する。保存時とモーダルの「確認」から呼ぶ。 */
+  const verifyApiKey = async (key: string) => {
+    if (!key.trim()) {
+      publishApiKeyStatus(NO_KEY_STATUS)
+      return
+    }
+    publishApiKeyStatus({ state: 'checking' })
+    publishApiKeyStatus(await checkApiKey(key, loadApiKeyStatus()))
+  }
+
+  // 起動時に1回だけ検査する。会話のたびには叩かない。
+  useEffect(() => {
+    const key = loadApiKey()
+    if (!key) return
+    let cancelled = false
+    checkApiKey(key, loadApiKeyStatus()).then((status) => {
+      if (!cancelled) publishApiKeyStatus(status)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const handleHskChange = (level: number) => {
     setHskLevel(level)
     saveHskLevel(level)
@@ -317,8 +359,11 @@ export default function App() {
     newTtsModel?: string,
     newTtsProvider?: 'browser' | 'openrouter'
   ) => {
-    setApiKey(newKey)
-    saveApiKey(newKey)
+    if (newKey.trim() !== apiKey) {
+      setApiKey(newKey.trim())
+      saveApiKey(newKey)
+      void verifyApiKey(newKey)
+    }
     setModel(newModel)
     saveSelectedModel(newModel)
     setAutoPlayTts(newAutoPlay)
@@ -741,7 +786,7 @@ export default function App() {
       <Header
         hskLevel={hskLevel}
         onHskChange={handleHskChange}
-        hasApiKey={Boolean(apiKey)}
+        hasApiKey={Boolean(apiKey) && isApiKeyUsable(apiKeyStatus)}
         onOpenApiKeyModal={() => setIsSettingsModalOpen(true)}
         onClearHistory={handleClearHistory}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
