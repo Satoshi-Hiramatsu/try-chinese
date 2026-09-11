@@ -1,11 +1,20 @@
 import type { TtsDebugAttempt, TtsDebugResult, TtsVoiceTuning } from '../types'
 import { normalizeTuning } from '../data/ttsVoiceTuning'
 import { createPlayableAudioBlob, readPcmFormat } from './audioFormat'
+import {
+  DEBUG_DEFAULT_ITERATIONS,
+  DEBUG_MAX_ITERATIONS,
+  isAbortError,
+  resolveAggregateStatus,
+  runDebugSequence,
+  summarizeLatencies,
+} from './debugRunner'
 import { loadApiKey } from './storage'
 
 export const TTS_DEBUG_MAX_CHARACTERS = 1000
-export const TTS_DEBUG_MAX_ITERATIONS = 5
-export const TTS_DEBUG_DEFAULT_ITERATIONS = 3
+// 反復回数の上限・既定は段をまたいで揃える。共通基盤の値をそのまま使う。
+export const TTS_DEBUG_MAX_ITERATIONS = DEBUG_MAX_ITERATIONS
+export const TTS_DEBUG_DEFAULT_ITERATIONS = DEBUG_DEFAULT_ITERATIONS
 
 export interface RunTtsDebugOptions {
   modelId: string
@@ -70,22 +79,10 @@ export function createPendingTtsResult(
   }
 }
 
-function average(values: readonly number[]): number | undefined {
-  if (values.length === 0) return undefined
-  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
-}
-
-function collect(attempts: readonly TtsDebugAttempt[], key: 'requestToHeadersMs' | 'requestToFirstChunkMs' | 'requestToCompleteMs'): number[] {
-  return attempts
-    .filter((attempt) => attempt.status === 'success')
-    .map((attempt) => attempt.metrics[key])
-    .filter((value): value is number => value !== undefined)
-}
-
 /**
  * 各試行の計測値から、結果全体の状態と平均値をまとめる。
- * 1回目はコネクション確立やモデルのウォームアップを含むため、
- * 2回目以降だけの平均も併せて出す。
+ * 所要時間の集計と状態の畳み込みは共通基盤に任せ、
+ * ここでは音声固有の項目（形式・生成ID・再生用URL）だけを引き継ぐ。
  */
 export function summarizeAttempts(base: TtsDebugResult, attempts: readonly TtsDebugAttempt[]): TtsDebugResult {
   if (attempts.length === 0) return { ...base, attempts: [] }
@@ -93,14 +90,10 @@ export function summarizeAttempts(base: TtsDebugResult, attempts: readonly TtsDe
   const successes = attempts.filter((attempt) => attempt.status === 'success')
   const failed = attempts.find((attempt) => attempt.status === 'error')
   const cancelled = attempts.find((attempt) => attempt.status === 'cancelled')
-  const warm = attempts.slice(1)
-
-  const status: TtsDebugResult['status'] =
-    successes.length > 0 ? 'success' : cancelled && !failed ? 'cancelled' : failed ? 'error' : first.status
 
   return {
     ...base,
-    status,
+    status: resolveAggregateStatus(attempts),
     httpStatus: first.httpStatus,
     contentType: first.contentType,
     responseFormat: first.responseFormat,
@@ -115,12 +108,7 @@ export function summarizeAttempts(base: TtsDebugResult, attempts: readonly TtsDe
       requestToFirstChunkMs: first.metrics.requestToFirstChunkMs,
       requestToCompleteMs: first.metrics.requestToCompleteMs,
       audioDurationMs: first.metrics.audioDurationMs,
-      attemptCount: attempts.length,
-      successCount: successes.length,
-      averageRequestToHeadersMs: average(collect(attempts, 'requestToHeadersMs')),
-      averageRequestToFirstChunkMs: average(collect(attempts, 'requestToFirstChunkMs')),
-      averageRequestToCompleteMs: average(collect(attempts, 'requestToCompleteMs')),
-      warmAverageRequestToFirstChunkMs: average(collect(warm, 'requestToFirstChunkMs')),
+      ...summarizeLatencies(attempts),
     },
     attempts: [...attempts],
   }
@@ -215,7 +203,7 @@ export async function runTtsDebugAttempt(options: RunTtsDebugOptions): Promise<T
       },
     }
   } catch (error) {
-    const cancelled = options.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')
+    const cancelled = isAbortError(error, options.signal)
     return {
       ...attempt,
       status: cancelled ? 'cancelled' : 'error',
@@ -239,30 +227,24 @@ export async function runTtsDebugSequence(
   base: TtsDebugResult,
   options: RunTtsDebugSequenceOptions
 ): Promise<TtsDebugResult> {
-  const attempts: TtsDebugAttempt[] = []
-  const total = Math.max(1, Math.min(TTS_DEBUG_MAX_ITERATIONS, options.iterations))
-
-  for (let index = 1; index <= total; index += 1) {
-    if (options.signal.aborted) {
-      attempts.push({
-        index,
-        status: 'cancelled',
-        timing: { requestStartedAt: Date.now() },
-        metrics: {},
-        errorMessage: '停止しました',
-      })
-      break
-    }
-    const attempt = await runTtsDebugAttempt({ ...options, attemptIndex: index })
-    attempts.push(attempt)
-    if (options.onProgress) {
-      const partial = summarizeAttempts(base, attempts)
+  const attempts = await runDebugSequence<TtsDebugAttempt>({
+    iterations: options.iterations,
+    signal: options.signal,
+    runAttempt: (index) => runTtsDebugAttempt({ ...options, attemptIndex: index }),
+    createCancelled: (index) => ({
+      index,
+      status: 'cancelled',
+      timing: { requestStartedAt: Date.now() },
+      metrics: {},
+      errorMessage: '停止しました',
+    }),
+    onAttempt: (current, hasMore) => {
+      if (!options.onProgress) return
+      const partial = summarizeAttempts(base, current)
       // まだ残りがある間は実行中として見せ、完了扱いにしない。
-      const stillRunning = index < total && attempt.status !== 'cancelled'
-      options.onProgress(stillRunning ? { ...partial, status: 'running' } : partial)
-    }
-    if (attempt.status === 'cancelled') break
-  }
+      options.onProgress(hasMore ? { ...partial, status: 'running' } : partial)
+    },
+  })
 
   return summarizeAttempts(base, attempts)
 }
