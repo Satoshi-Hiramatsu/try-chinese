@@ -90,8 +90,9 @@ function Portraits() {
 }
 
 function Expressions() {
-  // 表情差分を持つ立ち絵をすべて並べ、最後に未対応の立ち絵を1体だけ添えて対比する。
-  const samples = [...PORTRAIT_EXPRESSION_IDS, 'pt-nuan']
+  // 表情差分を持つ立ち絵をすべて並べ、未対応の立ち絵が残っていれば1体だけ添えて対比する。
+  const locked = PORTRAIT_LIST.find((spec) => !hasPortraitExpressions(spec.id))
+  const samples = [...PORTRAIT_EXPRESSION_IDS, ...(locked ? [locked.id] : [])]
 
   return (
     <>

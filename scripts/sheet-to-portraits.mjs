@@ -11,6 +11,7 @@
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 
 /** 出力サイズ。既存立ち絵（3:4・720×960）に合わせる。 */
@@ -404,7 +405,10 @@ async function main() {
   for (const r of report) console.log(`  ${r.name}  頭頂Y=${r.topY}  頭幅=${r.headW}  ${r.kb}KB`)
 }
 
-main().catch((error) => {
-  console.error(error.message)
-  process.exit(1)
-})
+// generate-portrait-expressions.mjs から SHEET_EXPRESSIONS を import できるよう、直接実行時だけ動かす。
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error.message)
+    process.exit(1)
+  })
+}
