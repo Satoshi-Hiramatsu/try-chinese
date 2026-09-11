@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import chatRoute, { type ChatEnv } from './routes/chat'
 import sttRoute, { type SttEnv } from './routes/stt'
 import ttsRoute, { type TtsEnv } from './routes/tts'
+import openRouterKeyRoute from './routes/openRouterKey'
 
 export interface AppBindings extends Env, ChatEnv, TtsEnv, SttEnv {
   ASSETS?: Fetcher
@@ -39,6 +40,9 @@ app.route('/api', ttsRoute)
 
 // STT文字起こしAPIマウント (/api/stt)
 app.route('/api', sttRoute)
+
+// 利用者のAPIキー検査 (/api/openrouter/key)
+app.route('/api', openRouterKeyRoute)
 
 // 静的アセット (SPA) へのフォールバック
 app.all('*', async (c) => {
