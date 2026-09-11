@@ -30,14 +30,14 @@ const INITIAL_TEXTS: Record<TtsDebugLanguage, string> = {
  *
  * 数字は Fish Audio が算用数字を一桁ずつ読むことがあるため、
  * 漢数字へ変換してから渡す設計(T-76)の効果をここで先に確かめる。
- * 感情マーカーは記法が OpenRouter 経由で通るかが未確認なので、
- * あり・なしを同じ文で聴き比べられるようにしておく。
+ * 感情マーカーは Fish Audio S2.1 の角括弧記法。OpenRouter 経由で効くかを
+ * あり・なしを同じ文で聴き比べて確かめる。
  */
 const CHECK_PRESETS: readonly { id: string; label: string; text: string }[] = [
   { id: 'digits-raw', label: '数字（算用）', text: '这个耳机10000元，2026年2月3日发货，房间是803室。' },
   { id: 'digits-han', label: '数字（漢数字）', text: '这个耳机一万元，二零二六年二月三日发货，房间是八零三室。' },
   { id: 'emotion-off', label: 'マーカーなし', text: '真的吗？我也超喜欢那个游戏！我们一起玩吧。' },
-  { id: 'emotion-on', label: 'マーカーあり', text: '(excited)真的吗？我也超喜欢那个游戏！(laugh)我们一起玩吧。' },
+  { id: 'emotion-on', label: 'マーカーあり', text: '[excited]真的吗？我也超喜欢那个游戏！[laughing]我们一起玩吧。' },
 ]
 
 const BLOCK_MESSAGES: Record<TtsDebugRunBlockReason, string> = {

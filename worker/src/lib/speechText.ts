@@ -112,12 +112,40 @@ function numberToChinese(value: string): string {
   return fraction === undefined ? head : `${head}点${digitsToChinese(fraction)}`
 }
 
-/** 感情マーカー。(excited) のように英字を丸括弧で囲む記法を想定する。 */
-const MARKER_PATTERN = /[(（][a-zA-Z][a-zA-Z0-9_ -]*[)）]/g
+/**
+ * 感情マーカー。英単語（自然言語の短い句も可）を括弧で囲む記法。
+ *
+ * Fish Audio は世代で括弧が違う。S2 系（S2 / S2.1）は [happy] の角括弧、
+ * S1 は (happy) の丸括弧。認識されない括弧はタグではなく本文として
+ * 読み上げられてしまうため、送信先に合わせて括弧を揃える必要がある。
+ * LLM には角括弧で出させ、丸括弧は取りこぼしの救済として受け付ける。
+ */
+const MARKER_PATTERN = /[[(（]([a-zA-Z][a-zA-Z0-9_ -]*)[\])）]/g
 
 /** マーカーを取り除く。文字数の比較や算用数字の検査に使う。 */
 export function stripSpeechMarkers(text: string): string {
   return text.replace(MARKER_PATTERN, '').trim()
+}
+
+export type SpeechMarkerSyntax = 'square' | 'round' | 'none'
+
+/**
+ * モデルが解釈できるマーカーの括弧。
+ * Fish Audio 以外は制御タグの記法を持たないので、タグを渡すと本文として読まれる。
+ */
+export function resolveMarkerSyntax(modelId: string): SpeechMarkerSyntax {
+  if (/^fish-audio\/s1\b/i.test(modelId)) return 'round'
+  if (/^fish-audio\//i.test(modelId)) return 'square'
+  return 'none'
+}
+
+/** マーカーの括弧を送信先モデルの記法に揃える。解釈できないモデルには渡さない。 */
+export function adaptSpeechMarkers(text: string, modelId: string): string {
+  const syntax = resolveMarkerSyntax(modelId)
+  if (syntax === 'none') return stripSpeechMarkers(text)
+  const open = syntax === 'square' ? '[' : '('
+  const close = syntax === 'square' ? ']' : ')'
+  return text.replace(MARKER_PATTERN, (_match, tag: string) => open + tag + close)
 }
 
 const KANA_PATTERN = /[ぁ-ゟァ-ヿ]/

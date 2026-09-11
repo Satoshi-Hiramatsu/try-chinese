@@ -410,6 +410,32 @@ describe('話者IDが必須のモデル', () => {
     expect(calls[0].voice).toBe('7f92f8afb8ec43bf81429cc1c9199cb1')
   })
 
+  it('感情マーカーは送信先の記法に揃え、解釈しないモデルには渡さない', async () => {
+    const calls = stubOpenRouter({
+      catalog: [
+        { id: 'fish-audio/s2.1-pro', supported_voices: [] },
+        { id: 'hexgrad/kokoro-82m', supported_voices: ['zf_xiaoxiao'] },
+      ],
+      speech: () => audioResponse(),
+    })
+    const fish = await worker.fetch(
+      ttsRequest({ text: '(excited)真的吗？[laughing]好。', model: 'fish-audio/s2.1-pro', voice: 'ref-voice-1' }),
+      env,
+      createExecutionContext()
+    )
+    expect(fish.status).toBe(200)
+    expect(calls[0].input).toBe('[excited]真的吗？[laughing]好。')
+
+    const kokoro = await worker.fetch(
+      ttsRequest({ text: '[excited]真的吗？[laughing]好。', model: 'hexgrad/kokoro-82m' }),
+      env,
+      createExecutionContext()
+    )
+    expect(kokoro.status).toBe(200)
+    // タグを解釈しないモデルは、括弧の中身を本文として読み上げてしまう。
+    expect(calls[1].input).toBe('真的吗？好。')
+  })
+
   it('話者一覧を持つモデルは未指定でも従来どおり通る', async () => {
     stubOpenRouter({ catalog: [{ id: 'hexgrad/kokoro-82m', supported_voices: ['zf_xiaoxiao'] }], speech: audioResponse })
     const ctx = createExecutionContext()

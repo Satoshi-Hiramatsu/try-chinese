@@ -3,6 +3,8 @@ import {
   digitsToChinese,
   integerToChinese,
   normalizeDigitsForSpeech,
+  adaptSpeechMarkers,
+  resolveMarkerSyntax,
   resolveSpeechText,
   stripSpeechMarkers,
 } from '../src/lib/speechText'
@@ -72,13 +74,45 @@ describe('算用数字の正規化', () => {
 })
 
 describe('感情マーカーの除去', () => {
-  it('英字を丸括弧で囲んだ記法を落とす', () => {
+  it('英字を角括弧で囲んだ記法を落とす', () => {
+    expect(stripSpeechMarkers('[excited]真的吗？[laughing]我也喜欢。')).toBe('真的吗？我也喜欢。')
+    expect(stripSpeechMarkers('[in a hurry tone]快点！')).toBe('快点！')
+  })
+
+  it('丸括弧の旧記法も落とす', () => {
     expect(stripSpeechMarkers('(excited)真的吗？(laugh)我也喜欢。')).toBe('真的吗？我也喜欢。')
     expect(stripSpeechMarkers('（happy）你好')).toBe('你好')
   })
 
   it('中国語の括弧書きは残す', () => {
     expect(stripSpeechMarkers('这个（很重要）')).toBe('这个（很重要）')
+    expect(stripSpeechMarkers('这个[很重要]')).toBe('这个[很重要]')
+  })
+})
+
+describe('感情マーカーの記法変換', () => {
+  it('Fish Audio S2 系は角括弧、S1 は丸括弧、それ以外は持たない', () => {
+    expect(resolveMarkerSyntax('fish-audio/s2.1-pro')).toBe('square')
+    expect(resolveMarkerSyntax('fish-audio/s2.1-pro-free:free')).toBe('square')
+    expect(resolveMarkerSyntax('fish-audio/s2-pro')).toBe('square')
+    expect(resolveMarkerSyntax('fish-audio/s1')).toBe('round')
+    expect(resolveMarkerSyntax('hexgrad/kokoro-82m')).toBe('none')
+    expect(resolveMarkerSyntax('qwen/qwen-audio-3.0-tts-flash')).toBe('none')
+  })
+
+  it('S2.1 には角括弧で渡し、丸括弧で来ても角括弧に揃える', () => {
+    expect(adaptSpeechMarkers('[excited]真的吗？', 'fish-audio/s2.1-pro')).toBe('[excited]真的吗？')
+    expect(adaptSpeechMarkers('(excited)真的吗？(laughing)好。', 'fish-audio/s2.1-pro')).toBe('[excited]真的吗？[laughing]好。')
+  })
+
+  it('S1 には丸括弧で渡す', () => {
+    expect(adaptSpeechMarkers('[excited]真的吗？', 'fish-audio/s1')).toBe('(excited)真的吗？')
+  })
+
+  it('タグを解釈しないモデルには渡さない', () => {
+    // 認識されないタグは本文として読み上げられてしまう。
+    expect(adaptSpeechMarkers('[excited]真的吗？', 'hexgrad/kokoro-82m')).toBe('真的吗？')
+    expect(adaptSpeechMarkers('(excited)真的吗？', 'qwen/qwen-audio-3.0-tts-flash')).toBe('真的吗？')
   })
 })
 
@@ -86,7 +120,7 @@ describe('読み上げテキストの決定', () => {
   const zh = '这个耳机10000元，我觉得有点贵。'
 
   it('マーカー付きの発話テキストはそのまま使う', () => {
-    const speech = '(excited)这个耳机一万元，我觉得有点贵。'
+    const speech = '[excited]这个耳机一万元，我觉得有点贵。'
     expect(resolveSpeechText(zh, speech)).toEqual({ text: speech })
   })
 
@@ -122,6 +156,6 @@ describe('読み上げテキストの決定', () => {
   })
 
   it('マーカーだけで中身が無ければ機械変換に落とす', () => {
-    expect(resolveSpeechText(zh, '(excited)').fallbackReason).toBe('empty')
+    expect(resolveSpeechText(zh, '[excited]').fallbackReason).toBe('empty')
   })
 })

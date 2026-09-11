@@ -5,6 +5,7 @@ import {
   MODEL_ID_PATTERN,
   type SpeechModel,
 } from '../services/openRouterCatalog'
+import { adaptSpeechMarkers } from '../lib/speechText'
 
 export interface TtsEnv {
   OPENROUTER_API_KEY?: string
@@ -299,6 +300,8 @@ ttsRoute.post('/tts', async (c) => {
     ? Math.max(0.5, Math.min(2.0, Number(speed) || 1.0))
     : Math.max(0.25, Math.min(4.0, Number(speed) || 1.0))
   const sendsSpeed = !matches(NO_SPEED_MODELS, targetModel)
+  // 感情マーカーは記法がモデルごとに違い、合わないと本文として読まれる。送る直前に揃える。
+  const speechInput = adaptSpeechMarkers(text.trim(), targetModel)
 
   const requestUpstream = (responseFormat: string) =>
     fetch('https://openrouter.ai/api/v1/audio/speech', {
@@ -309,7 +312,7 @@ ttsRoute.post('/tts', async (c) => {
       },
       body: JSON.stringify({
         model: targetModel,
-        input: text.trim(),
+        input: speechInput,
         ...(selectedVoice ? { voice: selectedVoice } : {}),
         ...(sendsSpeed ? { speed: clampedSpeed } : {}),
         ...buildTuningPayload(targetModel, tuning),

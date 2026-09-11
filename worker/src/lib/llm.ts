@@ -47,7 +47,7 @@ const CHAT_RESPONSE_SCHEMA = {
         speech: {
           type: 'string',
           description:
-            '読み上げ用。zh と同じ内容のまま、算用数字を漢数字に直し、感情マーカーを付ける。語句は変えない。',
+            '読み上げ用。zh と同じ内容のまま、算用数字を漢数字に直し、文頭に角括弧の感情タグ（例: [happy]）を付ける。語句は変えない。',
         },
         ja: { type: 'string', description: '返答の自然な日本語訳。' },
         hskLevel: { type: 'integer', description: '返答が想定しているHSK級。1〜6。' },
