@@ -19,6 +19,7 @@ import {
   RotateCwIcon,
   MaleIcon,
   FemaleIcon,
+  EditIcon,
 } from './Icons'
 import { FriendAvatar } from './FriendAvatar'
 import { speakChinese, stopSpeaking } from '../services/speech'
@@ -31,6 +32,7 @@ import {
   switchVoiceModel,
 } from '../data/voiceAssignment'
 import { CHARACTER_VOICE_OPTIONS, resolveVoiceIdForModel } from '../data/characterVoices'
+import { formatVoiceExport } from '../data/voiceExport'
 import { loadCustomVoices, loadTtsModel } from '../services/storage'
 
 interface VoiceAdminDashboardProps {
@@ -124,6 +126,8 @@ export function VoiceAdminDashboard({
   /** 一括適用の直前状態。1段階だけ戻せるようにする。 */
   const [undoSnapshot, setUndoSnapshot] = useState<{ voices: Record<string, Voice | undefined>; label: string } | null>(null)
   const [isImportOpen, setIsImportOpen] = useState(false)
+  /** 「設定をコードとして書き出し」パネルの開閉。本番で作った割り当てをコードへ持ち帰る入口。 */
+  const [isExportOpen, setIsExportOpen] = useState(false)
   const [combinations, setCombinations] = useState<DebugCombination[]>([])
   const [selectedCombination, setSelectedCombination] = useState<string>('')
   const queueRef = useRef<Friend[]>([])
@@ -172,11 +176,25 @@ export function VoiceAdminDashboard({
     return friends
   }, [filter, friends])
 
+  const exportText = useMemo(
+    () => (isExportOpen ? formatVoiceExport(friends, new Date().toISOString()) : ''),
+    [friends, isExportOpen]
+  )
+
   const unassignedCount = friends.filter((friend) => !friend.voice?.voiceModel).length
   const femaleCount = friends.filter((friend) => friend.voice?.gender !== 'male').length
   const maleCount = friends.filter((friend) => friend.voice?.gender === 'male').length
 
   if (!isOpen) return null
+
+  const copyExport = async () => {
+    try {
+      await navigator.clipboard.writeText(exportText)
+      setMessage('声設定のコードをコピーしました。')
+    } catch {
+      setMessage('コピーできませんでした。下の欄を選択して手動でコピーしてください。')
+    }
+  }
 
   const playFriend = (friend: Friend) => {
     if (!friend.id) return
@@ -429,6 +447,18 @@ export function VoiceAdminDashboard({
               <SparklesIcon className="w-3.5 h-3.5 text-amber-500" />
               <span>検証モードの結果から取り込み</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setIsExportOpen((current) => !current)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl border cursor-pointer flex items-center gap-1.5 ${
+                isExportOpen
+                  ? 'bg-rose-50 border-rose-300 text-rose-700'
+                  : 'bg-white border-stone-300 text-stone-700 hover:bg-stone-100'
+              }`}
+            >
+              <EditIcon className="w-3.5 h-3.5 text-sky-600" />
+              <span>設定をコードとして書き出し</span>
+            </button>
           </div>
 
           {message && (
@@ -437,6 +467,36 @@ export function VoiceAdminDashboard({
             </p>
           )}
         </div>
+
+        {/* コードとして書き出しパネル */}
+        {isExportOpen && (
+          <div className="px-5 py-3 border-b border-stone-100 bg-sky-50/40 flex-shrink-0 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="text-xs font-bold text-stone-700" htmlFor="admin-export">
+                全{friends.length}人の声設定（presetFriends.ts へ転記する形式）:
+              </label>
+              <button
+                type="button"
+                onClick={copyExport}
+                className="px-3 py-1.5 text-xs font-bold rounded-xl bg-rose-600 text-white hover:bg-rose-700 cursor-pointer flex items-center gap-1.5"
+              >
+                <CheckIcon className="w-3.5 h-3.5" />
+                <span>クリップボードにコピー</span>
+              </button>
+            </div>
+            <textarea
+              id="admin-export"
+              readOnly
+              value={exportText}
+              onFocus={(e) => e.currentTarget.select()}
+              spellCheck={false}
+              className="w-full h-40 px-3 py-2 text-[11px] font-mono bg-white border border-stone-300 rounded-xl focus:border-rose-500 focus:outline-none resize-y"
+            />
+            <p className="m-0 text-[11px] text-stone-500">
+              APIキーは含まれません。このブラウザに保存されている割り当てだけが出ます。
+            </p>
+          </div>
+        )}
 
         {/* 検証履歴からの取り込みパネル */}
         {isImportOpen && (
