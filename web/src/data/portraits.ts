@@ -434,8 +434,8 @@ export function getPortraitImage(id?: string): string | null {
  * キャラクターを描き替えても背景が動かない。
  * 差分の生成は `scripts/sheet-to-portraits.mjs` を参照。
  *
- * 差分がまだ無い立ち絵はロック（選択不可）とする。`isPortraitLocked` を参照。
- * 生成手順は docs/表情差分の追加手順.md に記録してある。
+ * プリセット20体はすべて差分を持つ。差分が無い立ち絵を足した場合はロック（選択不可）になる。
+ * `isPortraitLocked` を参照。生成手順は docs/表情差分の追加手順.md に記録してある。
  */
 export const PORTRAIT_EXPRESSION_IDS: ReadonlySet<string> = new Set([
   'pt-meiling',
@@ -449,6 +449,15 @@ export const PORTRAIT_EXPRESSION_IDS: ReadonlySet<string> = new Set([
   'pt-nuan',
   'pt-jingyi',
   'pt-haoran',
+  'pt-shanshan',
+  'pt-anqi',
+  'pt-ruoxi',
+  'pt-zhangwei',
+  'pt-lijun',
+  'pt-tianyou',
+  'pt-yifan',
+  'pt-guangyao',
+  'pt-zhiyuan',
 ])
 
 /** 表情差分（透過画像）を持つ立ち絵かどうか。 */
