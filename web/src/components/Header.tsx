@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ViewMode } from '../services/storage'
+import { formatApiKeyStateLabel, type ApiKeyStatus } from '../services/openRouterKey'
 import {
   UsersIcon, SparklesIcon, SettingsIcon, TrashIcon, BookOpenIcon,
-  SpeakerIcon, UserIcon, MessageSquareIcon, ChevronDownIcon,
+  SpeakerIcon, UserIcon, MessageSquareIcon, ChevronDownIcon, KeyIcon,
 } from './Icons'
 
 interface HeaderProps {
   hskLevel: number
   onHskChange: (level: number) => void
-  hasApiKey: boolean
-  onOpenApiKeyModal: () => void
+  /** キーの状態。バッジで見せ、タップでキーのモーダルを開く */
+  apiKeyStatus: ApiKeyStatus
+  onOpenApiKey: () => void
+  onOpenSettings: () => void
   onClearHistory: () => void
   onOpenOnboarding: () => void
   onOpenFriendList?: () => void
@@ -23,10 +26,44 @@ interface HeaderProps {
   onChangeViewMode?: (mode: ViewMode) => void
 }
 
+/** 表示に使う状態。検査できなかったときは前回の確定状態で見せる。 */
+function effectiveKeyState(status: ApiKeyStatus): ApiKeyStatus['state'] {
+  return status.state === 'unreachable' && status.last ? status.last : status.state
+}
+
+/** キーの状態に応じたバッジの色。無料モードは目立たせず、無効・残高切れだけ気付けるようにする。 */
+function apiKeyBadgeClass(status: ApiKeyStatus): string {
+  switch (effectiveKeyState(status)) {
+    case 'valid':
+      return 'bg-emerald-50 border-emerald-200 text-emerald-800'
+    case 'invalid':
+      return 'bg-rose-50 border-rose-300 text-rose-700'
+    case 'exhausted':
+      return 'bg-amber-50 border-amber-300 text-amber-800'
+    default:
+      return ''
+  }
+}
+
+function apiKeyDotClass(status: ApiKeyStatus): string {
+  switch (effectiveKeyState(status)) {
+    case 'valid':
+      return 'bg-emerald-500'
+    case 'invalid':
+      return 'bg-rose-500'
+    case 'exhausted':
+      return 'bg-amber-500'
+    case 'checking':
+      return 'bg-stone-300 animate-pulse'
+    default:
+      return 'bg-stone-400'
+  }
+}
+
 const actionClass = 'header-menu-item flex items-center gap-2 rounded-xl border border-stone-200 bg-white text-stone-700 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer whitespace-nowrap'
 
 export function Header({
-  hskLevel, onHskChange, hasApiKey, onOpenApiKeyModal, onClearHistory,
+  hskLevel, onHskChange, apiKeyStatus, onOpenApiKey, onOpenSettings, onClearHistory,
   onOpenOnboarding, onOpenFriendList, onOpenVocabulary, vocabularyCount = 0,
   autoPlayTts = false, onToggleAutoPlayTts, toneColoring = false,
   onToggleToneColoring, viewMode = 'novel', onChangeViewMode,
@@ -76,7 +113,8 @@ export function Header({
       <button type="button" onClick={() => menu ? runAndClose(onOpenOnboarding) : onOpenOnboarding()} className={actionClass}><SparklesIcon className="w-4 h-4 text-amber-500" /><span>趣味</span></button>
       {onToggleAutoPlayTts && <button type="button" onClick={() => menu ? runAndClose(onToggleAutoPlayTts) : onToggleAutoPlayTts()} aria-pressed={autoPlayTts} className={`${actionClass} ${autoPlayTts ? 'bg-rose-100 border-rose-300 text-rose-700' : ''}`}><SpeakerIcon className="w-4 h-4" /><span>{autoPlayTts ? '音声ON' : '音声OFF'}</span></button>}
       {onToggleToneColoring && <button type="button" onClick={() => menu ? runAndClose(onToggleToneColoring) : onToggleToneColoring()} aria-pressed={toneColoring} className={`${actionClass} ${toneColoring ? 'bg-amber-100 border-amber-300 text-amber-800' : ''}`}><span className="font-mono text-xs font-bold">ā/a</span><span>声調カラー{toneColoring ? 'ON' : 'OFF'}</span></button>}
-      <button type="button" onClick={() => menu ? runAndClose(onOpenApiKeyModal) : onOpenApiKeyModal()} className={actionClass}><SettingsIcon className="w-4 h-4" /><span>設定</span>{hasApiKey && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="ブラウザAPIキー設定済み" />}</button>
+      <button type="button" onClick={() => menu ? runAndClose(onOpenApiKey) : onOpenApiKey()} className={`${actionClass} ${apiKeyBadgeClass(apiKeyStatus)}`} title="OpenRouter API キー"><KeyIcon className="w-4 h-4" /><span>{formatApiKeyStateLabel(effectiveKeyState(apiKeyStatus))}</span><span className={`w-1.5 h-1.5 rounded-full ${apiKeyDotClass(apiKeyStatus)}`} aria-hidden="true" /></button>
+      <button type="button" onClick={() => menu ? runAndClose(onOpenSettings) : onOpenSettings()} className={actionClass}><SettingsIcon className="w-4 h-4" /><span>設定</span></button>
       {fullscreenSupported && <button type="button" onClick={() => void toggleFullscreen()} className={actionClass} aria-pressed={isFullscreen}><span>{isFullscreen ? '全画面を終了' : '全画面で表示'}</span></button>}
       <button type="button" onClick={() => menu ? runAndClose(onClearHistory) : onClearHistory()} className={`${actionClass} text-rose-700`}><TrashIcon className="w-4 h-4" /><span>会話履歴を削除</span></button>
     </>

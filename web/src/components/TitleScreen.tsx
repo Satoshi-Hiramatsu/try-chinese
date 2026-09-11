@@ -10,6 +10,7 @@ import {
 import { CharacterPortrait, EXPRESSION_LABELS } from './CharacterPortrait'
 import { SceneBackdrop } from './SceneBackdrop'
 import { promptInstall, useInstallMode } from '../services/installPrompt'
+import { formatApiKeyStatusNote, type ApiKeyStatus } from '../services/openRouterKey'
 
 /**
  * 起動時のタイトル画面。
@@ -34,10 +35,13 @@ interface TitleScreenProps {
   continueSummary: ContinueSummary | null
   /** オンボーディング未完了。メニューを「はじめる」だけにする */
   isFirstLaunch: boolean
+  /** APIキーの状態。メニューの「APIキー」に添える */
+  apiKeyStatus: ApiKeyStatus
   onContinue: () => void
   onNewGame: () => void
   onChooseFriend: () => void
   onOpenSettings: () => void
+  onOpenApiKey: () => void
   onBegin: () => void
 }
 
@@ -71,10 +75,12 @@ export function TitleScreen({
   friend,
   continueSummary,
   isFirstLaunch,
+  apiKeyStatus,
   onContinue,
   onNewGame,
   onChooseFriend,
   onOpenSettings,
+  onOpenApiKey,
   onBegin,
 }: TitleScreenProps) {
   // モーション削減時は待機フェーズ自体を飛ばしてメニューを直接出す
@@ -135,8 +141,15 @@ export function TitleScreen({
   // 名前から英語表記や括弧を取り除いた簡潔な呼び名（例: "王浩 (Wang Hao)" -> "王浩"）
   const shortName = friend.name.replace(/\s*\(.*?\)/g, '').trim() || friend.name
 
+  const apiKeyItem = {
+    key: 'apikey',
+    label: 'APIキー',
+    note: formatApiKeyStatusNote(apiKeyStatus),
+    onClick: onOpenApiKey,
+  }
+
   const menuItems = isFirstLaunch
-    ? [{ key: 'begin', label: 'はじめる', note: '趣味とレベルをえらぶ', onClick: onBegin }]
+    ? [{ key: 'begin', label: 'はじめる', note: '趣味とレベルをえらぶ', onClick: onBegin }, apiKeyItem]
     : [
         ...(continueSummary
           ? [
@@ -150,6 +163,7 @@ export function TitleScreen({
           : []),
         { key: 'new', label: 'はじめから', note: '友達をえらんで新しく話す', onClick: onNewGame },
         { key: 'choose', label: '友達をえらぶ', note: undefined, onClick: onChooseFriend },
+        apiKeyItem,
         { key: 'settings', label: 'せってい', note: undefined, onClick: onOpenSettings },
         ...(installMode !== 'unavailable'
           ? [

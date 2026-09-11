@@ -5,7 +5,6 @@ import {
   CpuIcon,
   ExternalLinkIcon,
   CheckIcon,
-  KeyIcon,
   SparklesIcon,
   SpeakerIcon,
   GlobeIcon,
@@ -18,6 +17,8 @@ import {
   MAX_SILENCE_TIMEOUT_MS,
   clampSilenceTimeoutMs,
 } from '../services/speech'
+import type { ApiKeyStatus } from '../services/openRouterKey'
+import { ApiKeyField } from './ApiKeyField'
 
 export const PRESET_TTS_MODELS = [
   {
@@ -46,7 +47,7 @@ export const PRESET_TTS_MODELS = [
     name: 'Fish Audio S2.1 Pro (Free)',
     tag: '完全無料枠',
     price: '$0 (無料)',
-    desc: 'Fish Audioが提供する無料利用枠。テストやコストゼロ運用に最適',
+    desc: 'Fish Audioが提供する無料利用枠。APIキー未入力のときは自動でこれに切り替わります',
   },
 ]
 
@@ -54,6 +55,8 @@ interface SettingsModalProps {
   isOpen: boolean
   onClose: () => void
   currentApiKey: string
+  /** 保存済みキーの検査結果。入力欄の下に出す。 */
+  apiKeyStatus: ApiKeyStatus
   currentModel: string
   currentTtsModel?: string
   currentTtsProvider?: 'browser' | 'openrouter'
@@ -89,6 +92,7 @@ export function SettingsModal({
   isOpen,
   onClose,
   currentApiKey,
+  apiKeyStatus,
   currentModel,
   currentTtsModel = 'qwen/qwen-audio-3.0-tts-flash',
   currentTtsProvider = 'openrouter',
@@ -170,19 +174,9 @@ export function SettingsModal({
         >
           {/* Section 1: OpenRouter API キー (一本化) */}
           <div>
-            <label className="block text-xs font-bold text-stone-800 mb-1 flex items-center gap-1.5">
-              <KeyIcon className="w-4 h-4 text-rose-500" />
-              <span>OpenRouter API Key (会話生成 & 音声合成):</span>
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-or-v1-..."
-              className="w-full px-3 py-2 border border-stone-300 rounded-xl text-xs font-mono focus:border-rose-500 focus:outline-none"
-            />
+            <ApiKeyField value={apiKey} onChange={setApiKey} savedKey={currentApiKey} savedStatus={apiKeyStatus} />
             <p className="text-[11px] text-stone-400 mt-1 m-0">
-              ※ 本アプリは OpenRouter 契約者向けです。キーはブラウザ（IndexedDB）内にのみ安全に保持されます。
+              ※ キーはブラウザ内にのみ保持されます。未入力のあいだは無料の音声モデル（Fish Audio S2.1 Pro Free）で動きます。
             </p>
           </div>
 

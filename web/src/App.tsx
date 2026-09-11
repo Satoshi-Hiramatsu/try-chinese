@@ -9,6 +9,7 @@ import { NovelStage } from './components/NovelStage'
 import { ChatLogModal } from './components/ChatLogModal'
 import { ChatInput } from './components/ChatInput'
 import { SettingsModal } from './components/SettingsModal'
+import { ApiKeyModal } from './components/ApiKeyModal'
 import { OnboardingModal } from './components/OnboardingModal'
 import { FriendListModal } from './components/FriendListModal'
 import { VoiceSettingsModal } from './components/VoiceSettingsModal'
@@ -25,7 +26,6 @@ import { prefetchPinyin } from './services/pinyin'
 import {
   NO_KEY_STATUS,
   checkApiKey,
-  isApiKeyUsable,
   loadApiKeyStatus,
   publishApiKeyStatus,
   subscribeApiKeyStatus,
@@ -207,6 +207,8 @@ export default function App() {
 
   // モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
+  /** APIキーだけの小さなモーダル。タイトルと会話画面のバッジから開く */
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false)
   // 初回のオンボーディングはタイトルの「はじめる」から開く
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false)
   const [isFriendListOpen, setIsFriendListOpen] = useState(false)
@@ -329,6 +331,16 @@ export default function App() {
     }
     publishApiKeyStatus({ state: 'checking' })
     publishApiKeyStatus(await checkApiKey(key, loadApiKeyStatus()))
+  }
+
+  /** APIキーのモーダルからの保存。空なら削除して無料モードへ戻る。 */
+  const handleSaveApiKey = (newKey: string) => {
+    const trimmed = newKey.trim()
+    if (trimmed === apiKey) return
+    setApiKey(trimmed)
+    saveApiKey(trimmed)
+    void verifyApiKey(trimmed)
+    setErrorMessage(null)
   }
 
   // 起動時に1回だけ検査する。会話のたびには叩かない。
@@ -768,6 +780,7 @@ export default function App() {
           friend={currentFriend}
           continueSummary={continueSummary}
           isFirstLaunch={!isOnboardingCompleted()}
+          apiKeyStatus={apiKeyStatus}
           onContinue={enterPlay}
           onNewGame={() => {
             setTitleFriendPick('new')
@@ -778,6 +791,7 @@ export default function App() {
             setIsFriendListOpen(true)
           }}
           onOpenSettings={() => setIsSettingsModalOpen(true)}
+          onOpenApiKey={() => setIsApiKeyModalOpen(true)}
           onBegin={() => setIsOnboardingOpen(true)}
         />
       ) : (
@@ -786,8 +800,9 @@ export default function App() {
       <Header
         hskLevel={hskLevel}
         onHskChange={handleHskChange}
-        hasApiKey={Boolean(apiKey) && isApiKeyUsable(apiKeyStatus)}
-        onOpenApiKeyModal={() => setIsSettingsModalOpen(true)}
+        apiKeyStatus={apiKeyStatus}
+        onOpenApiKey={() => setIsApiKeyModalOpen(true)}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
         onClearHistory={handleClearHistory}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
         onOpenFriendList={() => setIsFriendListOpen(true)}
@@ -891,11 +906,20 @@ export default function App() {
         </>
       )}
 
+      <ApiKeyModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        currentApiKey={apiKey}
+        status={apiKeyStatus}
+        onSave={handleSaveApiKey}
+      />
+
       {/* Settings Modal (BYO-AI & Model Selection & Audio) */}
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         currentApiKey={apiKey}
+        apiKeyStatus={apiKeyStatus}
         currentModel={model}
         currentTtsModel={ttsModel}
         currentTtsProvider={ttsProvider}
