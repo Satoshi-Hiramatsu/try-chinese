@@ -25,6 +25,21 @@ const INITIAL_TEXTS: Record<TtsDebugLanguage, string> = {
   mixed: '你好。今日は元気？中国語の発音を一緒に練習しよう。',
 }
 
+/**
+ * 実装方針を決めるための確認用テキスト。
+ *
+ * 数字は Fish Audio が算用数字を一桁ずつ読むことがあるため、
+ * 漢数字へ変換してから渡す設計(T-76)の効果をここで先に確かめる。
+ * 感情マーカーは記法が OpenRouter 経由で通るかが未確認なので、
+ * あり・なしを同じ文で聴き比べられるようにしておく。
+ */
+const CHECK_PRESETS: readonly { id: string; label: string; text: string }[] = [
+  { id: 'digits-raw', label: '数字（算用）', text: '这个耳机10000元，2026年2月3日发货，房间是803室。' },
+  { id: 'digits-han', label: '数字（漢数字）', text: '这个耳机一万元，二零二六年二月三日发货，房间是八零三室。' },
+  { id: 'emotion-off', label: 'マーカーなし', text: '真的吗？我也超喜欢那个游戏！我们一起玩吧。' },
+  { id: 'emotion-on', label: 'マーカーあり', text: '(excited)真的吗？我也超喜欢那个游戏！(laugh)我们一起玩吧。' },
+]
+
 const BLOCK_MESSAGES: Record<TtsDebugRunBlockReason, string> = {
   'empty-text': 'テストテキストを入力してください。',
   'too-long': TTS_DEBUG_MAX_CHARACTERS + '文字以内にしてください。',
@@ -313,6 +328,7 @@ export function TtsDebugModal({ isOpen, onClose }: Props) {
           <h3 className={'tts-debug-section-title'}>1. テスト内容</h3>
           <section className={'tts-debug-input'}>
             <nav>{(['zh','ja','mixed'] as const).map((item) => <button type={'button'} key={item} data-active={language === item} onClick={() => changeLanguage(item)}>{item === 'zh' ? '中国語' : item === 'ja' ? '日本語' : '日中混合'}</button>)}</nav>
+            <nav>{CHECK_PRESETS.map((preset) => <button type={'button'} key={preset.id} onClick={() => setText(preset.text)} title={'確認用テキストを入れる'}>{preset.label}</button>)}</nav>
             <textarea value={text} onChange={(event) => setText(event.target.value)} aria-label={'テストテキスト'} placeholder={'比較したい文章を入力'} />
             <div className={'tts-debug-options'}>
               <span data-invalid={characterCount > TTS_DEBUG_MAX_CHARACTERS}>{characterCount}/{TTS_DEBUG_MAX_CHARACTERS}文字</span>

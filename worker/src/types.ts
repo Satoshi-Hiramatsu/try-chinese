@@ -87,10 +87,25 @@ export interface ChatRequest {
   config?: AppConfig
 }
 
+/**
+ * LLM プロバイダが報告した消費量。
+ * 開発者モードでモデルを比較するときの費用・出力量の根拠にする。
+ * 返さないプロバイダもあるため、すべて省略可能とする。
+ */
+export interface LlmUsage {
+  promptTokens?: number
+  completionTokens?: number
+  totalTokens?: number
+  /** OpenRouter が算出した実費(USD)。 */
+  costUsd?: number
+}
+
 export interface ChatResponse {
   reply: BilingualReply
   correction: Correction
   vocabulary: HobbyVocabulary[]
   /** 返答時の Friend の表情（立ち絵切り替え用） */
   expression: Expression
+  /** 消費量。本体の会話では使わず、開発者モードの比較でのみ参照する。 */
+  usage?: LlmUsage
 }

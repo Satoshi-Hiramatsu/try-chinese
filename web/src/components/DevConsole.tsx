@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import type { Friend } from '../types'
 import { SttDebugPane } from './SttDebugPane'
+import { LlmDebugPane } from './LlmDebugPane'
 import '../styles/devConsole.css'
 
 interface Props {
@@ -7,6 +9,9 @@ interface Props {
   onClose: () => void
   /** TTS の検証は既存のモーダルをそのまま使う。ここからは開くだけ。 */
   onOpenTtsDebug: () => void
+  friends: readonly Friend[]
+  currentFriend: Friend
+  hskLevel: number
 }
 
 type DevTab = 'stt' | 'llm' | 'tts'
@@ -24,7 +29,7 @@ const TAB_LABELS: Record<DevTab, string> = {
  * STT・LLM・TTS の三段を同じ土俵で比較するための画面をここに集める。
  * 通常の設定画面からは辿れないようにし、URLハッシュだけを入口にする。
  */
-export function DevConsole({ isOpen, onClose, onOpenTtsDebug }: Props) {
+export function DevConsole({ isOpen, onClose, onOpenTtsDebug, friends, currentFriend, hskLevel }: Props) {
   const [tab, setTab] = useState<DevTab>('stt')
 
   if (!isOpen) return null
@@ -50,10 +55,7 @@ export function DevConsole({ isOpen, onClose, onOpenTtsDebug }: Props) {
       <main className={'dev-console-body'}>
         {tab === 'stt' ? <SttDebugPane /> : null}
         {tab === 'llm' ? (
-          <p className={'dev-console-placeholder'}>
-            LLM の比較はまだ実装していません（T-68）。
-            同じ発話・Friend・HSK級で複数モデルを叩き、返答とスキーマ適合、出力トークン数、費用を並べる予定です。
-          </p>
+          <LlmDebugPane friends={friends} currentFriend={currentFriend} hskLevel={hskLevel} />
         ) : null}
         {tab === 'tts' ? (
           <div className={'dev-console-placeholder'}>

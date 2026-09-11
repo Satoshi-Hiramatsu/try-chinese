@@ -1,4 +1,4 @@
-import type { ChatHistoryItem, ChatResponse, Expression, Friend } from '../types'
+import type { ChatHistoryItem, ChatResponse, Expression, Friend, LlmUsage } from '../types'
 import { EXPRESSIONS } from '../types'
 import { buildChatSystemPrompt } from './prompt'
 
@@ -97,6 +97,25 @@ export function parseChatResponse(content: string): ChatResponse {
 }
 
 /**
+ * プロバイダが返した消費量を、モデル比較で使える形に揃える。
+ * 項目名も有無もプロバイダで異なるため、取れたものだけを拾う。
+ */
+export function normalizeUsage(raw: unknown): LlmUsage | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const usage = raw as Record<string, unknown>
+  const num = (value: unknown): number | undefined =>
+    typeof value === 'number' && Number.isFinite(value) ? value : undefined
+
+  const normalized: LlmUsage = {
+    promptTokens: num(usage.prompt_tokens),
+    completionTokens: num(usage.completion_tokens),
+    totalTokens: num(usage.total_tokens),
+    costUsd: num(usage.cost),
+  }
+  return Object.values(normalized).some((value) => value !== undefined) ? normalized : undefined
+}
+
+/**
  * OpenRouter / OpenAI 互換の Chat Completions API を呼び出す
  */
 export async function callChatLLM(options: CallLLMOptions): Promise<ChatResponse> {
@@ -149,6 +168,8 @@ export async function callChatLLM(options: CallLLMOptions): Promise<ChatResponse
       response_format: { type: 'json_object' },
       temperature: 0.7,
       max_tokens: 1000,
+      // 実費を応答に含めてもらう。カタログの単価だけではモデル比較の根拠にならない。
+      usage: { include: true },
     }),
   })
 
@@ -159,6 +180,7 @@ export async function callChatLLM(options: CallLLMOptions): Promise<ChatResponse
 
   const data = (await response.json()) as {
     choices?: Array<{ message?: { content?: string } }>
+    usage?: unknown
   }
 
   const content = data.choices?.[0]?.message?.content
@@ -166,5 +188,7 @@ export async function callChatLLM(options: CallLLMOptions): Promise<ChatResponse
     throw new Error('LLMから有効なメッセージ応答が返されませんでした。')
   }
 
-  return parseChatResponse(content)
+  const parsed = parseChatResponse(content)
+  const usage = normalizeUsage(data.usage)
+  return usage ? { ...parsed, usage } : parsed
 }

@@ -318,3 +318,79 @@ export interface SttDebugRun {
   modelIds: string[]
   results: SttDebugResult[]
 }
+
+/** LLM が報告した消費量。開発者モードの比較でのみ使う。 */
+export interface LlmUsage {
+  promptTokens?: number
+  completionTokens?: number
+  totalTokens?: number
+  costUsd?: number
+}
+
+/** 返答が守るべき約束を満たしているかの検査結果。 */
+export interface LlmSchemaCheckResult {
+  hasRequiredFields: boolean
+  zhIsChineseOnly: boolean
+  expressionIsValid: boolean
+}
+
+/** 1回分の会話生成の計測値。 */
+export interface LlmDebugAttempt {
+  index: number
+  status: TtsDebugStatus
+  httpStatus?: number
+  timing: TtsDebugTiming
+  metrics: {
+    requestToHeadersMs?: number
+    requestToFirstChunkMs?: number
+    requestToCompleteMs?: number
+  }
+  zh?: string
+  ja?: string
+  pinyin?: string
+  expression?: string
+  hasCorrection?: boolean
+  vocabularyCount?: number
+  schema?: LlmSchemaCheckResult
+  completionTokens?: number
+  costUsd?: number
+  errorMessage?: string
+}
+
+export interface LlmDebugResult {
+  modelId: string
+  status: TtsDebugStatus
+  httpStatus?: number
+  zh?: string
+  ja?: string
+  pinyin?: string
+  expression?: string
+  hasCorrection?: boolean
+  vocabularyCount?: number
+  schema?: LlmSchemaCheckResult
+  timing: TtsDebugTiming
+  metrics: {
+    requestToCompleteMs?: number
+    completionTokens?: number
+    costUsd?: number
+    attemptCount?: number
+    successCount?: number
+    averageRequestToHeadersMs?: number
+    averageRequestToFirstChunkMs?: number
+    averageRequestToCompleteMs?: number
+    warmAverageRequestToFirstChunkMs?: number
+  }
+  attempts?: LlmDebugAttempt[]
+  errorMessage?: string
+}
+
+export interface LlmDebugRun {
+  id: string
+  createdAt: string
+  message: string
+  friendId?: string
+  hskLevel: number
+  iterations?: number
+  modelIds: string[]
+  results: LlmDebugResult[]
+}

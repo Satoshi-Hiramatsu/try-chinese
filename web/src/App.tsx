@@ -757,6 +757,9 @@ export default function App() {
         isOpen={isDevOpen}
         onClose={closeDev}
         onOpenTtsDebug={() => setIsTtsDebugOpen(true)}
+        friends={allFriends}
+        currentFriend={currentFriend}
+        hskLevel={hskLevel}
       />
 
       {/* 声の管理ダッシュボード（#admin） */}
