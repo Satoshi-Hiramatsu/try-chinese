@@ -190,19 +190,63 @@ let playbackGeneration = 0
 const audioBlobCache = new Map<string, string>()
 
 /**
- * OpenRouter TTS API経由で音声を合成・再生する
+ * 読み上げを文単位に割る。
+ *
+ * 文章全体の音声ができるまで待つと、最初の一声が出るまでが長い。
+ * 1文目を鳴らしながら2文目を作れば、待ち時間は1文ぶんで済む。
+ *
+ * 句読点は直前の文に含める。短すぎる断片は次の文へ寄せる
+ * （「是吗？」だけで1リクエストを使うと、かえって間延びするため）。
  */
-async function speakWithOpenRouterTts(
-  text: string,
-  voice?: Voice,
-  options?: SpeakOptions
-): Promise<boolean> {
-  const generation = playbackGeneration
-  const apiKey = loadApiKey()
-  if (!apiKey) return false
+export const MIN_SPEECH_SEGMENT_CHARS = 12
+export const MAX_SPEECH_SEGMENTS = 8
 
+export function splitIntoSpeechSegments(text: string): string[] {
+  const trimmed = text.trim()
+  if (!trimmed) return []
+
+  // 句点類のうしろで切る。閉じ引用符が続く場合はそれも含める。
+  const rawParts = trimmed.match(/[^。．.！!？?；;\n]+[。．.！!？?；;]*["”』」]?\s*/g)
+  if (!rawParts) return [trimmed]
+
+  const merged: string[] = []
+  for (const part of rawParts) {
+    const piece = part.trim()
+    if (!piece) continue
+    const previous = merged[merged.length - 1]
+    // 短い断片は前の文にくっつける。単独で投げると間延びする。
+    if (previous !== undefined && Array.from(previous).length < MIN_SPEECH_SEGMENT_CHARS) {
+      merged[merged.length - 1] = previous + piece
+    } else {
+      merged.push(piece)
+    }
+  }
+
+  if (merged.length === 0) return [trimmed]
+  // 末尾が短すぎる場合も前へ寄せる。
+  if (merged.length > 1 && Array.from(merged[merged.length - 1]).length < MIN_SPEECH_SEGMENT_CHARS) {
+    const tail = merged.pop() as string
+    merged[merged.length - 1] += tail
+  }
+  // 分割しすぎるとリクエストが増えるだけなので、残りは最後にまとめる。
+  if (merged.length > MAX_SPEECH_SEGMENTS) {
+    const rest = merged.splice(MAX_SPEECH_SEGMENTS - 1)
+    merged.push(rest.join(''))
+  }
+  return merged
+}
+
+/** 声の指定から、TTSリクエストに載せるモデル・話者・速度を決める。 */
+function resolveTtsRequest(text: string, voice?: Voice) {
   const ttsModel = voice?.ttsModel || loadTtsModel()
-  const isMale = voice?.gender === 'male' || (voice?.voiceModel && (voice.voiceModel.includes('john') || voice.voiceModel.includes('yun') || voice.voiceModel.includes('male') || voice.voiceModel.includes('onyx') || voice.voiceModel.includes('echo')))
+  const isMale =
+    voice?.gender === 'male' ||
+    (voice?.voiceModel &&
+      (voice.voiceModel.includes('john') ||
+        voice.voiceModel.includes('yun') ||
+        voice.voiceModel.includes('male') ||
+        voice.voiceModel.includes('onyx') ||
+        voice.voiceModel.includes('echo')))
 
   let voiceModel = voice?.voiceModel || ''
 
@@ -218,43 +262,66 @@ async function speakWithOpenRouterTts(
   }
 
   const speed = voice?.rate ?? 1.0
-  // 声の調整値が変われば別の音声になるため、キャッシュキーにも含める。
   const tuning = voice?.voiceTuning
+  // 声の調整値が変われば別の音声になるため、キャッシュキーにも含める。
   const tuningKey = tuning ? JSON.stringify(tuning) : ''
-  const cacheKey = `${ttsModel}_${voiceModel}_${speed}_${tuningKey}_${text}`
+  return {
+    ttsModel,
+    voiceModel,
+    speed,
+    tuning,
+    cacheKey: `${ttsModel}_${voiceModel}_${speed}_${tuningKey}_${text}`,
+  }
+}
 
-  try {
-    let audioUrl = audioBlobCache.get(cacheKey)
+/** 1文ぶんの音声を取得する。取得済みならキャッシュを返す。 */
+async function fetchSegmentAudioUrl(text: string, voice: Voice | undefined, apiKey: string): Promise<string | undefined> {
+  const { ttsModel, voiceModel, speed, tuning, cacheKey } = resolveTtsRequest(text, voice)
+  const cached = audioBlobCache.get(cacheKey)
+  if (cached) return cached
 
-    if (!audioUrl) {
-      const res = await fetch('/api/tts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          text,
-          model: ttsModel,
-          voice: voiceModel,
-          speed,
-          tuning,
-          apiKey,
-        }),
-      })
+  const res = await fetch('/api/tts', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+    },
+    body: JSON.stringify({
+      text,
+      model: ttsModel,
+      voice: voiceModel,
+      speed,
+      tuning,
+      apiKey,
+    }),
+  })
 
-      if (!res.ok) {
-        console.warn('OpenRouter TTS API error, request failed:', res.status)
-        return false
-      }
+  if (!res.ok) {
+    console.warn('OpenRouter TTS API error, request failed:', res.status)
+    return undefined
+  }
 
-      // PCMのみ返すモデル(Gemini TTSなど)は再生できる形式へ変換する。
-      const blob = await responseToPlayableBlob(res)
-      audioUrl = URL.createObjectURL(blob)
-      audioBlobCache.set(cacheKey, audioUrl)
+  // PCMのみ返すモデル(Gemini TTSなど)は再生できる形式へ変換する。
+  const blob = await responseToPlayableBlob(res)
+  const audioUrl = URL.createObjectURL(blob)
+  audioBlobCache.set(cacheKey, audioUrl)
+  return audioUrl
+}
+
+/**
+ * 1文ぶんを再生し、鳴り終わるまで待つ。
+ * 停止されたか最後まで鳴ったかを返し、呼び出し側が次の文へ進むか決める。
+ */
+function playSegment(
+  audioUrl: string,
+  generation: number,
+  onStart?: () => void
+): Promise<'ended' | 'stopped' | 'error'> {
+  return new Promise((resolve) => {
+    if (generation !== playbackGeneration) {
+      resolve('stopped')
+      return
     }
-
-    if (generation !== playbackGeneration) return true
     if (currentAudio) {
       currentAudio.pause()
       currentAudio = null
@@ -263,22 +330,71 @@ async function speakWithOpenRouterTts(
     const audio = new Audio(audioUrl)
     currentAudio = audio
 
-    audio.onplay = () => {
-      options?.onStart?.()
-    }
-
+    audio.onplay = () => onStart?.()
     audio.onended = () => {
-      currentAudio = null
-      options?.onEnd?.()
+      if (currentAudio === audio) currentAudio = null
+      resolve(generation === playbackGeneration ? 'ended' : 'stopped')
+    }
+    audio.onerror = (event) => {
+      if (currentAudio === audio) currentAudio = null
+      console.warn('Audio playback error:', event)
+      resolve(generation === playbackGeneration ? 'error' : 'stopped')
     }
 
-    audio.onerror = (e) => {
-      currentAudio = null
-      console.warn('Audio playback error:', e)
-      options?.onError?.(e)
+    audio.play().catch((error) => {
+      if (currentAudio === audio) currentAudio = null
+      console.warn('Audio play rejected:', error)
+      resolve(generation === playbackGeneration ? 'error' : 'stopped')
+    })
+  })
+}
+
+/**
+ * OpenRouter TTS API経由で音声を合成・再生する。
+ *
+ * 文単位に割り、1文目を鳴らしている間に次の文を作る。
+ * 最初の一声が出るまでの時間が、文章全体ぶんから1文ぶんに縮む。
+ */
+async function speakWithOpenRouterTts(
+  text: string,
+  voice?: Voice,
+  options?: SpeakOptions
+): Promise<boolean> {
+  const generation = playbackGeneration
+  const apiKey = loadApiKey()
+  if (!apiKey) return false
+
+  const segments = splitIntoSpeechSegments(text)
+  if (segments.length === 0) return false
+
+  try {
+    // 次の文の取得は、いまの文を鳴らし始めてから走らせる。
+    let pending: Promise<string | undefined> | undefined = fetchSegmentAudioUrl(segments[0], voice, apiKey)
+
+    for (let index = 0; index < segments.length; index += 1) {
+      const audioUrl = await pending
+      if (generation !== playbackGeneration) return true
+      if (!audioUrl) {
+        // 1文目が取れなければ、そもそも鳴らせないので失敗として返す。
+        if (index === 0) return false
+        options?.onError?.(new Error('音声の続きを取得できませんでした。'))
+        return true
+      }
+
+      pending =
+        index + 1 < segments.length
+          ? fetchSegmentAudioUrl(segments[index + 1], voice, apiKey).catch(() => undefined)
+          : undefined
+
+      const result = await playSegment(audioUrl, generation, index === 0 ? options?.onStart : undefined)
+      if (result === 'stopped') return true
+      if (result === 'error') {
+        options?.onError?.(new Error('音声を再生できませんでした。'))
+        return true
+      }
     }
 
-    await audio.play()
+    if (generation === playbackGeneration) options?.onEnd?.()
     return true
   } catch (err) {
     console.warn('OpenRouter TTS execution error:', err)

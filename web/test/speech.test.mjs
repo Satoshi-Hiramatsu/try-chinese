@@ -10,14 +10,19 @@ const source = ts.transpileModule(readFileSync(new URL('../src/services/speech.t
 function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob(['audio']) })) {
   let recognition
   const played = []
+  // 文単位の読み上げでは再生の終わりを外から起こす必要があるため、実体を控えておく。
+  const audios = []
   const exports = {}
   const timers = new Map()
   let nextTimerId = 1
+  let nextObjectUrlId = 1
   const context = {
-    exports, console, Blob, URL,
+    exports, console, Blob,
+    // 実物の URL には createObjectURL が無く、再生経路まで届かなかった。
+    URL: { createObjectURL: () => 'blob:' + nextObjectUrlId++, revokeObjectURL: () => {} },
     setTimeout: (fn, ms) => { const id = nextTimerId++; timers.set(id, { fn, ms }); return id },
     clearTimeout: (id) => { timers.delete(id) },
-    require: () => ({ loadApiKey: () => 'test-key', loadTtsProvider: () => 'openrouter', loadTtsModel: () => 'qwen/qwen-audio-3.0-tts-flash' }),
+    require: () => ({ loadApiKey: () => 'test-key', loadTtsProvider: () => 'openrouter', loadTtsModel: () => 'qwen/qwen-audio-3.0-tts-flash', responseToPlayableBlob: async (response) => await response.blob() }),
     window: { SpeechRecognition: class {
       constructor() { recognition = this }
       start() { this.onstart?.() }
@@ -25,7 +30,7 @@ function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob([
       abort() { this.onend?.() }
     } },
     fetch: fetchImpl,
-    Audio: class { constructor(url) { this.url = url } async play() { played.push(this.url) } pause() {} },
+    Audio: class { constructor(url) { this.url = url; audios.push(this) } async play() { played.push(this.url) } pause() {} },
   }
   vm.runInNewContext(source, context)
   // 指定した遅延で登録された最初のタイマーだけを発火させる
@@ -39,7 +44,7 @@ function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob([
     return false
   }
   const pendingTimers = (ms) => [...timers.values()].filter((t) => t.ms === ms).length
-  return { api: exports, recognition: () => recognition, played, runTimer, pendingTimers }
+  return { api: exports, recognition: () => recognition, played, audios, runTimer, pendingTimers }
 }
 const result = (transcript, isFinal = true) => ({ 0: { transcript }, isFinal })
 for (const [lang, greeting] of [['ja-JP', '\u3053\u3093\u306b\u3061\u306f'], ['zh-CN', '\u4f60\u597d']]) {
@@ -72,6 +77,8 @@ for (const [lang, greeting] of [['ja-JP', '\u3053\u3093\u306b\u3061\u306f'], ['z
   })
 }
 const flush = () => new Promise(resolve => setImmediate(resolve))
+/** 文単位の読み上げは取得→再生の段が重なるため、数回ぶん流す。 */
+const settle = async (times = 6) => { for (let i = 0; i < times; i += 1) await flush() }
 test('single utterance mode can disable continuous recognition', () => {
   const s = setup()
   const controller = s.api.createSpeechRecognizer({ continuous: false })
@@ -295,4 +302,85 @@ test('the silence budget stays inside a usable range', () => {
   // 設定値はそのまま無音タイマーの長さになる
   s.api.createSpeechRecognizer({ silenceTimeoutMs: 4321 })?.start()
   assert.equal(s.pendingTimers(4500), 1)
+})
+
+test('1文だけの返答は分割しない', () => {
+  const s = setup()
+  assert.deepEqual(JSON.parse(JSON.stringify(s.api.splitIntoSpeechSegments('我今天很开心'))), ['我今天很开心'])
+  assert.deepEqual(JSON.parse(JSON.stringify(s.api.splitIntoSpeechSegments('   '))), [])
+})
+
+test('句点のうしろで分割し、句点は前の文に残す', () => {
+  const s = setup()
+  const text = '我昨天去了电影院看了一部很好的电影。那部电影真的非常好看我很喜欢。你也应该找时间去看一看。'
+  const segments = s.api.splitIntoSpeechSegments(text)
+  assert.equal(segments.length, 3)
+  assert.ok(segments[0].endsWith('。'))
+  assert.ok(segments[1].endsWith('。'))
+  // 分割しても内容は落とさない。
+  assert.equal(segments.join(''), text)
+})
+
+test('短い断片は前の文にくっつける', () => {
+  const s = setup()
+  // 「是吗？」だけで1リクエストを使うと、かえって間延びする。
+  // 前が短いかぎり足し続けるので、短文が続く返答はまとめて1回で鳴らす。
+  const segments = s.api.splitIntoSpeechSegments('是吗？真的吗？我也觉得这个电影非常有意思。')
+  assert.equal(segments.length, 1)
+
+  // 末尾が短い場合も前へ寄せる。「是吗？」だけのために1回増やさない。
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(s.api.splitIntoSpeechSegments('我昨天去了电影院看了一部很好的电影。是吗？'))),
+    ['我昨天去了电影院看了一部很好的电影。是吗？']
+  )
+})
+
+test('分割しすぎないよう上限を超えた分は最後にまとめる', () => {
+  const s = setup()
+  const long = Array.from({ length: 12 }, (_v, i) => `这是第${i}个句子真的很长很长。`).join('')
+  const segments = s.api.splitIntoSpeechSegments(long)
+  assert.ok(segments.length <= s.api.MAX_SPEECH_SEGMENTS)
+  assert.equal(segments.join(''), long)
+})
+
+test('1文目を鳴らしている間に次の文を取りに行く', async () => {
+  const requests = []
+  const s = setup(async (_, init) => { requests.push(JSON.parse(init.body).text); return { ok: true, blob: async () => new Blob(['audio']) } })
+  s.api.speakChinese('我昨天去了电影院看了一部电影。那部电影真的非常好看啊我很喜欢。')
+  await settle()
+
+  // 1文目だけを取得して再生を始め、この時点で2文目の取得も走っている。
+  assert.equal(s.played.length, 1)
+  assert.equal(requests.length, 2)
+  assert.ok(requests[0].endsWith('。'))
+  assert.notEqual(requests[0], requests[1])
+})
+
+test('最後の文が鳴り終わってから読み上げ終了を伝える', async () => {
+  const s = setup()
+  let ended = 0
+  s.api.speakChinese('我昨天去了电影院看了一部电影。那部电影真的非常好看啊我很喜欢。', undefined, { onEnd: () => { ended += 1 } })
+  await settle()
+
+  assert.equal(ended, 0)
+  s.audios[0].onended()
+  await settle()
+  // 1文目が終わっただけでは終了にしない。2文目が控えている。
+  assert.equal(ended, 0)
+  assert.equal(s.played.length, 2)
+
+  s.audios[1].onended()
+  await settle()
+  assert.equal(ended, 1)
+})
+
+test('途中で停止したら次の文を鳴らさない', async () => {
+  const s = setup()
+  s.api.speakChinese('我昨天去了电影院看了一部电影。那部电影真的非常好看啊我很喜欢。')
+  await settle()
+
+  s.api.stopSpeaking()
+  s.audios[0].onended()
+  await settle()
+  assert.equal(s.played.length, 1)
 })
