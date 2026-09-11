@@ -15,6 +15,7 @@ import { VocabularyModal } from './components/VocabularyModal'
 import { ReviewModal } from './components/ReviewModal'
 import { TtsDebugModal } from './components/TtsDebugModal'
 import { VoiceAdminDashboard } from './components/VoiceAdminDashboard'
+import { DevConsole } from './components/DevConsole'
 import { AlertIcon, CloseIcon } from './components/Icons'
 import { sendMessageToChatApi } from './services/api'
 import { speakChinese, stopSpeaking } from './services/speech'
@@ -169,6 +170,8 @@ export default function App() {
   const [voiceSettingsFriend, setVoiceSettingsFriend] = useState<Friend | null>(null)
   /** 声の管理ダッシュボード。URLハッシュ #admin で開く。 */
   const [isAdminOpen, setIsAdminOpen] = useState(false)
+  /** 開発者モード。URLハッシュ #dev で開く。通常の設定画面からは辿れない。 */
+  const [isDevOpen, setIsDevOpen] = useState(false)
   const [playingText, setPlayingText] = useState<string | null>(null)
 
   // モーダル状態
@@ -226,7 +229,10 @@ export default function App() {
    * 直接URLを開いた場合と、戻る操作で閉じた場合の両方を拾う。
    */
   useEffect(() => {
-    const syncFromHash = () => setIsAdminOpen(window.location.hash === '#admin')
+    const syncFromHash = () => {
+      setIsAdminOpen(window.location.hash === '#admin')
+      setIsDevOpen(window.location.hash === '#dev')
+    }
     syncFromHash()
     window.addEventListener('hashchange', syncFromHash)
     return () => window.removeEventListener('hashchange', syncFromHash)
@@ -237,12 +243,21 @@ export default function App() {
     setIsAdminOpen(true)
   }
 
-  const closeAdmin = () => {
-    if (window.location.hash === '#admin') {
-      // ハッシュだけを消して、履歴に空のエントリを積まないようにする。
+  /** ハッシュだけを消して、履歴に空のエントリを積まないようにする。 */
+  const clearHash = (hash: string) => {
+    if (window.location.hash === hash) {
       window.history.replaceState(null, '', window.location.pathname + window.location.search)
     }
+  }
+
+  const closeAdmin = () => {
+    clearHash('#admin')
     setIsAdminOpen(false)
+  }
+
+  const closeDev = () => {
+    clearHash('#dev')
+    setIsDevOpen(false)
   }
 
   // 友達別の会話履歴
@@ -735,6 +750,13 @@ export default function App() {
       <TtsDebugModal
         isOpen={isTtsDebugOpen}
         onClose={() => setIsTtsDebugOpen(false)}
+      />
+
+      {/* 開発者モード（#dev） */}
+      <DevConsole
+        isOpen={isDevOpen}
+        onClose={closeDev}
+        onOpenTtsDebug={() => setIsTtsDebugOpen(true)}
       />
 
       {/* 声の管理ダッシュボード（#admin） */}

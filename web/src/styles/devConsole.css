@@ -1,0 +1,74 @@
+/**
+ * 開発者モード（#dev）専用スタイル。
+ *
+ * アプリ本体はTailwindユーティリティで組んでいるが、開発者モードは
+ * 独立画面のためセマンティッククラスで管理する。ttsDebug.css と同じ方針。
+ */
+
+.dev-console { position: fixed; inset: 0; z-index: 80; display: flex; flex-direction: column; background: #fafaf9; }
+.dev-console-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 20px; background: white; border-bottom: 1px solid #e7e5e4; }
+.dev-console-header h1 { margin: 0; font-size: 1rem; }
+.dev-console-header p { margin: 2px 0 0; color: #78716c; font-size: .72rem; }
+.dev-console-header button { padding: 6px 14px; color: #57534e; background: #f5f5f4; border-radius: 999px; font-size: .75rem; font-weight: 700; }
+.dev-console-tabs { display: flex; gap: 6px; padding: 10px 20px 0; background: white; border-bottom: 1px solid #e7e5e4; }
+.dev-console-tabs button { padding: 8px 16px; color: #57534e; font-size: .78rem; font-weight: 700; border-bottom: 2px solid transparent; }
+.dev-console-tabs button[data-active=true] { color: #be123c; border-bottom-color: #f43f5e; }
+.dev-console-body { flex: 1; padding: 18px 20px 40px; overflow: auto; }
+.dev-console-placeholder { max-width: 46rem; padding: 18px; color: #78716c; background: white; border: 1px dashed #d6d3d1; border-radius: 16px; font-size: .8rem; }
+
+.stt-debug-section-title { margin: 24px 0 8px; color: #44403c; font-size: .82rem; font-weight: 700; }
+.stt-debug-section-title:first-child { margin-top: 0; }
+
+.stt-debug-capture { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; padding: 16px; background: white; border: 1px solid #e7e5e4; border-radius: 18px; }
+.stt-debug-capture textarea { min-height: 76px; padding: 10px; resize: vertical; border: 1px solid #d6d3d1; border-radius: 12px; font-size: .85rem; }
+.stt-debug-capture label { display: block; margin-bottom: 5px; color: #57534e; font-size: .72rem; font-weight: 700; }
+.stt-debug-capture-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.stt-debug-capture-side { display: flex; flex-direction: column; gap: 10px; }
+
+.stt-debug-record { display: flex; align-items: center; gap: 10px; }
+.stt-debug-record button { padding: 9px 16px; color: white; background: #f43f5e; border-radius: 12px; font-size: .8rem; font-weight: 700; }
+.stt-debug-record button[data-recording=true] { background: #be123c; }
+.stt-debug-record button:disabled { background: #d6d3d1; }
+.stt-debug-meter { flex: 1; height: 8px; overflow: hidden; background: #f5f5f4; border-radius: 999px; }
+.stt-debug-meter span { display: block; height: 100%; background: #fb7185; transition: width 80ms linear; }
+.stt-debug-audio { width: 100%; }
+
+.stt-debug-options { display: flex; flex-wrap: wrap; gap: 12px; color: #57534e; font-size: .75rem; }
+.stt-debug-options label { display: flex; align-items: center; gap: 6px; }
+.stt-debug-options select { padding: 3px 6px; border: 1px solid #d6d3d1; border-radius: 8px; }
+.stt-debug-summary { display: flex; flex-direction: column; gap: 6px; color: #57534e; font-size: .74rem; }
+.stt-debug-summary b { color: #1c1917; font-size: .8rem; }
+.stt-debug-summary button { padding: 9px 12px; color: white; background: #e11d48; border-radius: 12px; font-size: .78rem; font-weight: 700; }
+.stt-debug-summary button:disabled { color: #a8a29e; background: #f5f5f4; }
+.stt-debug-summary button.stt-debug-stop { color: #57534e; background: #f5f5f4; }
+.stt-debug-hint { color: #b45309; }
+.stt-debug-message { margin: 0; color: #0f766e; font-size: .74rem; }
+
+.stt-debug-models { display: grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 8px; }
+.stt-debug-model { display: flex; gap: 8px; padding: 10px 12px; text-align: left; background: white; border: 1px solid #e7e5e4; border-radius: 14px; }
+.stt-debug-model[data-selected=true] { border-color: #fb7185; background: #fff1f2; }
+.stt-debug-model input { margin-top: 3px; }
+.stt-debug-model strong { display: block; color: #1c1917; font-size: .78rem; }
+.stt-debug-model small { display: block; margin-top: 2px; color: #78716c; font-size: .68rem; line-height: 1.5; }
+.stt-debug-model em { display: inline-block; margin-top: 4px; padding: 1px 6px; color: #9f1239; background: #ffe4e6; border-radius: 999px; font-size: .62rem; font-style: normal; font-weight: 700; }
+.stt-debug-models-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; color: #78716c; font-size: .72rem; }
+.stt-debug-models-toolbar button { padding: 5px 11px; background: #f5f5f4; border-radius: 999px; font-size: .72rem; font-weight: 700; }
+
+.stt-debug-results { display: flex; flex-direction: column; gap: 8px; }
+.stt-debug-result { padding: 12px 14px; background: white; border: 1px solid #e7e5e4; border-radius: 14px; }
+.stt-debug-result[data-status=error] { border-color: #fecaca; background: #fef2f2; }
+.stt-debug-result-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.stt-debug-result-head strong { font-size: .82rem; }
+.stt-debug-result-head span { color: #78716c; font-family: ui-monospace, monospace; font-size: .7rem; }
+.stt-debug-text { margin: 8px 0 0; padding: 8px 10px; color: #1c1917; background: #fafaf9; border-radius: 10px; font-size: .9rem; line-height: 1.7; }
+.stt-debug-text:empty::before { content: '—'; color: #a8a29e; }
+.stt-debug-metrics { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; color: #57534e; font-family: ui-monospace, monospace; font-size: .7rem; }
+.stt-debug-metrics b { color: #1c1917; }
+.stt-debug-cer[data-quality=good] { color: #15803d; }
+.stt-debug-cer[data-quality=fair] { color: #b45309; }
+.stt-debug-cer[data-quality=poor] { color: #b91c1c; }
+.stt-debug-error { margin: 8px 0 0; color: #b91c1c; font-size: .74rem; }
+
+@media (max-width: 720px) {
+  .stt-debug-capture { grid-template-columns: minmax(0, 1fr); }
+}

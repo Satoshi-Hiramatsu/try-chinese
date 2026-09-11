@@ -259,3 +259,62 @@ export interface TtsDebugRun {
   tunings?: Record<string, TtsVoiceTuning>
   results: TtsDebugResult[]
 }
+
+/** 1回分の文字起こしの計測値。 */
+export interface SttDebugAttempt {
+  index: number
+  status: TtsDebugStatus
+  httpStatus?: number
+  timing: TtsDebugTiming
+  metrics: {
+    requestToHeadersMs?: number
+    requestToFirstChunkMs?: number
+    requestToCompleteMs?: number
+  }
+  /** 転写されたテキスト。 */
+  text?: string
+  /** 上流が自動判定した言語。手動トグルを廃止できるかの判断材料にする。 */
+  detectedLanguage?: string
+  audioDurationSeconds?: number
+  /** 上流が返した実費。カタログは単価だけで課金単位を返さないため、こちらを正とする。 */
+  costUsd?: number
+  errorMessage?: string
+}
+
+export interface SttDebugResult {
+  modelId: string
+  status: TtsDebugStatus
+  httpStatus?: number
+  text?: string
+  detectedLanguage?: string
+  timing: TtsDebugTiming
+  metrics: {
+    requestToCompleteMs?: number
+    audioDurationSeconds?: number
+    costUsd?: number
+    /** 文字誤り率。正解テキストが未入力なら undefined。 */
+    characterErrorRate?: number
+    attemptCount?: number
+    successCount?: number
+    averageRequestToHeadersMs?: number
+    averageRequestToFirstChunkMs?: number
+    averageRequestToCompleteMs?: number
+    warmAverageRequestToFirstChunkMs?: number
+  }
+  attempts?: SttDebugAttempt[]
+  errorMessage?: string
+  memo?: string
+}
+
+export interface SttDebugRun {
+  id: string
+  createdAt: string
+  /** 比較の基準にした正解テキスト。 */
+  referenceText: string
+  /** 上流へ指定した言語。未指定は自動判定。 */
+  language?: string
+  audioDurationMs?: number
+  iterations?: number
+  modelIds: string[]
+  results: SttDebugResult[]
+}
