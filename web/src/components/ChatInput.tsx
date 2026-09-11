@@ -365,8 +365,13 @@ export function ChatInput({
               totalMs={clampSilenceTimeoutMs(silenceTimeoutMs)}
               mode={handsFreeEnabled ? 'send' : 'stop'}
             />
-            <span className="text-[10px] text-stone-500 hidden lg:inline">
-              {`「${speechLang === 'zh-CN' ? '发送' : '送信'}」と言えば送信`}
+            {/*
+              無音の使い切りを待たずに送れることが分かるよう、幅に関わらず出す。
+              待ち時間の短縮はこの合図を知っているかどうかで決まるため、
+              主端末であるスマートフォンで隠れていては意味がない。
+            */}
+            <span className="text-[10px] font-bold text-rose-500 whitespace-nowrap">
+              {`「${speechLang === 'zh-CN' ? '发送' : '送信'}」で送信`}
             </span>
             <button
               type="button"
@@ -446,7 +451,7 @@ export function ChatInput({
           rows={1}
           placeholder={
             isListening
-              ? '話しかけてください...'
+              ? `話しかけて、「${speechLang === 'zh-CN' ? '发送' : '送信'}」で送信`
               : '中国語でも日本語でもOK！'
           }
           disabled={isLoading || disabled || isListening}
