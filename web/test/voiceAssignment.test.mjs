@@ -105,3 +105,54 @@ test('話者IDを解決できないモデルでは声質キャラクター一覧
     'Fish Audio は話者IDが未登録のため、モデル側の入力に任せる'
   )
 })
+
+test('有料版と無料版のFish Audioは同じ声として扱う', () => {
+  // 同じ reference_id を受け取る同一の声。モデルIDで設定を分けると、
+  // 聴き比べのために往復しただけで作り込んだ設定が消えてしまう。
+  assert.equal(assignment.canonicalVoiceModelId('fish-audio/s2.1-pro-free:free'), 'fish-audio/s2.1-pro')
+  assert.equal(assignment.canonicalVoiceModelId('fish-audio/s2.1-pro'), 'fish-audio/s2.1-pro')
+  assert.equal(assignment.canonicalVoiceModelId('hexgrad/kokoro-82m'), 'hexgrad/kokoro-82m')
+})
+
+test('無料版で保存した設定を有料版へ切り替えても残る', () => {
+  const saved = assignment.switchVoiceModel(
+    {
+      quality: 'natural',
+      gender: 'female',
+      ttsModel: 'fish-audio/s2.1-pro-free:free',
+      voiceModel: 'ref-a',
+      voiceTuning: { temperature: 0.2 },
+    },
+    'fish-audio/s2.1-pro'
+  )
+  assert.equal(saved.voiceModel, 'ref-a')
+  assert.equal(saved.voiceTuning.temperature, 0.2)
+})
+
+test('別名で保存された古い割り当ては代表IDへ畳まれる', () => {
+  const next = assignment.writeBinding(
+    { 'fish-audio/s2.1-pro-free:free': { voiceModel: 'old' } },
+    'fish-audio/s2.1-pro-free:free',
+    { voiceModel: 'new' }
+  )
+  assert.deepEqual(plain(Object.keys(next)), ['fish-audio/s2.1-pro'])
+  assert.equal(next['fish-audio/s2.1-pro'].voiceModel, 'new')
+})
+
+test('別名統合より前の保存データも読み出せる', () => {
+  const voice = {
+    quality: 'natural',
+    gender: 'female',
+    voiceByModel: { 'fish-audio/s2.1-pro-free:free': { voiceModel: 'legacy' } },
+  }
+  assert.equal(assignment.readBinding(voice, 'fish-audio/s2.1-pro-free:free').voiceModel, 'legacy')
+})
+
+test('有料版と無料版で同じ話者を使う友達は重複として検出する', () => {
+  const duplicated = assignment.findDuplicateAssignments([
+    { id: 'a', voice: { quality: 'natural', gender: 'female', ttsModel: 'fish-audio/s2.1-pro', voiceModel: 'ref-x' } },
+    { id: 'b', voice: { quality: 'natural', gender: 'female', ttsModel: 'fish-audio/s2.1-pro-free:free', voiceModel: 'ref-x' } },
+  ])
+  assert.equal(duplicated.has('a'), true)
+  assert.equal(duplicated.has('b'), true)
+})

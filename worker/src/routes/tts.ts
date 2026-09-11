@@ -62,6 +62,16 @@ const PCM_SAMPLE_RATES: readonly { pattern: RegExp; sampleRate: number }[] = [
 const NO_SPEED_MODELS: readonly RegExp[] = [/^google\/gemini-.*-tts/i]
 
 /**
+ * 話者IDが必須のモデル。
+ *
+ * Fish Audio はカタログに話者一覧を出さないため、話者IDを送らなくても
+ * リクエストは通ってしまう。ただし声は生成のたびに変わる。
+ * キャラクターごとに固定の声を与える前提では、これは黙って壊れる状態なので
+ * エラーとして返し、設定漏れに気付けるようにする。
+ */
+const VOICE_REQUIRED_MODELS: readonly RegExp[] = [/^fish-audio\//i]
+
+/**
  * 中国語会話での既定話者。カタログの先頭話者は英語音声であることが多いため、
  * 本アプリの用途に合う話者を明示しておく。
  */
@@ -275,6 +285,15 @@ ttsRoute.post('/tts', async (c) => {
   }
 
   const selectedVoice = resolveVoice(targetModel, voice, catalogEntry?.supportedVoices || [])
+
+  if (!selectedVoice && matches(VOICE_REQUIRED_MODELS, targetModel)) {
+    return c.json(
+      {
+        error: `${targetModel} は話者ID(reference_id)が必須です。指定しないと生成のたびに声が変わります。`,
+      },
+      400
+    )
+  }
 
   const clampedSpeed = targetModel.startsWith('microsoft/mai-voice')
     ? Math.max(0.5, Math.min(2.0, Number(speed) || 1.0))

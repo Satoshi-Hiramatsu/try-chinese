@@ -273,6 +273,8 @@ describe('TTS API (/api/tts)', () => {
       ttsRequest({
         text: '你好',
         model: 'fish-audio/s1',
+        // Fish 系は話者IDが必須。ここで見たいのは調整値の丸めなので固定値を置く。
+        voice: 'ref-voice-2',
         tuning: { temperature: 5, volume: -99, latency: 'turbo', style: 'cheerful' },
       }),
       env,
@@ -372,5 +374,48 @@ describe('TTSモデル一覧 (/api/tts/models)', () => {
     expect(response.status).toBe(200)
     expect(json.stale).toBe(true)
     expect(json.models.map((model) => model.id)).toContain('hexgrad/kokoro-82m')
+  })
+})
+
+describe('話者IDが必須のモデル', () => {
+  beforeEach(() => resetSpeechModelCache())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetSpeechModelCache()
+  })
+
+  it('Fish Audio に話者IDを指定しないと400で弾く', async () => {
+    // 指定しないままでも上流は通るが、声は生成のたびに変わる。
+    // キャラクターごとに固定の声を与える前提では黙って壊れる状態なので落とす。
+    stubOpenRouter({ catalog: [{ id: 'fish-audio/s2.1-pro', supported_voices: [] }], speech: audioResponse })
+    const ctx = createExecutionContext()
+    const response = await worker.fetch(ttsRequest({ text: '你好', model: 'fish-audio/s2.1-pro' }), env, ctx)
+    await waitOnExecutionContext(ctx)
+
+    expect(response.status).toBe(400)
+    expect(((await response.json()) as { error: string }).error).toContain('reference_id')
+  })
+
+  it('Fish Audio に話者IDを指定すればそのまま上流へ渡す', async () => {
+    const calls = stubOpenRouter({ catalog: [{ id: 'fish-audio/s2.1-pro', supported_voices: [] }], speech: audioResponse })
+    const ctx = createExecutionContext()
+    const response = await worker.fetch(
+      ttsRequest({ text: '你好', model: 'fish-audio/s2.1-pro', voice: '7f92f8afb8ec43bf81429cc1c9199cb1' }),
+      env,
+      ctx
+    )
+    await waitOnExecutionContext(ctx)
+
+    expect(response.status).toBe(200)
+    expect(calls[0].voice).toBe('7f92f8afb8ec43bf81429cc1c9199cb1')
+  })
+
+  it('話者一覧を持つモデルは未指定でも従来どおり通る', async () => {
+    stubOpenRouter({ catalog: [{ id: 'hexgrad/kokoro-82m', supported_voices: ['zf_xiaoxiao'] }], speech: audioResponse })
+    const ctx = createExecutionContext()
+    const response = await worker.fetch(ttsRequest({ text: '你好', model: 'hexgrad/kokoro-82m' }), env, ctx)
+    await waitOnExecutionContext(ctx)
+
+    expect(response.status).toBe(200)
   })
 })

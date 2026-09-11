@@ -10,6 +10,23 @@
 
 import type { TtsVoiceTuning, Voice, VoiceModelBinding } from '../types'
 
+/**
+ * 同じ声を指す別モデルID。
+ *
+ * Fish Audio の有料版と無料版は同じ話者ID(reference_id)を受け取る
+ * 同一の声で、違うのは課金と混雑だけ。モデルIDで設定を分けて持つと、
+ * 聴き比べのために往復しただけで作り込んだ設定が消えてしまう。
+ */
+const MODEL_ALIAS_GROUPS: readonly (readonly string[])[] = [
+  ['fish-audio/s2.1-pro', 'fish-audio/s2.1-pro-free:free'],
+]
+
+/** 別名をまとめるための代表ID。グループの先頭を代表とする。 */
+export function canonicalVoiceModelId(modelId: string): string {
+  const group = MODEL_ALIAS_GROUPS.find((ids) => ids.includes(modelId))
+  return group ? group[0] : modelId
+}
+
 /** 空の調整値を落とす。保存データを無意味に膨らませないため。 */
 function compactTuning(tuning?: TtsVoiceTuning): TtsVoiceTuning | undefined {
   if (!tuning) return undefined
@@ -26,10 +43,13 @@ function isEmptyBinding(binding: VoiceModelBinding): boolean {
   return (binding.voiceModel === undefined || binding.voiceModel === '') && binding.voiceTuning === undefined
 }
 
-/** そのモデルに覚えてある割り当てを返す。 */
+/**
+ * そのモデルに覚えてある割り当てを返す。
+ * 代表IDで引き、見つからなければ元のIDでも引く（別名統合より前の保存データ向け）。
+ */
 export function readBinding(voice: Voice | undefined, modelId: string): VoiceModelBinding | undefined {
   if (!voice?.voiceByModel) return undefined
-  return voice.voiceByModel[modelId]
+  return voice.voiceByModel[canonicalVoiceModelId(modelId)] ?? voice.voiceByModel[modelId]
 }
 
 /** 割り当てを1件書き込んだ新しいテーブルを返す。 */
@@ -39,15 +59,18 @@ export function writeBinding(
   binding: VoiceModelBinding
 ): Record<string, VoiceModelBinding> {
   const next = { ...(voiceByModel || {}) }
+  const key = canonicalVoiceModelId(modelId)
   const compacted: VoiceModelBinding = {
     ...(binding.voiceModel ? { voiceModel: binding.voiceModel } : {}),
     ...(compactTuning(binding.voiceTuning) ? { voiceTuning: compactTuning(binding.voiceTuning) } : {}),
   }
+  // 別名で保存された古いエントリは、代表IDへ書き直すときに畳む。
+  if (key !== modelId) delete next[modelId]
   if (isEmptyBinding(compacted)) {
-    delete next[modelId]
+    delete next[key]
     return next
   }
-  next[modelId] = compacted
+  next[key] = compacted
   return next
 }
 
@@ -70,7 +93,7 @@ export function rememberCurrentBinding(voice: Voice): Voice {
  */
 export function switchVoiceModel(voice: Voice, nextModelId: string, fallbackVoiceModel?: string): Voice {
   const saved = rememberCurrentBinding(voice)
-  const restored = saved.voiceByModel?.[nextModelId]
+  const restored = readBinding(saved, nextModelId)
   return {
     ...saved,
     ttsModel: nextModelId,
@@ -82,7 +105,8 @@ export function switchVoiceModel(voice: Voice, nextModelId: string, fallbackVoic
 /** 話者の重複判定に使うキー。モデルが違えば同じ話者IDでも別の声になる。 */
 export function voiceAssignmentKey(voice?: Voice): string | undefined {
   if (!voice?.voiceModel || voice.voiceModel.trim() === '') return undefined
-  return `${voice.ttsModel || ''}::${voice.voiceModel.trim()}`
+  // 有料版と無料版は同じ声なので、同じキーに畳んで重複として検出する。
+  return `${canonicalVoiceModelId(voice.ttsModel || '')}::${voice.voiceModel.trim()}`
 }
 
 /**
