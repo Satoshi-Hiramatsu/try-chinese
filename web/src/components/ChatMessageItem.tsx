@@ -8,7 +8,7 @@ interface ChatMessageItemProps {
   message: ChatMessage
   friend: Friend
   playingText?: string | null
-  onPlayText?: (text: string) => void
+  onPlayText?: (text: string, speechText?: string) => void
   onStopText?: () => void
   savedTerms?: Set<string>
   enableToneColoring?: boolean
@@ -57,7 +57,7 @@ export function ChatMessageItem({
     if (isPlayingMain) {
       onStopText?.()
     } else {
-      onPlayText?.(reply.zh)
+      onPlayText?.(reply.zh, reply.speech)
     }
   }
 

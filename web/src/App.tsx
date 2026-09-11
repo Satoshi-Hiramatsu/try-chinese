@@ -372,7 +372,11 @@ export default function App() {
     setVoiceRevision((current) => current + 1)
   }
 
-  const handlePlayText = (text: string, resumeHandsFree = false) => {
+  /**
+   * text は画面に出ている文字列で、再生中の見た目の判定にも使う。
+   * speechText は読み上げ専用の文字列で、指定が無ければ text をそのまま読む。
+   */
+  const handlePlayText = (text: string, speechText?: string, resumeHandsFree = false) => {
     stopSpeaking()
     setPlayingText(text)
     let completed = false
@@ -382,7 +386,7 @@ export default function App() {
       setPlayingText(null)
       if (resumeHandsFree) setHandsFreeResumeToken((prev) => prev + 1)
     }
-    speakChinese(text, currentFriend.voice, {
+    speakChinese(speechText || text, currentFriend.voice, {
       onEnd: completePlayback,
       onError: (error) => {
         completePlayback()
@@ -505,7 +509,7 @@ export default function App() {
       // 返答の自動読み上げ（設定がONの場合）
       if (autoPlayTts && response.reply?.zh) {
         setTimeout(() => {
-          handlePlayText(response.reply.zh, handsFreeEnabled)
+          handlePlayText(response.reply.zh, response.reply.speech, handsFreeEnabled)
         }, 120)
       } else if (handsFreeEnabled) {
         setHandsFreeResumeToken((prev) => prev + 1)

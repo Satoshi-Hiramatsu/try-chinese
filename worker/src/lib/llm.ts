@@ -1,6 +1,7 @@
 import type { ChatHistoryItem, ChatResponse, Expression, Friend, LlmUsage } from '../types'
 import { EXPRESSIONS } from '../types'
 import { buildChatSystemPrompt } from './prompt'
+import { resolveSpeechText } from './speechText'
 
 export interface CallLLMOptions {
   message: string
@@ -40,11 +41,16 @@ const CHAT_RESPONSE_SCHEMA = {
     reply: {
       type: 'object',
       properties: {
-        zh: { type: 'string', description: '中国語（簡体字）の返答本文。日本語を混ぜない。' },
+        zh: { type: 'string', description: '中国語（簡体字）の返答本文。日本語を混ぜない。算用数字を使ってよい。' },
+        speech: {
+          type: 'string',
+          description:
+            '読み上げ用。zh と同じ内容のまま、算用数字を漢数字に直し、感情マーカーを付ける。語句は変えない。',
+        },
         ja: { type: 'string', description: '返答の自然な日本語訳。' },
         hskLevel: { type: 'integer', description: '返答が想定しているHSK級。1〜6。' },
       },
-      required: ['zh', 'ja', 'hskLevel'],
+      required: ['zh', 'speech', 'ja', 'hskLevel'],
       additionalProperties: false,
     },
     correction: {
@@ -128,8 +134,12 @@ export function parseChatResponse(content: string): ChatResponse {
     throw new Error('LLMレスポンスに reply オブジェクトが存在しません。')
   }
   const replyObj = res.reply as Record<string, unknown>
+  const zh = String(replyObj.zh || '')
+  // 読み上げ用は信用しすぎない。壊れていれば表示テキストの機械変換に落とす。
+  const speech = resolveSpeechText(zh, typeof replyObj.speech === 'string' ? replyObj.speech : undefined)
   const reply = {
-    zh: String(replyObj.zh || ''),
+    zh,
+    speech: speech.text,
     ja: String(replyObj.ja || ''),
     pinyin: String(replyObj.pinyin || ''),
     hskLevel: Number(replyObj.hskLevel || 1),

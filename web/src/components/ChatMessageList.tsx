@@ -8,7 +8,7 @@ interface ChatMessageListProps {
   friend: Friend
   isLoading: boolean
   playingText?: string | null
-  onPlayText?: (text: string) => void
+  onPlayText?: (text: string, speechText?: string) => void
   onStopText?: () => void
   savedTerms?: Set<string>
   enableToneColoring?: boolean

@@ -29,7 +29,7 @@ interface NovelStageProps {
   lastUserText?: string
   isLoading: boolean
   playingText?: string | null
-  onPlayText?: (text: string) => void
+  onPlayText?: (text: string, speechText?: string) => void
   onStopText?: () => void
   savedTerms?: Set<string>
   enableToneColoring?: boolean
@@ -280,7 +280,7 @@ export function NovelStage({
                   onClick={(e) => {
                     e.stopPropagation()
                     if (isPlayingMain) onStopText?.()
-                    else onPlayText?.(reply.zh)
+                    else onPlayText?.(reply.zh, reply.speech)
                   }}
                   title={isPlayingMain ? '音声を停止' : '発音を聞く'}
                   aria-label={isPlayingMain ? '音声を停止' : '発音を聞く'}

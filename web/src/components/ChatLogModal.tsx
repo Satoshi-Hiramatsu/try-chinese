@@ -8,7 +8,7 @@ interface ChatLogModalProps {
   messages: ChatMessage[]
   friend: Friend
   playingText?: string | null
-  onPlayText?: (text: string) => void
+  onPlayText?: (text: string, speechText?: string) => void
   onStopText?: () => void
   savedTerms?: Set<string>
   enableToneColoring?: boolean

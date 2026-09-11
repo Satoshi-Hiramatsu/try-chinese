@@ -108,6 +108,12 @@ export interface BilingualReply {
   ja: string
   pinyin: string
   hskLevel: number
+  /**
+   * 読み上げ専用の中国語。画面には出さない。
+   * zh に感情マーカーと漢数字化を施したもので、
+   * zh をそのまま読ませると算用数字が一桁ずつ読まれることがあるため分ける。
+   */
+  speech?: string
 }
 
 export interface Correction {
