@@ -19,6 +19,7 @@ import { DevConsole } from './components/DevConsole'
 import { AlertIcon, CloseIcon } from './components/Icons'
 import { sendMessageToChatApi } from './services/api'
 import { speakChinese, stopSpeaking } from './services/speech'
+import { prefetchPinyin } from './services/pinyin'
 import {
   loadApiKey,
   saveApiKey,
@@ -279,6 +280,11 @@ export default function App() {
     return () => {
       stopSpeaking()
     }
+  }, [])
+
+  // ピンイン辞書は別チャンクなので、起動直後に温めて最初の返答に間に合わせる。
+  useEffect(() => {
+    prefetchPinyin()
   }, [])
 
   const handleHskChange = (level: number) => {
