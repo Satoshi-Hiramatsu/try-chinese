@@ -50,15 +50,15 @@
 
 ![ノベル画面](docs/screenshots/novel_stage.png)
 
-### 立ち絵 — 男女10人ずつ、計20体
+### 立ち絵 — 男女10人ずつ、全20体×10表情
 
-爽やかなアニメ調のイラスト立ち絵です。趣味・職業・居住地に合わせて背景まで描き分けているため、同じ雰囲気のキャラクターは並びません。
+爽やかなアニメ調のイラスト立ち絵です。プリセット20体すべてに、通常・微笑み・喜び・笑い・照れ・驚き・哀しみ・怒り・考え中・ウインクの10表情があり、会話の感情に合わせて切り替わります。趣味・職業・居住地に合わせたシーン背景と組み合わせるため、同じ雰囲気のキャラクターは並びません。
 
 ![20体の立ち絵一覧](docs/screenshots/portrait_gallery.png)
 
-### 表情 — カスタム友達向けの SVG 立ち絵
+### 表情 — プリセットとカスタム友達の10表情
 
-自分で作った友達にはパラメトリック SVG の立ち絵を割り当てます。こちらは通常・微笑み・喜び・笑い・照れ・驚き・哀しみ・怒り・考え中・ウインクの10表情を持ち、LLM が返答ごとに指定した表情へ切り替わります（指定がない場合は返答テキストから推定）。
+プリセット20体はイラストの表情差分、自分で作った友達はパラメトリック SVG により10表情を持ちます。LLM が返答ごとに指定した表情へ切り替わり、指定がない場合は返答テキストから推定します。
 
 ![表情10パターンの一覧](docs/screenshots/expressions.png)
 
@@ -120,7 +120,7 @@ OpenRouter API キー1つで、会話生成（LLM）と音声合成（TTS）の�
 
 ### 4. 常時ピンイン & 声調カラーハイライト
 
-すべての中国語にピンインを常時併記します。第1声（赤）・第2声（橙）・第3声（緑）・第4声（青）・軽声（灰）の色分けをワンタップで ON/OFF できます。
+すべての中国語にピンインを常時併記します。ピンインは `pinyin-pro` の辞書から決定的に生成し、LLMごとの表記揺れを抑えています。第1声（赤）・第2声（橙）・第3声（緑）・第4声（青）・軽声（灰）の色分けをワンタップで ON/OFF できます。
 
 ### 5. OpenRouter 1本化の音声合成 (TTS)
 
@@ -135,6 +135,8 @@ OpenRouter API キー1つで動作します。選択できるモデル:
 | ブラウザ標準音声 | 無料 | 端末内蔵の Web Speech API。通信費ゼロ |
 
 上表は会話画面で使う推奨モデルです。検証モードでは、OpenRouter が音声出力に対応する全モデル（2026年9月時点で18件）を扱えます。
+
+読み上げは返答全体の生成を待たず、文章を句点で分けて1文目から再生しながら次の文を先読みします。表示用の中国語とは別に読み上げ用テキストを持ち、Fish Audioで算用数字を一桁ずつ読む問題を漢数字化などで補正します。
 
 #### TTSモデル検証モード（開発・比較用）
 
@@ -174,7 +176,7 @@ API キー・会話履歴・語彙帳はすべてブラウザ内（IndexedDB / L
 
 1. ヘッダーの **「設定」** を開きます。狭い画面では **「その他」→「設定」** の順に押します。
 2. **OpenRouter API Key**（`sk-or-v1-...`）を入力します。お持ちでない場合は [openrouter.ai](https://openrouter.ai/) で作成・チャージしてください。
-3. **会話用 AI モデル**（推奨: `Gemini 2.5 Flash`）と **音声合成 TTS モデル**（推奨: `Qwen Audio 3.0 TTS Flash`）を選び、「設定を保存」を押します。
+3. **会話用 AI モデル**（推奨: `DeepSeek V4.1 Flash`）と **音声合成 TTS モデル**（推奨: `Qwen Audio 3.0 TTS Flash`）を選び、「設定を保存」を押します。
    - 音声だけをキーなしで試したい場合は、読み上げエンジンに「ブラウザ / Edge」を選んでください。会話生成には API キーが必要です。
 
 ### STEP 2: 会話相手（友達）を選ぶ
@@ -196,8 +198,18 @@ URL の末尾に `#admin` を付けると、**声の管理ダッシュボード*
 - 全員のモデルを1操作で切り替えられます。話者IDと調整値は各キャラクターの記録から復元し、直前の状態には「元に戻す」で戻せます。
 - カード単位の試聴と、表示中のキャラクターを順に鳴らす「通し試聴」ができます。**人数分のAPI利用料がかかる** ため、実行前に確認が入ります。
 - TTSモデル検証モードで保存した結果（モデル＋話者ID＋調整値）を、そのままキャラクターへ取り込めます。
+- 現在の全キャラクターの声設定を `presetFriends.ts` へ転記できるTypeScriptコードとして書き出し、クリップボードへコピーできます。APIキーは含まれません。
 
 個人利用を前提としているため認証は設けていません。共有端末では URL の扱いにご注意ください。
+
+#### 開発者モード
+
+URLの末尾に `#dev` を付けると開発者モードが開きます。通常利用の導線からは分離されています。
+
+- **キャラクター**: 20体の立ち絵・10表情・声・プロフィールを一覧確認し、ブラウザ上で調整できます。プリセットとの差分はコードとして書き出せます。
+- **STT比較**: 同じ録音を複数モデルへ送り、転写結果・言語・レイテンシ・実費・文字誤り率を比較します。
+- **LLM比較**: 同じ発話・友達・HSK級で複数モデルを実行し、返答品質・構造・レイテンシ・トークン・実費を比較します。
+- **TTS比較**: TTSモデル検証モードを開き、数字や感情マーカーを含む確認用テキストで比較します。
 
 ### STEP 3: 会話を楽しむ
 
@@ -270,12 +282,13 @@ flowchart LR
     end
 
     subgraph Server["Cloudflare Workers (Edge API)"]
-        ChatRoute["POST /api/chat<br>(HSK制御・表情指定)"]
+        ChatRoute["POST /api/chat<br>(会話・学習支援を並行生成)"]
         TtsRoute["POST /api/tts<br>(音声合成の中継)"]
+        SttRoute["POST /api/stt<br>(文字起こしの中継)"]
     end
 
     subgraph AI["OpenRouter API"]
-        LLM["会話生成 (Gemini / DeepSeek / GPT)"]
+        LLM["会話生成 (DeepSeek V4.1 Flash ほか)"]
         TTS["音声合成 (Qwen / Kokoro / Fish)"]
     end
 
@@ -293,7 +306,7 @@ flowchart LR
 | **Styling** | Tailwind CSS | Tailwind CSS v4 + 素の CSS（アニメーション・レイアウト） |
 | **キャラクター** | イラスト画像 + インライン SVG | プリセット20体はイラスト立ち絵。カスタム友達は SVG をパラメータで生成 |
 | **Backend** | Cloudflare Workers | Hono、エッジ実行、Static Assets で SPA も同居 |
-| **AI Hub** | OpenRouter API | Chat Completions + OpenAI 互換 TTS |
+| **AI Hub** | OpenRouter API | Chat Completions + 音声合成 + 文字起こし |
 | **保存先** | Web Storage | LocalStorage / IndexedDB（完全クライアント保持） |
 
 ### 主要ディレクトリ
@@ -306,6 +319,8 @@ web/src/
 │   ├── CharacterPortrait.tsx   SVG 立ち絵の描画（カスタム友達用のフォールバック）
 │   ├── SceneBackdrop.tsx       SVG 立ち絵の背景シーン
 │   ├── ChatLogModal.tsx        会話ログ（バックログ）
+│   ├── DevConsole.tsx          開発者モード（キャラクター / STT / LLM / TTS）
+│   ├── CharacterAdminPane.tsx  立ち絵・声・プロフィールの管理
 │   ├── TtsDebugModal.tsx       OpenRouter TTSモデル検証画面
 │   ├── VoiceTuningFields.tsx   声の固定・チューニング入力（検証／声質設定で共有）
 │   └── ...                     ヘッダー・入力欄・各種モーダル
@@ -319,6 +334,7 @@ web/src/
 ├── services/
 │   ├── api.ts                  /api/chat の呼び出し
 │   ├── expression.ts           表情の検証とテキストからの推定
+│   ├── pinyin.ts               中国語から声調記号つきピンインを辞書生成
 │   ├── speech.ts               STT / TTS
 │   ├── audioFormat.ts          PCM応答のWAV変換
 │   ├── ttsCatalog.ts           OpenRouterの音声モデル一覧の取得・結合
@@ -331,6 +347,7 @@ web/public/portraits/           立ち絵イラスト20枚（pt-*.jpg / 720x960�
 
 worker/src/
 ├── routes/chat.ts              POST /api/chat
+├── routes/stt.ts               POST /api/stt, GET /api/stt/models
 ├── routes/tts.ts               POST /api/tts, GET /api/tts/models
 ├── services/openRouterCatalog.ts  OpenRouterの音声出力モデル一覧の取得・キャッシュ
 └── lib/prompt.ts               HSK 級別制御・添削・表情指定のプロンプト
@@ -354,7 +371,7 @@ npm install
 
 ```ini
 OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxxxxxx
-OPENROUTER_MODEL=google/gemini-2.5-flash
+OPENROUTER_MODEL=deepseek/deepseek-v4.1-flash
 ```
 
 > API キーは絶対にコミットしないでください。`.dev.vars*` は `.gitignore` 済みです。
@@ -377,7 +394,7 @@ npm test        # React Hooks 検査 + Web テスト (node:test) + Workers テ�
 npm run build   # Web ビルド + Worker 型チェック
 ```
 
-Web側では、立ち絵・表情に加え、音声認識結果の重複抑止、単発／継続認識の切り替え、音声コマンド、TTSモデル定義と費用概算を検証しています。
+Web側では、立ち絵・表情、キャラクタープロフィールと声設定の書き出し、音声認識結果の重複抑止、単発／継続認識の切り替え、音声コマンド、STT・LLM・TTSの比較・計測を検証しています。
 
 ### 5. スクリーンショットの更新
 
@@ -421,7 +438,7 @@ npm run deploy   # ビルドしてから wrangler deploy を実行
 
 ## 変更履歴
 
-すべての変更は [CHANGELOG.md](CHANGELOG.md) に記録しています。最新は **T-50: アイコンとファビコンを刷新** です。
+すべての変更は [CHANGELOG.md](CHANGELOG.md) に記録しています。最新は **T-81: 残り9体の表情差分を追加し、プリセット20体すべてを解放** です。
 
 ---
 
