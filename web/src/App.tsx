@@ -130,7 +130,7 @@ const IMMERSIVE_VIEWPORT_QUERY = '(pointer: coarse) and (orientation: landscape)
 export default function App() {
   const [hskLevel, setHskLevel] = useState<number>(() => loadHskLevel(2))
   const [apiKey, setApiKey] = useState<string>(() => loadApiKey())
-  const [model, setModel] = useState<string>(() => loadSelectedModel('google/gemini-2.5-flash'))
+  const [model, setModel] = useState<string>(() => loadSelectedModel())
   const [customFriends, setCustomFriends] = useState<Friend[]>(() => loadCustomFriends())
   /** 声設定の保存を検知して友達リストを組み直すための世代番号。 */
   const [voiceRevision, setVoiceRevision] = useState(0)

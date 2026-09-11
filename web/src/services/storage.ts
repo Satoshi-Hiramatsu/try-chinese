@@ -231,7 +231,7 @@ export function clearFriendMessages(friendId: string): void {
   }
 }
 
-export function loadSelectedModel(defaultModel = 'google/gemini-2.5-flash'): string {
+export function loadSelectedModel(defaultModel = 'deepseek/deepseek-v4.1-flash'): string {
   try {
     return localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL) || defaultModel
   } catch {

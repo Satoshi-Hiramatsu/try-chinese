@@ -322,3 +322,104 @@ describe('T-01: POST /api/chat 実装テスト', () => {
     })
   })
 })
+
+describe('T-75: DeepSeek 移行と構造化出力', () => {
+  const okPayload = {
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({
+            reply: { zh: '我也很喜欢。', ja: '私も好きです。', hskLevel: 2 },
+            correction: { hasCorrection: false, original: null, suggested: null, ja: null },
+            vocabulary: [{ term: '电影', ja: '映画', hskLevel: 1 }],
+            expression: 'smile',
+          }),
+        },
+      },
+    ],
+    usage: { prompt_tokens: 1200, completion_tokens: 90, total_tokens: 1290, cost: 0.00012 },
+  }
+
+  const chatRequest = (body: Record<string, unknown> = {}) =>
+    new Request('http://example.com/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': 'test-key' },
+      body: JSON.stringify({ message: '你好', friend: mockFriend, hskLevel: 2, ...body }),
+    })
+
+  const send = async (request: Request) => {
+    const ctx = createExecutionContext()
+    const response = await worker.fetch(request, {} as never, ctx)
+    await waitOnExecutionContext(ctx)
+    return response
+  }
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('推論を止め、スキーマで縛って呼び出す', async () => {
+    const calls: Record<string, unknown>[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_input: unknown, init?: RequestInit) => {
+      calls.push(JSON.parse(String(init?.body ?? '{}')))
+      return Response.json(okPayload)
+    }))
+
+    const response = await send(chatRequest())
+    expect(response.status).toBe(200)
+
+    // 推論が走ると最初の一文字までが遅くなり、出力上限も食われる。
+    expect(calls[0].reasoning).toEqual({ effort: 'none' })
+    const format = calls[0].response_format as { type: string; json_schema?: { strict: boolean } }
+    expect(format.type).toBe('json_schema')
+    expect(format.json_schema?.strict).toBe(true)
+  })
+
+  it('モデル未指定なら DeepSeek V4.1 Flash を使う', async () => {
+    const calls: Record<string, unknown>[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_input: unknown, init?: RequestInit) => {
+      calls.push(JSON.parse(String(init?.body ?? '{}')))
+      return Response.json(okPayload)
+    }))
+
+    await send(chatRequest())
+    expect(calls[0].model).toBe('deepseek/deepseek-v4.1-flash')
+  })
+
+  it('スキーマ指定を拒否されたらJSON指定で1回だけやり直す', async () => {
+    const formats: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_input: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      formats.push((body.response_format as { type: string }).type)
+      if (formats.length === 1) {
+        return Response.json({ error: { message: 'response_format json_schema is not supported' } }, { status: 400 })
+      }
+      return Response.json(okPayload)
+    }))
+
+    const response = await send(chatRequest())
+    expect(response.status).toBe(200)
+    expect(formats).toEqual(['json_schema', 'json_object'])
+  })
+
+  it('スキーマと無関係なエラーではやり直さない', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ error: { message: 'insufficient credits' } }, { status: 402 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await send(chatRequest())
+    expect(response.status).toBe(500)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('消費量を応答に添える', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(okPayload)))
+    const response = await send(chatRequest())
+    const payload = (await response.json()) as { usage?: { completionTokens?: number; costUsd?: number } }
+    expect(payload.usage?.completionTokens).toBe(90)
+    expect(payload.usage?.costUsd).toBe(0.00012)
+  })
+
+  it('ピンインを求めないプロンプトになっている', () => {
+    const prompt = buildChatSystemPrompt(mockFriend, 2)
+    expect(prompt).toContain('ピンインは出力しないでください')
+    expect(prompt).not.toContain('"pinyin"')
+  })
+})

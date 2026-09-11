@@ -12,8 +12,90 @@ export interface CallLLMOptions {
   apiBaseUrl?: string
 }
 
-const DEFAULT_MODEL = 'google/gemini-2.5-flash'
+const DEFAULT_MODEL = 'deepseek/deepseek-v4.1-flash'
 const DEFAULT_API_BASE = 'https://openrouter.ai/api/v1'
+
+/**
+ * 出力の上限。
+ *
+ * ピンインを辞書生成へ移した(T-70)ぶん出力は短くなったが、
+ * 途中で切れると JSON 全体が読めなくなり会話が止まる。
+ * 課金は実際に使ったトークンのみなので、余裕を持たせておく。
+ */
+const MAX_OUTPUT_TOKENS = 1500
+
+/**
+ * 返答の構造。
+ *
+ * これまでは「純粋なJSONだけを返せ」とプロンプトで頼み、
+ * 前後に付いたコードブロック記法を剥がしてからパースしていた。
+ * スキーマで縛れるモデルではその綱渡りが要らなくなる。
+ *
+ * strict では省略可能な項目を作れないため、
+ * 値が無い場合は null を許す形にして required には全て並べる。
+ */
+const CHAT_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    reply: {
+      type: 'object',
+      properties: {
+        zh: { type: 'string', description: '中国語（簡体字）の返答本文。日本語を混ぜない。' },
+        ja: { type: 'string', description: '返答の自然な日本語訳。' },
+        hskLevel: { type: 'integer', description: '返答が想定しているHSK級。1〜6。' },
+      },
+      required: ['zh', 'ja', 'hskLevel'],
+      additionalProperties: false,
+    },
+    correction: {
+      type: 'object',
+      properties: {
+        hasCorrection: { type: 'boolean' },
+        original: { type: ['string', 'null'], description: '学習者の元の発話のうち直す部分。' },
+        suggested: { type: ['string', 'null'], description: 'より自然な中国語表現。' },
+        ja: { type: ['string', 'null'], description: 'なぜそう直すかの日本語の解説。' },
+      },
+      required: ['hasCorrection', 'original', 'suggested', 'ja'],
+      additionalProperties: false,
+    },
+    vocabulary: {
+      type: 'array',
+      description: '覚えると役に立つ語を1〜3個。',
+      items: {
+        type: 'object',
+        properties: {
+          term: { type: 'string' },
+          ja: { type: 'string' },
+          hskLevel: { type: 'integer' },
+        },
+        required: ['term', 'ja', 'hskLevel'],
+        additionalProperties: false,
+      },
+    },
+    expression: { type: 'string', enum: [...EXPRESSIONS] },
+  },
+  required: ['reply', 'correction', 'vocabulary', 'expression'],
+  additionalProperties: false,
+} as const
+
+/** スキーマで縛れないモデル向けの指定。JSONであることだけを求める。 */
+const JSON_OBJECT_FORMAT = { type: 'json_object' } as const
+
+const JSON_SCHEMA_FORMAT = {
+  type: 'json_schema',
+  json_schema: { name: 'shabe_china_reply', strict: true, schema: CHAT_RESPONSE_SCHEMA },
+} as const
+
+/**
+ * スキーマ指定が拒否されたかどうか。
+ *
+ * 対応状況はモデルと提供元の組み合わせで決まり、事前には分からない。
+ * 拒否されたときだけ緩い指定で1回やり直せるよう、原因を見分ける。
+ */
+export function isUnsupportedResponseFormat(status: number, detail: string): boolean {
+  if (status !== 400 && status !== 404 && status !== 422) return false
+  return /json[_\s-]?schema|response_format|structured[_\s-]?output/i.test(detail)
+}
 
 /**
  * LLM からの応答テキストから JSON 部分を抽出してパースする
@@ -154,28 +236,43 @@ export async function callChatLLM(options: CallLLMOptions): Promise<ChatResponse
 
   const url = `${apiBaseUrl.replace(/\/$/, '')}/chat/completions`
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': 'https://shabe-china.pages.dev',
-      'X-Title': 'ShabeChina',
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
-      max_tokens: 1000,
-      // 実費を応答に含めてもらう。カタログの単価だけではモデル比較の根拠にならない。
-      usage: { include: true },
-    }),
-  })
+  const request = (responseFormat: unknown) =>
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://shabe-china.pages.dev',
+        'X-Title': 'ShabeChina',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        response_format: responseFormat,
+        temperature: 0.7,
+        max_tokens: MAX_OUTPUT_TOKENS,
+        // 推論を止める。会話の返答に思考は要らず、走らせると最初の一文字までが遅くなり、
+        // 出力上限も推論に食われて JSON が途中で切れる。
+        // exclude では推論自体は走るため、effort: 'none' で計算ごと止める。
+        reasoning: { effort: 'none' },
+        // 実費を応答に含めてもらう。カタログの単価だけではモデル比較の根拠にならない。
+        usage: { include: true },
+      }),
+    })
+
+  let response = await request(JSON_SCHEMA_FORMAT)
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '')
-    throw new Error(`LLMプロバイダへのリクエストに失敗しました (Status: ${response.status}): ${errorText.slice(0, 300)}`)
+    // スキーマ対応はモデルと提供元の組み合わせで決まり、事前には分からない。
+    // 拒否されたときだけ、JSONであることだけを求める指定で1回やり直す。
+    if (isUnsupportedResponseFormat(response.status, errorText)) {
+      response = await request(JSON_OBJECT_FORMAT)
+    }
+    if (!response.ok) {
+      const detail = response.bodyUsed ? errorText : await response.text().catch(() => errorText)
+      throw new Error(`LLMプロバイダへのリクエストに失敗しました (Status: ${response.status}): ${detail.slice(0, 300)}`)
+    }
   }
 
   const data = (await response.json()) as {

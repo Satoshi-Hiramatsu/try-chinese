@@ -78,11 +78,11 @@ interface SettingsModalProps {
 }
 
 const PRESET_MODELS = [
-  { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: '推奨・最安・超高速', desc: '中国語の精度が高く、コスト効率が圧倒的' },
+  { id: 'deepseek/deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash', tag: '推奨・中国語ネイティブ', desc: '出力単価が従来の1/4。スキーマ指定に対応し返答が崩れない' },
+  { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: '従来の既定', desc: '実績のある比較基準。単価は高め' },
+  { id: 'google/gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', tag: '速度優先', desc: 'さらに安く速い。返答の厚みは落ちる' },
   { id: 'openai/gpt-4o-mini', name: 'GPT-4o mini', tag: '定番・高精度', desc: '指示遵守力が高く安定した構造化JSON生成' },
-  { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat (V3)', tag: '中国語ニュアンス特化', desc: 'ネイティブらしい自然な中国語口語表現' },
-  { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B', tag: 'オープン最高峰', desc: 'Meta社の高性能オープンモデル' },
-  { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)', tag: '完全無料枠', desc: 'OpenRouter提供の無料モデル（レート制限あり）' },
+  { id: 'deepseek/deepseek-v3.2', name: 'DeepSeek V3.2', tag: '中国語ニュアンス特化', desc: 'ネイティブらしい自然な中国語口語表現' },
 ]
 
 export function SettingsModal({
@@ -101,7 +101,7 @@ export function SettingsModal({
   onSave,
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey)
-  const [model, setModel] = useState(currentModel || 'google/gemini-2.5-flash')
+  const [model, setModel] = useState(currentModel || PRESET_MODELS[0].id)
   const [ttsModel, setTtsModel] = useState(currentTtsModel)
   const [ttsProvider, setTtsProvider] = useState<'browser' | 'openrouter'>(currentTtsProvider)
   const [autoPlay, setAutoPlay] = useState(autoPlayTts)
@@ -114,7 +114,7 @@ export function SettingsModal({
 
   useEffect(() => {
     setApiKey(currentApiKey)
-    setModel(currentModel || 'google/gemini-2.5-flash')
+    setModel(currentModel || PRESET_MODELS[0].id)
     setTtsModel(currentTtsModel || 'qwen/qwen-audio-3.0-tts-flash')
     setTtsProvider(currentTtsProvider)
     setAutoPlay(autoPlayTts)
