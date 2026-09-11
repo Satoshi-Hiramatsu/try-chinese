@@ -18,7 +18,7 @@ chatRoute.post('/chat', async (c) => {
     return c.json({ error: 'リクエストボディが有効な JSON ではありません。' }, 400)
   }
 
-  const { message, friend, hskLevel, history, config } = body
+  const { message, friend, hskLevel, history, config, part } = body
 
   // 1. バリデーション
   if (!message || typeof message !== 'string' || message.trim() === '') {
@@ -59,6 +59,7 @@ chatRoute.post('/chat', async (c) => {
       history,
       apiKey: resolvedApiKey,
       model: resolvedModel,
+      part: part === 'reply' || part === 'support' ? part : 'all',
     })
 
     return c.json(result)

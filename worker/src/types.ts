@@ -91,6 +91,12 @@ export interface ChatRequest {
   hskLevel: number
   history?: ChatHistoryItem[]
   config?: AppConfig
+  /**
+   * 今回作らせる範囲。
+   * 'reply' は会話の返答だけ、'support' は添削と語彙だけ。
+   * 省略すると従来どおり全部を1回で作る。
+   */
+  part?: 'all' | 'reply' | 'support'
 }
 
 /**

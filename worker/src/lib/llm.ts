@@ -11,6 +11,8 @@ export interface CallLLMOptions {
   apiKey: string
   model?: string
   apiBaseUrl?: string
+  /** 今回作らせる範囲。既定は従来どおり全部。 */
+  part?: ChatPart
 }
 
 const DEFAULT_MODEL = 'deepseek/deepseek-v4.1-flash'
@@ -84,13 +86,69 @@ const CHAT_RESPONSE_SCHEMA = {
   additionalProperties: false,
 } as const
 
+/**
+ * 1回の呼び出しで何を作らせるか。
+ *
+ * 音声を出し始めるのに要るのは返答本文だけで、
+ * 添削と語彙は無くても喋り出せる。しかも添削の材料は学習者の発話だけなので、
+ * 返答の生成を待つ必要がない。二つに割って同時に投げれば、
+ * 最初の一声までの待ち時間が出力の分量ぶんだけ縮む。
+ */
+export type ChatPart = 'all' | 'reply' | 'support'
+
+const REPLY_PROPERTIES = {
+  reply: CHAT_RESPONSE_SCHEMA.properties.reply,
+  expression: CHAT_RESPONSE_SCHEMA.properties.expression,
+} as const
+
+const SUPPORT_PROPERTIES = {
+  correction: CHAT_RESPONSE_SCHEMA.properties.correction,
+  vocabulary: CHAT_RESPONSE_SCHEMA.properties.vocabulary,
+} as const
+
+const PART_SCHEMAS: Record<ChatPart, Record<string, unknown>> = {
+  all: CHAT_RESPONSE_SCHEMA as unknown as Record<string, unknown>,
+  reply: {
+    type: 'object',
+    properties: REPLY_PROPERTIES,
+    required: ['reply', 'expression'],
+    additionalProperties: false,
+  },
+  support: {
+    type: 'object',
+    properties: SUPPORT_PROPERTIES,
+    required: ['correction', 'vocabulary'],
+    additionalProperties: false,
+  },
+}
+
+/**
+ * 部位ごとの指示。
+ *
+ * 基本のシステムプロンプトとは別のメッセージにする。
+ * 先頭が一字一句同じでなければプロンプトキャッシュが効かないため、
+ * 基本プロンプトには一切手を入れない。
+ */
+const PART_DIRECTIVES: Record<ChatPart, string | undefined> = {
+  all: undefined,
+  reply: `【今回の出力範囲】
+"reply"（zh / speech / ja / hskLevel）と "expression" だけを出力してください。
+"correction" と "vocabulary" は別の呼び出しで扱うため、今回は一切出力しないでください。`,
+  support: `【今回の出力範囲】
+"correction" と "vocabulary" だけを出力してください。
+会話の返答（"reply"）と "expression" は別の呼び出しで扱うため、今回は一切出力しないでください。
+学習者の発話そのものを対象に、添削と、覚えると役に立つ語の抽出を行ってください。`,
+}
+
 /** スキーマで縛れないモデル向けの指定。JSONであることだけを求める。 */
 const JSON_OBJECT_FORMAT = { type: 'json_object' } as const
 
-const JSON_SCHEMA_FORMAT = {
-  type: 'json_schema',
-  json_schema: { name: 'shabe_china_reply', strict: true, schema: CHAT_RESPONSE_SCHEMA },
-} as const
+function jsonSchemaFormat(part: ChatPart) {
+  return {
+    type: 'json_schema',
+    json_schema: { name: `shabe_china_${part}`, strict: true, schema: PART_SCHEMAS[part] },
+  }
+}
 
 /**
  * スキーマ指定が拒否されたかどうか。
@@ -106,7 +164,7 @@ export function isUnsupportedResponseFormat(status: number, detail: string): boo
 /**
  * LLM からの応答テキストから JSON 部分を抽出してパースする
  */
-export function parseChatResponse(content: string): ChatResponse {
+export function parseChatResponse(content: string, part: ChatPart = 'all'): ChatResponse {
   let cleaned = content.trim()
 
   // Markdown code block (```json ... ``` または ``` ... ```) を除去
@@ -129,11 +187,11 @@ export function parseChatResponse(content: string): ChatResponse {
 
   const res = parsed as Record<string, unknown>
 
-  // reply の検証
-  if (!res.reply || typeof res.reply !== 'object') {
+  // reply の検証。学習支援だけを作らせた回には reply が無くて当然なので求めない。
+  if (part !== 'support' && (!res.reply || typeof res.reply !== 'object')) {
     throw new Error('LLMレスポンスに reply オブジェクトが存在しません。')
   }
-  const replyObj = res.reply as Record<string, unknown>
+  const replyObj = (res.reply && typeof res.reply === 'object' ? res.reply : {}) as Record<string, unknown>
   const zh = String(replyObj.zh || '')
   // 読み上げ用は信用しすぎない。壊れていれば表示テキストの機械変換に落とす。
   const speech = resolveSpeechText(zh, typeof replyObj.speech === 'string' ? replyObj.speech : undefined)
@@ -219,6 +277,7 @@ export async function callChatLLM(options: CallLLMOptions): Promise<ChatResponse
     apiKey,
     model = DEFAULT_MODEL,
     apiBaseUrl = DEFAULT_API_BASE,
+    part = 'all',
   } = options
 
   if (!apiKey) {
@@ -228,8 +287,11 @@ export async function callChatLLM(options: CallLLMOptions): Promise<ChatResponse
   const systemPrompt = buildChatSystemPrompt(friend, hskLevel)
 
   // メッセージ履歴の組み立て
+  // 基本プロンプトは一字一句変えない。ここが揺れるとプロンプトキャッシュが外れる。
+  const directive = PART_DIRECTIVES[part]
   const messages: Array<{ role: string; content: string }> = [
     { role: 'system', content: systemPrompt },
+    ...(directive ? [{ role: 'system', content: directive }] : []),
   ]
 
   for (const item of history) {
@@ -270,7 +332,7 @@ export async function callChatLLM(options: CallLLMOptions): Promise<ChatResponse
       }),
     })
 
-  let response = await request(JSON_SCHEMA_FORMAT)
+  let response = await request(jsonSchemaFormat(part))
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '')
@@ -295,7 +357,7 @@ export async function callChatLLM(options: CallLLMOptions): Promise<ChatResponse
     throw new Error('LLMから有効なメッセージ応答が返されませんでした。')
   }
 
-  const parsed = parseChatResponse(content)
+  const parsed = parseChatResponse(content, part)
   const usage = normalizeUsage(data.usage)
   return usage ? { ...parsed, usage } : parsed
 }

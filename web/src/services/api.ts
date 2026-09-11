@@ -9,90 +9,114 @@ export interface SendMessageOptions {
   history: ChatMessage[]
   apiKey?: string
   model?: string
+  /**
+   * 添削と趣味語彙が揃ったときの通知。
+   * 返答より遅れて届くため、画面へは後から差し込む。
+   */
+  onSupport?: (support: SupportPart) => void
 }
 
-export interface SendMessageResponse {
+/** 会話の返答。音声を出し始めるのに要るのはここだけ。 */
+export interface ReplyPart {
   reply: BilingualReply
-  correction: Correction
-  vocabulary: HobbyVocabulary[]
-  /** 立ち絵の表情。API が返さない場合は返答テキストから推定する。 */
   expression: Expression
 }
 
-/**
- * /api/chat にメッセージを送信し、構造化返答を取得する
- */
-export async function sendMessageToChatApi(options: SendMessageOptions): Promise<SendMessageResponse> {
+/** 学習支援。学習者の発話だけから作れるので、返答を待たずに並行して作れる。 */
+export interface SupportPart {
+  correction: Correction
+  vocabulary: HobbyVocabulary[]
+}
+
+export interface SendMessageResponse extends ReplyPart, SupportPart {}
+
+type ChatPart = 'reply' | 'support'
+
+interface ChatPayload {
+  reply?: BilingualReply
+  correction?: Correction
+  vocabulary?: HobbyVocabulary[]
+  expression?: unknown
+}
+
+/** 直近6件程度の履歴をAPIの形式に整える。 */
+function formatHistory(history: ChatMessage[]) {
+  return history
+    .slice(-6)
+    .map((item) =>
+      item.role === 'user'
+        ? { role: 'user' as const, content: item.content || '' }
+        : { role: 'assistant' as const, content: item.reply?.zh || '' }
+    )
+    .filter((item) => item.content.trim() !== '')
+}
+
+async function requestChat(options: SendMessageOptions, part: ChatPart): Promise<ChatPayload> {
   const { message, friend, hskLevel, history, apiKey, model } = options
 
-  // 直近6件程度の履歴をフォーマット
-  const recentHistory = history
-    .slice(-6)
-    .map((item) => {
-      if (item.role === 'user') {
-        return { role: 'user' as const, content: item.content || '' }
-      } else {
-        return { role: 'assistant' as const, content: item.reply?.zh || '' }
-      }
-    })
-    .filter((item) => item.content.trim() !== '')
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-
-  if (apiKey) {
-    headers['x-api-key'] = apiKey
-  }
-
-  const payload = {
-    message,
-    friend,
-    hskLevel,
-    history: recentHistory,
-    config: (apiKey || model)
-      ? {
-          llm: {
-            apiKey: apiKey || undefined,
-            model: model || undefined,
-          },
-        }
-      : undefined,
-  }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (apiKey) headers['x-api-key'] = apiKey
 
   const response = await fetch('/api/chat', {
     method: 'POST',
     headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      message,
+      friend,
+      hskLevel,
+      history: formatHistory(history),
+      part,
+      config: (apiKey || model) ? { llm: { apiKey: apiKey || undefined, model: model || undefined } } : undefined,
+    }),
   })
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({})) as { error?: string }
-    const errorMsg = errorData.error || `リクエストエラー (ステータス: ${response.status})`
-    throw new Error(errorMsg)
+    const errorData = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(errorData.error || `リクエストエラー (ステータス: ${response.status})`)
   }
 
-  const data = (await response.json()) as Omit<SendMessageResponse, 'expression'> & {
-    expression?: unknown
-  }
+  return (await response.json()) as ChatPayload
+}
+
+const EMPTY_SUPPORT: SupportPart = { correction: { hasCorrection: false }, vocabulary: [] }
+
+/**
+ * /api/chat にメッセージを送信する。
+ *
+ * 音声を出し始めるのに要るのは返答本文だけで、添削と語彙は無くても喋り出せる。
+ * しかも添削の材料は学習者の発話だけなので、返答の生成を待つ必要がない。
+ * 二つに割って同時に投げ、返答が揃った時点で返す。
+ * 学習支援は遅れて届くので onSupport で受け取り、画面へ後から差し込む。
+ */
+export async function sendMessageToChatApi(options: SendMessageOptions): Promise<ReplyPart> {
+  // 先に両方投げる。support の待ち時間は返答の裏に隠れる。
+  const supportRequest = requestChat(options, 'support')
+    .then(async (payload): Promise<SupportPart> => {
+      const correction = payload.correction || { hasCorrection: false }
+      const vocabulary = payload.vocabulary || []
+      const [correctionPinyin, vocabularyPinyin] = await Promise.all([
+        fillPinyin(correction.suggested || '', correction.pinyin),
+        Promise.all(vocabulary.map((item) => fillPinyin(item.term, item.pinyin))),
+      ])
+      return {
+        correction: { ...correction, pinyin: correctionPinyin },
+        vocabulary: vocabulary.map((item, index) => ({ ...item, pinyin: vocabularyPinyin[index] })),
+      }
+    })
+    .catch(() => {
+      // 添削が取れなくても会話は続ける。返答だけで成立する。
+      return EMPTY_SUPPORT
+    })
+
+  supportRequest.then((support) => options.onSupport?.(support)).catch(() => undefined)
+
+  const payload = await requestChat(options, 'reply')
+  const reply = payload.reply || { zh: '', ja: '', pinyin: '', hskLevel: options.hskLevel }
 
   // ピンインは辞書で作る。LLM に作らせると多音字が揺れるうえ、
   // 出力トークンの3分の1を占めて返答そのものを待たせていた。
-  // 辞書は読み込み済みなので、3経路をまとめて解決しても待ち時間は増えない。
-  const [replyPinyin, correctionPinyin, vocabularyPinyin] = await Promise.all([
-    fillPinyin(data.reply?.zh || '', data.reply?.pinyin),
-    fillPinyin(data.correction?.suggested || '', data.correction?.pinyin),
-    Promise.all((data.vocabulary || []).map((item) => fillPinyin(item.term, item.pinyin))),
-  ])
-
   return {
-    ...data,
-    reply: { ...data.reply, pinyin: replyPinyin },
-    correction: { ...data.correction, pinyin: correctionPinyin },
-    vocabulary: (data.vocabulary || []).map((item, index) => ({
-      ...item,
-      pinyin: vocabularyPinyin[index],
-    })),
-    expression: resolveExpression(data.expression, data.reply?.zh || '', data.reply?.ja || ''),
+    reply: { ...reply, pinyin: await fillPinyin(reply.zh, reply.pinyin) },
+    expression: resolveExpression(payload.expression, reply.zh, reply.ja),
   }
 }

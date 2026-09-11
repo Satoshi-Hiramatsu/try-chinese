@@ -484,6 +484,10 @@ export default function App() {
     setMessages(nextMessages)
     setIsLoading(true)
 
+    // 添削と語彙は返答より遅れて届く。先に置いた返答へ後から差し込むため、
+    // 差し込み先を特定できるようIDを先に決めておく。
+    const assistantId = `assistant-${Date.now()}`
+
     try {
       const response = await sendMessageToChatApi({
         message: text,
@@ -492,14 +496,24 @@ export default function App() {
         history: nextMessages,
         apiKey: apiKey || undefined,
         model: model || undefined,
+        onSupport: (support) => {
+          setMessages((prev) =>
+            prev.map((item) =>
+              item.id === assistantId
+                ? { ...item, correction: support.correction, vocabulary: support.vocabulary }
+                : item
+            )
+          )
+        },
       })
 
       const assistantMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
+        id: assistantId,
         role: 'assistant',
         reply: response.reply,
-        correction: response.correction,
-        vocabulary: response.vocabulary,
+        // 添削と語彙は onSupport で埋まる。届くまでは何も出さない。
+        correction: { hasCorrection: false },
+        vocabulary: [],
         expression: response.expression,
         timestamp: Date.now(),
       }

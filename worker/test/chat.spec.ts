@@ -423,3 +423,99 @@ describe('T-75: DeepSeek 移行と構造化出力', () => {
     expect(prompt).not.toContain('"pinyin"')
   })
 })
+
+describe('T-77: クリティカルパス分離', () => {
+  const replyContent = JSON.stringify({
+    reply: { zh: '我也很喜欢。', speech: '我也很喜欢。', ja: '私も好きです。', hskLevel: 2 },
+    expression: 'smile',
+  })
+  const supportContent = JSON.stringify({
+    correction: { hasCorrection: true, original: '我很喜欢电影', suggested: '我很喜欢看电影', ja: '看を足すと自然です' },
+    vocabulary: [{ term: '电影', ja: '映画', hskLevel: 1 }],
+  })
+
+  const send = async (part?: string) => {
+    const ctx = createExecutionContext()
+    const response = await worker.fetch(
+      new Request('http://example.com/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': 'test-key' },
+        body: JSON.stringify({ message: '我很喜欢电影', friend: mockFriend, hskLevel: 2, ...(part ? { part } : {}) }),
+      }),
+      {} as never,
+      ctx
+    )
+    await waitOnExecutionContext(ctx)
+    return response
+  }
+
+  const stub = (content: string) => {
+    const calls: Record<string, unknown>[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_input: unknown, init?: RequestInit) => {
+      calls.push(JSON.parse(String(init?.body ?? '{}')))
+      return Response.json({ choices: [{ message: { content } }] })
+    }))
+    return calls
+  }
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('reply の呼び出しは返答と表情だけを求める', async () => {
+    const calls = stub(replyContent)
+    const response = await send('reply')
+    expect(response.status).toBe(200)
+
+    const schema = (calls[0].response_format as { json_schema: { schema: { required: string[] } } }).json_schema.schema
+    expect(schema.required).toEqual(['reply', 'expression'])
+  })
+
+  it('support の呼び出しは添削と語彙だけを求める', async () => {
+    const calls = stub(supportContent)
+    const response = await send('support')
+    expect(response.status).toBe(200)
+
+    const schema = (calls[0].response_format as { json_schema: { schema: { required: string[] } } }).json_schema.schema
+    expect(schema.required).toEqual(['correction', 'vocabulary'])
+
+    const payload = (await response.json()) as { correction: { hasCorrection: boolean }; vocabulary: unknown[] }
+    expect(payload.correction.hasCorrection).toBe(true)
+    expect(payload.vocabulary).toHaveLength(1)
+  })
+
+  it('返答が無くても support の応答はエラーにしない', async () => {
+    // 添削だけを作らせた回に reply が無いのは当然で、失敗ではない。
+    stub(supportContent)
+    const response = await send('support')
+    expect(response.status).toBe(200)
+  })
+
+  it('部位を指定しない従来の呼び出しは全部を1回で作る', async () => {
+    const calls = stub(JSON.stringify({
+      reply: { zh: '你好', speech: '你好', ja: 'こんにちは', hskLevel: 1 },
+      correction: { hasCorrection: false },
+      vocabulary: [],
+      expression: 'smile',
+    }))
+    const response = await send()
+    expect(response.status).toBe(200)
+
+    const schema = (calls[0].response_format as { json_schema: { schema: { required: string[] } } }).json_schema.schema
+    expect(schema.required).toEqual(['reply', 'correction', 'vocabulary', 'expression'])
+  })
+
+  it('基本プロンプトは部位で変えず、指示は別メッセージにする', async () => {
+    // 先頭が一字一句同じでなければプロンプトキャッシュが効かない。
+    const replyCalls = stub(replyContent)
+    await send('reply')
+    const base = (replyCalls[0].messages as { role: string; content: string }[])[0]
+
+    vi.unstubAllGlobals()
+    const supportCalls = stub(supportContent)
+    await send('support')
+    const supportMessages = supportCalls[0].messages as { role: string; content: string }[]
+
+    expect(supportMessages[0].content).toBe(base.content)
+    expect(supportMessages[1].role).toBe('system')
+    expect(supportMessages[1].content).toContain('correction')
+  })
+})
