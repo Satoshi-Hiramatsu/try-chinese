@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { Friend } from '../types'
+import type { FriendProfile } from '../data/friendProfile'
 import { SttDebugPane } from './SttDebugPane'
 import { LlmDebugPane } from './LlmDebugPane'
+import { CharacterAdminPane } from './CharacterAdminPane'
 import '../styles/devConsole.css'
 
 interface Props {
@@ -12,11 +14,17 @@ interface Props {
   friends: readonly Friend[]
   currentFriend: Friend
   hskLevel: number
+  /** キャラクターモード: プロフィールの保存・リセット、声質編集、会話相手の切り替え。 */
+  onSaveProfile: (friendId: string, profile: FriendProfile) => void
+  onResetProfile: (friendId: string) => void
+  onEditVoice: (friend: Friend) => void
+  onSelectFriend: (friend: Friend) => void
 }
 
-type DevTab = 'stt' | 'llm' | 'tts'
+type DevTab = 'character' | 'stt' | 'llm' | 'tts'
 
 const TAB_LABELS: Record<DevTab, string> = {
+  character: 'キャラクター',
   stt: 'STT 比較',
   llm: 'LLM 比較',
   tts: 'TTS 比較',
@@ -27,10 +35,22 @@ const TAB_LABELS: Record<DevTab, string> = {
  *
  * 既定モデルを決めた以上、それが最良かを測り続けられる場所が要る。
  * STT・LLM・TTS の三段を同じ土俵で比較するための画面をここに集める。
+ * キャラクターの立ち絵・声・プロフィールを俯瞰して直すキャラクターモードもここに置く。
  * 通常の設定画面からは辿れないようにし、URLハッシュだけを入口にする。
  */
-export function DevConsole({ isOpen, onClose, onOpenTtsDebug, friends, currentFriend, hskLevel }: Props) {
-  const [tab, setTab] = useState<DevTab>('stt')
+export function DevConsole({
+  isOpen,
+  onClose,
+  onOpenTtsDebug,
+  friends,
+  currentFriend,
+  hskLevel,
+  onSaveProfile,
+  onResetProfile,
+  onEditVoice,
+  onSelectFriend,
+}: Props) {
+  const [tab, setTab] = useState<DevTab>('character')
 
   if (!isOpen) return null
 
@@ -39,13 +59,13 @@ export function DevConsole({ isOpen, onClose, onOpenTtsDebug, friends, currentFr
       <header className={'dev-console-header'}>
         <div>
           <h1 id={'dev-console-title'}>開発者モード</h1>
-          <p>STT・LLM・TTS を同じ条件で比較し、既定モデルの妥当性を実測で確かめます。</p>
+          <p>キャラクターの立ち絵・声・プロフィールを確認して直し、STT・LLM・TTS を同じ条件で比較します。</p>
         </div>
         <button type={'button'} onClick={onClose}>閉じる</button>
       </header>
 
       <nav className={'dev-console-tabs'}>
-        {(['stt', 'llm', 'tts'] as const).map((item) => (
+        {(['character', 'stt', 'llm', 'tts'] as const).map((item) => (
           <button key={item} type={'button'} data-active={tab === item} onClick={() => setTab(item)}>
             {TAB_LABELS[item]}
           </button>
@@ -53,6 +73,16 @@ export function DevConsole({ isOpen, onClose, onOpenTtsDebug, friends, currentFr
       </nav>
 
       <main className={'dev-console-body'}>
+        {tab === 'character' ? (
+          <CharacterAdminPane
+            friends={friends}
+            currentFriend={currentFriend}
+            onSaveProfile={onSaveProfile}
+            onResetProfile={onResetProfile}
+            onEditVoice={onEditVoice}
+            onSelectFriend={onSelectFriend}
+          />
+        ) : null}
         {tab === 'stt' ? <SttDebugPane /> : null}
         {tab === 'llm' ? (
           <LlmDebugPane friends={friends} currentFriend={currentFriend} hskLevel={hskLevel} />

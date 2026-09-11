@@ -1,3 +1,4 @@
+import type { FriendProfile } from '../data/friendProfile'
 import type { ChatMessage, Friend, Voice, VocabularyItem } from '../types'
 import { DEFAULT_SILENCE_TIMEOUT_MS, clampSilenceTimeoutMs } from './speech'
 import type { CharacterVoiceOption } from '../data/characterVoices'
@@ -23,6 +24,7 @@ const STORAGE_KEYS = {
   TTS_MODEL: 'shabe_china_tts_model',
   CUSTOM_VOICES: 'shabe_china_custom_voices',
   VIEW_MODE: 'shabe_china_view_mode',
+  FRIEND_PROFILE_PREFIX: 'shabe_china_profile_',
 } as const
 
 /** 画面モード: novel = ノベルステージ / chat = チャットログ */
@@ -321,6 +323,35 @@ export function loadFriendVoice(friendId: string): Voice | null {
 export function saveFriendVoice(friendId: string, voice: Voice): void {
   try {
     localStorage.setItem(`${STORAGE_KEYS.FRIEND_VOICE_PREFIX}${friendId}`, JSON.stringify(voice))
+  } catch {
+    // ignore
+  }
+}
+
+// --- プリセット友達のプロフィール上書き（キャラクターモード） ---
+
+export function loadFriendProfile(friendId: string): Partial<FriendProfile> | null {
+  try {
+    const raw = localStorage.getItem(`${STORAGE_KEYS.FRIEND_PROFILE_PREFIX}${friendId}`)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? (parsed as Partial<FriendProfile>) : null
+  } catch {
+    return null
+  }
+}
+
+export function saveFriendProfile(friendId: string, profile: Partial<FriendProfile>): void {
+  try {
+    localStorage.setItem(`${STORAGE_KEYS.FRIEND_PROFILE_PREFIX}${friendId}`, JSON.stringify(profile))
+  } catch {
+    // ignore
+  }
+}
+
+export function clearFriendProfile(friendId: string): void {
+  try {
+    localStorage.removeItem(`${STORAGE_KEYS.FRIEND_PROFILE_PREFIX}${friendId}`)
   } catch {
     // ignore
   }

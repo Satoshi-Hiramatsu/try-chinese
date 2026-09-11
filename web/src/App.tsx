@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import type { Friend, ChatMessage, Voice, VocabularyItem } from './types'
 import { PRESET_FRIENDS } from './data/presetFriends'
+import { applyProfile, type FriendProfile } from './data/friendProfile'
 import { Header } from './components/Header'
 import { FriendCard } from './components/FriendCard'
 import { ChatMessageList } from './components/ChatMessageList'
@@ -46,6 +47,9 @@ import {
   saveSilenceTimeoutMs,
   loadFriendVoice,
   saveFriendVoice,
+  loadFriendProfile,
+  saveFriendProfile,
+  clearFriendProfile,
   loadVocabularyList,
   addVocabularyItem,
   deleteVocabularyItem,
@@ -132,26 +136,25 @@ export default function App() {
   const [apiKey, setApiKey] = useState<string>(() => loadApiKey())
   const [model, setModel] = useState<string>(() => loadSelectedModel())
   const [customFriends, setCustomFriends] = useState<Friend[]>(() => loadCustomFriends())
-  /** 声設定の保存を検知して友達リストを組み直すための世代番号。 */
+  /** 声設定・プロフィール上書きの保存を検知して友達リストを組み直すための世代番号。 */
   const [voiceRevision, setVoiceRevision] = useState(0)
 
-  // 全友達リスト（プリセット＋カスタム）※保存された個別声質設定をマージ
+  // 全友達リスト（プリセット＋カスタム）※保存された個別声質設定・プロフィール上書きをマージ
   const allFriends = useMemo(() => {
     const list = [...PRESET_FRIENDS, ...customFriends]
     return list.map((f) => {
       if (!f.id) return f
+      const withProfile = applyProfile(f, loadFriendProfile(f.id))
       const savedVoice = loadFriendVoice(f.id)
-      return savedVoice ? { ...f, voice: savedVoice } : f
+      return savedVoice ? { ...withProfile, voice: savedVoice } : withProfile
     })
-    // voiceRevision は保存のたびに増える。プリセットの声はlocalStorage側にあるため再読込が要る。
+    // voiceRevision は保存のたびに増える。プリセットの声・プロフィールはlocalStorage側にあるため再読込が要る。
   }, [customFriends, voiceRevision])
 
   // 現在の友達
   const [currentFriend, setCurrentFriend] = useState<Friend>(() => {
     const savedId = loadSelectedFriendId('friend-meiling')
-    const found = allFriends.find((f) => f.id === savedId) || PRESET_FRIENDS[0]
-    const savedVoice = found.id ? loadFriendVoice(found.id) : null
-    return savedVoice ? { ...found, voice: savedVoice } : found
+    return allFriends.find((f) => f.id === savedId) || allFriends[0]
   })
 
   // 音声関連設定
@@ -369,6 +372,31 @@ export default function App() {
     )
     setCurrentFriend((prev) => (prev.id === friendId ? { ...prev, voice: updatedVoice } : prev))
     setVoiceSettingsFriend((prev) => (prev && prev.id === friendId ? { ...prev, voice: updatedVoice } : prev))
+    setVoiceRevision((current) => current + 1)
+  }
+
+  /**
+   * キャラクターモードからのプロフィール保存。
+   * カスタム友達は本体を更新し、プリセットは localStorage の上書きとして残す。
+   */
+  const handleSaveProfile = (friendId: string, profile: FriendProfile) => {
+    const custom = customFriends.find((f) => f.id === friendId)
+    if (custom) {
+      handleUpdateFriend(applyProfile(custom, profile))
+      return
+    }
+    saveFriendProfile(friendId, profile)
+    setCurrentFriend((prev) => (prev.id === friendId ? applyProfile(prev, profile) : prev))
+    setVoiceRevision((current) => current + 1)
+  }
+
+  /** プリセットのプロフィール上書きを捨てて presetFriends.ts の値に戻す。 */
+  const handleResetProfile = (friendId: string) => {
+    clearFriendProfile(friendId)
+    const preset = PRESET_FRIENDS.find((f) => f.id === friendId)
+    if (preset) {
+      setCurrentFriend((prev) => (prev.id === friendId ? { ...preset, voice: prev.voice } : prev))
+    }
     setVoiceRevision((current) => current + 1)
   }
 
@@ -784,6 +812,10 @@ export default function App() {
         friends={allFriends}
         currentFriend={currentFriend}
         hskLevel={hskLevel}
+        onSaveProfile={handleSaveProfile}
+        onResetProfile={handleResetProfile}
+        onEditVoice={(friend) => setVoiceSettingsFriend(friend)}
+        onSelectFriend={handleSelectFriend}
       />
 
       {/* 声の管理ダッシュボード（#admin） */}
