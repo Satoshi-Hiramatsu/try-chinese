@@ -25,7 +25,7 @@ function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob([
     require: () => ({ loadUsableApiKey: () => apiKey, markApiKeyExhausted: () => {}, FIXED_TTS_MODEL: 'fish-audio/s2.1-pro', clampVoicePitch: (v) => Math.min(1.2, Math.max(0.85, typeof v === 'number' ? v : 1)), responseToPlayableBlob: async (response) => await response.blob() }),
     window: { SpeechRecognition: class {
       constructor() { recognition = this }
-      start() { this.onstart?.() }
+      start(track) { this.startedWith = track; this.onstart?.() }
       stop() { this.onend?.() }
       abort() { this.onend?.() }
     } },
@@ -223,6 +223,26 @@ test('開き直した直後に前セッションの確定文が再掲されて�
   const r3 = s.recognition()
   r3.onresult({ resultIndex: 0, results: [result('好'), result('好')] })
   assert.deepEqual(finals[finals.length - 1], '我已经结婚了有一个孩子好好')
+})
+
+test('録音側の音声トラックを渡すと、開き直すときも同じトラックで認識を開く', () => {
+  const s = setup()
+  const controller = s.api.createSpeechRecognizer({ lang: 'zh-CN', silenceTimeoutMs: 20000 })
+  const track = { kind: 'audio' }
+  controller.start(track)
+  const r = s.recognition()
+  assert.equal(r.startedWith, track)
+
+  r.onend()
+  assert.equal(s.runTimer(250), true)
+  const r2 = s.recognition()
+  assert.notEqual(r2, r)
+  assert.equal(r2.startedWith, track)
+  controller.abort()
+
+  // トラックを渡さなければ従来どおりマイクを直接開く
+  controller.start()
+  assert.equal(s.recognition().startedWith, undefined)
 })
 
 test('running out of silence between sessions still ends listening', () => {

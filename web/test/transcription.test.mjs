@@ -103,7 +103,7 @@ test('会話入力は録音STTを正本にし、ブラウザ認識はプレビ�
   // ブラウザ認識のコールバック本体を切り出す。ここから本文や送信へ直接触れてはいけない。
   const start = chatInput.indexOf('createSpeechRecognizer({')
   assert.notEqual(start, -1)
-  const end = chatInput.indexOf('recognizer.start()', start)
+  const end = chatInput.indexOf('recognizer.start(', start)
   assert.notEqual(end, -1)
   const recognizerBlock = chatInput.slice(start, end)
   assert.doesNotMatch(recognizerBlock, /textRef\.current\s*=/)

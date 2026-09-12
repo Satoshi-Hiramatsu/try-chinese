@@ -66,6 +66,8 @@ export function ChatInput({
   // 話している途中の文字。ブラウザ認識のプレビューで、送信本文（録音→STT）とは別物。
   const [previewFinal, setPreviewFinal] = useState('')
   const [previewInterim, setPreviewInterim] = useState('')
+  // プレビューが動かないときの理由。実機で原因を読めるよう状態バーに小さく出す。
+  const [previewNote, setPreviewNote] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const recorderRef = useRef<RecorderController | null>(null)
   const recordingGenerationRef = useRef(0)
@@ -139,6 +141,7 @@ export function ChatInput({
     previewSendCommandRef.current = false
     setPreviewFinal('')
     setPreviewInterim('')
+    setPreviewNote('')
   }, [])
 
   const cancelActiveRecording = useCallback(() => {
@@ -266,10 +269,19 @@ export function ChatInput({
    * 「发送」「送信」を聞き取ったら録音を締める合図にする。
    * 動かない環境や途中で落ちた場合はプレビューを消すだけで、録音はそのまま続く。
    */
-  const startPreview = useCallback((generation: number, lang: 'zh-CN' | 'ja-JP') => {
-    if (!isSpeechRecognitionSupported() || previewRecognizerRef.current) return
+  const startPreview = useCallback((
+    generation: number,
+    lang: 'zh-CN' | 'ja-JP',
+    audioTrack: MediaStreamTrack | undefined
+  ) => {
+    if (previewRecognizerRef.current) return
+    if (!isSpeechRecognitionSupported()) {
+      setPreviewNote('プレビュー非対応のブラウザ')
+      return
+    }
     const isStale = () => generation !== recordingGenerationRef.current
     let recognizer: SpeechRecognitionController | null = null
+    let heardAnything = false
     recognizer = createSpeechRecognizer({
       lang,
       continuous: true,
@@ -277,10 +289,14 @@ export function ChatInput({
       silenceTimeoutMs: MAX_SILENCE_TIMEOUT_MS,
       onInterimResult: (interim) => {
         if (isStale()) return
+        heardAnything = true
+        setPreviewNote('')
         setPreviewInterim(interim)
       },
       onFinalResult: (final) => {
         if (isStale()) return
+        heardAnything = true
+        setPreviewNote('')
         previewFinalRef.current = final
         setPreviewFinal(final)
         if (parseVoiceSendCommand(final, lang).hasSendCommand) {
@@ -288,21 +304,31 @@ export function ChatInput({
           void finishRecording(true)
         }
       },
-      onError: () => {
-        // プレビューが落ちても録音は続く。文字が見えないだけで済ませる。
+      onError: (_message, code) => {
+        // プレビューが落ちても録音は続く。文字が見えないだけで済ませ、理由だけ残す。
         if (isStale() || previewRecognizerRef.current !== recognizer) return
+        console.warn('Preview recognition error:', code)
         previewRecognizerRef.current = null
         setPreviewInterim('')
+        setPreviewNote(`プレビュー停止 (${code})`)
       },
       onEnd: () => {
         if (isStale() || previewRecognizerRef.current !== recognizer) return
         previewRecognizerRef.current = null
         setPreviewInterim('')
+        if (!heardAnything) setPreviewNote('プレビュー終了 (結果なし)')
       },
     })
     if (!recognizer) return
     previewRecognizerRef.current = recognizer
-    recognizer.start()
+    setPreviewNote(audioTrack ? 'プレビュー起動中 (トラック共有)' : 'プレビュー起動中')
+    try {
+      recognizer.start(audioTrack)
+    } catch (error) {
+      console.warn('Preview recognition start error:', error)
+      previewRecognizerRef.current = null
+      setPreviewNote(`プレビュー起動失敗 (${error instanceof Error ? error.name : 'unknown'})`)
+    }
   }, [finishRecording])
 
   const startListening = useCallback(async () => {
@@ -354,8 +380,8 @@ export function ChatInput({
       recorderRef.current = recorder
       setIsListening(true)
       armSilenceTimer()
-      // 録音が確立してから開く。プレビューが動かなくても録音は影響を受けない。
-      startPreview(generation, speechLang)
+      // 録音が確立してから、同じマイクトラックで開く。プレビューが動かなくても録音は影響を受けない。
+      startPreview(generation, speechLang, recorder.audioTrack)
     } catch (error) {
       if (generation !== recordingGenerationRef.current) return
       onErrorRef.current?.(error instanceof Error ? error.message : 'マイクを開始できませんでした。')
@@ -561,6 +587,9 @@ export function ChatInput({
               {previewFinal}
               {previewInterim && <span className="text-stone-400">{previewInterim}</span>}
             </p>
+          )}
+          {isListening && previewNote && !previewFinal && !previewInterim && (
+            <p className="text-[10px] text-stone-400 leading-snug">{previewNote}</p>
           )}
         </div>
       )}

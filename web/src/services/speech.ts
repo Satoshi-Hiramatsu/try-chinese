@@ -21,7 +21,8 @@ interface RecognitionInstance {
   onresult: ((event: RecognitionResultEvent) => void) | null
   onerror: ((event: { error: string }) => void) | null
   onend: (() => void) | null
-  start(): void
+  /** Chrome 132+ は音声トラックを渡せる。古いブラウザは引数を無視してマイクを直接開く。 */
+  start(audioTrack?: MediaStreamTrack): void
   stop(): void
   abort(): void
 }
@@ -348,7 +349,11 @@ export function isSpeechRecognitionSupported(): boolean {
 }
 
 export interface SpeechRecognitionController {
-  start: () => void
+  /**
+   * 認識を始める。録音と同時に使うときは録音側の音声トラックを渡す。
+   * 別々にマイクを開くと端末によっては片方が音を取れないため。
+   */
+  start: (audioTrack?: MediaStreamTrack) => void
   stop: () => void
   abort: () => void
 }
@@ -369,7 +374,8 @@ export interface SpeechRecognitionOptions {
   onSilenceWindowChange?: (deadline: number | null) => void
   /** 無音タイムアウトに到達した瞬間。認識が止まる直前に呼ばれる。 */
   onSilenceTimeout?: () => void
-  onError?: (error: string) => void
+  /** message は利用者向け、code はブラウザが返した生のエラー種別（audio-capture など）。 */
+  onError?: (message: string, code: string) => void
   onEnd?: () => void
 }
 
@@ -439,6 +445,8 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
   let previousInterim = ''
   // 動いている実体は常にひとつだけ。古い実体からの通知はすべて捨てる。
   let active: RecognitionInstance | null = null
+  // 開き直すときも同じ音声トラックで開く
+  let sharedTrack: MediaStreamTrack | undefined
 
   let silenceTimeout: ReturnType<typeof setTimeout> | null = null
   let restartTimer: ReturnType<typeof setTimeout> | null = null
@@ -552,7 +560,7 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
       } else if (event.error === 'network') {
         message = '音声認識のネットワーク通信エラーが発生しました'
       }
-      options.onError?.(message)
+      options.onError?.(message, event.error)
     }
 
     recognition.onend = () => {
@@ -580,7 +588,7 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
         try {
           const next = createInstance()
           active = next
-          next.start()
+          next.start(sharedTrack)
         } catch (err) {
           console.warn('SpeechRecognition restart error:', err)
           finished = true
@@ -593,10 +601,11 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
   }
 
   return {
-    start: () => {
+    start: (audioTrack?: MediaStreamTrack) => {
       // 二重起動すると認識が二重に届く。動いている間の start は無視する。
       if (active && !aborted) return
       aborted = false
+      sharedTrack = audioTrack
       finished = false
       committedFinal = ''
       lastSessionFinal = ''
@@ -607,7 +616,7 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
       try {
         const next = createInstance()
         active = next
-        next.start()
+        next.start(sharedTrack)
       } catch (err) {
         console.warn('SpeechRecognition start error:', err)
         active = null
