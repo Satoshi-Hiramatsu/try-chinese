@@ -341,6 +341,10 @@ export interface LlmSchemaCheckResult {
   expressionIsValid: boolean
 }
 
+export type LlmTopicLevel = 'P0' | 'P1' | 'P2' | 'P3' | 'P4'
+
+export type LlmReplyClassification = 'refuse' | 'deflect' | 'comply-soft' | 'comply' | 'broken'
+
 /** 1回分の会話生成の計測値。 */
 export interface LlmDebugAttempt {
   index: number
@@ -358,7 +362,11 @@ export interface LlmDebugAttempt {
   expression?: string
   hasCorrection?: boolean
   vocabularyCount?: number
+  correction?: Correction
+  vocabulary?: HobbyVocabulary[]
   schema?: LlmSchemaCheckResult
+  autoClassification?: LlmReplyClassification
+  manualClassification?: LlmReplyClassification
   completionTokens?: number
   costUsd?: number
   errorMessage?: string
@@ -366,6 +374,8 @@ export interface LlmDebugAttempt {
 
 export interface LlmDebugResult {
   modelId: string
+  friendId: string
+  friendName: string
   status: TtsDebugStatus
   httpStatus?: number
   zh?: string
@@ -391,13 +401,36 @@ export interface LlmDebugResult {
   errorMessage?: string
 }
 
+/** IndexedDBへ保存するLLM試行。入力・回答本文を意図的に持たない。 */
+export interface LlmDebugStoredAttempt {
+  index: number
+  status: TtsDebugStatus
+  httpStatus?: number
+  responseLength?: number
+  requestToCompleteMs?: number
+  completionTokens?: number
+  costUsd?: number
+  schema?: LlmSchemaCheckResult
+  autoClassification?: LlmReplyClassification
+  manualClassification?: LlmReplyClassification
+}
+
+/** IndexedDBへ保存するFriend×モデル単位の集計。 */
+export interface LlmDebugStoredResult {
+  modelId: string
+  friendId: string
+  friendName: string
+  status: TtsDebugStatus
+  attempts: LlmDebugStoredAttempt[]
+}
+
 export interface LlmDebugRun {
   id: string
   createdAt: string
-  message: string
-  friendId?: string
+  topicLevel: LlmTopicLevel
+  friendIds: string[]
   hskLevel: number
   iterations?: number
   modelIds: string[]
-  results: LlmDebugResult[]
+  results: LlmDebugStoredResult[]
 }
