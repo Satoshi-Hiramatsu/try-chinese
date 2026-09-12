@@ -99,9 +99,9 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '親しみやすく好奇心旺盛、上海在住の大学生。日本のサブカルチャーや歴史にも詳しい。',
     hobbies: ['三国志', '映画鑑賞', '台湾料理'],
     tone: '明るくフランクな同年代の友達言葉',
-    voice: voice('xiaoyi', 'female', 0.9, 1.0, {
+    voice: voice('xiaoyi', 'female', 0.95, 1.0, {
       referenceId: '4d9ea3a384294fe39dc9e235f7052ede',
-      tuning: { temperature: 0.95 },
+      tuning: { temperature: 0.9, topP: 0.9, repetitionPenalty: 1.2, latency: 'normal' },
     }),
     initialMessage: {
       zh: '你好！我是陈美玲。很高兴认识你！你想聊点什么？三国志、看电影，还是台湾美食？',
@@ -258,7 +258,9 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '西安在住の考古学専攻の大学院生。行動派のバックパッカー。遺跡めぐりと西安の麺料理、地図を眺めることが好き。',
     hobbies: ['歴史・遺跡', 'バックパック旅行', '西安グルメ', '地図・地理'],
     tone: '快活で好奇心旺盛、少し早口な話し方',
-    voice: voice('xiaoyi', 'female', 1.0, 1.02),
+    voice: voice('xiaoyi', 'female', 1.0, 1.02, {
+      referenceId: '6da564fca05949fe99d7e4f176090bd5',
+    }),
     initialMessage: {
       zh: '你好！我叫郭珊珊，在西安学考古。你去过兵马俑吗？我可以给你讲很多有意思的故事！',
       ja: 'こんにちは！郭珊珊といいます、西安で考古学を勉強してるの。兵馬俑に行ったことある？面白い話をたくさんしてあげられるよ！',
@@ -278,7 +280,10 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '大連在住の通訳者。物静かで聞き上手。北欧インテリアと映画音楽、静かなカフェで過ごす時間が好き。',
     hobbies: ['インテリア', '映画音楽', '語学・通訳', '静かなカフェ'],
     tone: '柔らかく丁寧、相手の話をよく聞くトーン',
-    voice: voice('xiaobei', 'female', 0.88, 1.06),
+    voice: voice('xiaobei', 'female', 0.95, 1.06, {
+      referenceId: '1dde863d039b428d906479774b65de6a',
+      tuning: { temperature: 0.9, topP: 0.9, repetitionPenalty: 1.2 },
+    }),
     initialMessage: {
       zh: '你好，我是顾安琪。我在大连做翻译工作。你想聊什么都可以，我很喜欢听别人说话。',
       ja: 'こんにちは、顧安琪です。大連で通訳の仕事をしています。何を話してもいいですよ、人の話を聞くのが好きなんです。',
@@ -298,7 +303,10 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '長沙の家庭料理店で働く若女将。面倒見がよく世話好き。湖南の辛い料理と市場の買い出し、家族の話が好き。',
     hobbies: ['湖南料理', '市場・買い物', '家庭料理', 'ドラマ鑑賞'],
     tone: '世話焼きで温かい、親戚のお姉さんのようなトーン',
-    voice: voice('xiaoxiao', 'female', 0.93, 1.0),
+    voice: voice('xiaoxiao', 'female', 0.93, 1.0, {
+      referenceId: '80e1c4a910f44041b5204e145ed38154',
+      tuning: { temperature: 0.9, topP: 0.9, repetitionPenalty: 1.2, latency: 'normal' },
+    }),
     initialMessage: {
       zh: '来啦！我是沈若熙，家里开小饭馆的。你吃饭了吗？我们湖南菜特别辣，你能吃辣吗？',
       ja: 'いらっしゃい！沈若熙よ、家は小さな食堂をやってるの。ごはんは食べた？うちの湖南料理はすごく辛いけど、辛いもの平気？',
