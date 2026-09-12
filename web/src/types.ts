@@ -86,6 +86,8 @@ export interface Friend {
   personality: string
   hobbies: string[]
   tone?: string
+  /** 会話内容へ反映する、画面上のプロフィールとは分離された開発者向け設定。 */
+  conversationPolicy?: FriendConversationPolicy
   voice?: Voice
   initialMessage?: {
     zh: string
@@ -93,6 +95,18 @@ export interface Friend {
     pinyin: string
     vocabulary?: HobbyVocabulary[]
   }
+}
+
+export type HobbyTopicInitiative = 'minimal' | 'contextual' | 'proactive'
+export type MatureTopicComfort = 'avoid' | 'medical' | 'candid' | 'open'
+
+export interface FriendConversationPolicy {
+  /** Friend 側から趣味の話へ持っていく強さ。 */
+  hobbyTopicInitiative: HobbyTopicInitiative
+  /** 成人向けの冗談・相談・話題に対する会話上の許容範囲。 */
+  matureTopicComfort: MatureTopicComfort
+  /** 利用者には表示せず、人物の振る舞いにだけ使う補足。 */
+  privateNotes?: string
 }
 
 export interface BilingualReply {

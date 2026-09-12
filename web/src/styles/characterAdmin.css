@@ -76,8 +76,13 @@
 
 .char-admin-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; padding: 12px; background: white; border: 1px solid #e7e5e4; border-radius: 14px; }
 .char-admin-form label { display: flex; flex-direction: column; gap: 3px; color: #57534e; font-size: .68rem; font-weight: 700; }
+.char-admin-setting-tabs { display: inline-flex; gap: 3px; margin-bottom: 8px; padding: 3px; background: #f5f5f4; border-radius: 10px; }
+.char-admin-setting-tabs button { padding: 6px 12px; color: #78716c; border-radius: 8px; font-size: .7rem; font-weight: 700; }
+.char-admin-setting-tabs button[data-active=true] { color: #9f1239; background: white; box-shadow: 0 1px 3px rgba(28, 25, 23, .12); }
+.char-admin-form-intro { grid-column: 1 / -1; margin: 0 0 2px; color: #78716c; font-size: .68rem; }
 .char-admin-form-wide { grid-column: 1 / -1; }
-.char-admin-form input, .char-admin-form textarea { padding: 6px 8px; color: #1c1917; border: 1px solid #d6d3d1; border-radius: 8px; font-size: .78rem; font-weight: 400; }
+.char-admin-form input, .char-admin-form textarea, .char-admin-form select { padding: 6px 8px; color: #1c1917; background: white; border: 1px solid #d6d3d1; border-radius: 8px; font-size: .78rem; font-weight: 400; }
+.char-admin-form label small { color: #78716c; font-size: .62rem; font-weight: 400; line-height: 1.45; }
 .char-admin-form textarea { resize: vertical; }
 .char-admin-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; grid-column: 1 / -1; }
 .char-admin-form-actions small { color: #78716c; font-size: .64rem; }

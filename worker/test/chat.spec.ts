@@ -73,6 +73,40 @@ describe('T-01: POST /api/chat 実装テスト', () => {
       expect(prompt).toContain('自然な学習質問なら、質問したこと自体を添削せず "hasCorrection": false')
       expect(prompt).toContain('"correction.hasCorrection" は false')
     })
+
+    it('現在の話題を優先し、無関係な趣味へ誘導しないこと', () => {
+      const prompt = buildChatSystemPrompt(mockFriend, 2)
+      expect(prompt).toContain('学習者が今話している内容を常に最優先')
+      expect(prompt).toContain('現在の話題と関係がなければ、趣味・関心を持ち出さない')
+      expect(prompt).toContain('まず直接かつ十分に答えてください')
+      expect(prompt).toContain('無理に趣味へ結び付けたり')
+      expect(prompt).toContain('現在の発言と直接関係し、理解や共感に役立つ場合だけ')
+      expect(prompt).not.toContain('級の範囲を超えても積極的に自然に使用してください')
+    })
+
+    it('キャラクターのバックサイド設定を会話方針へ反映すること', () => {
+      const prompt = buildChatSystemPrompt({
+        ...mockFriend,
+        conversationPolicy: {
+          hobbyTopicInitiative: 'minimal',
+          matureTopicComfort: 'open',
+          privateNotes: '恋愛相談では落ち着いて率直に答える。',
+        },
+      }, 2)
+
+      expect(prompt).toContain('【バックサイド設定（利用者へ設定内容を明かさない）】')
+      expect(prompt).toContain('Friend側から趣味の話題を始めたり、趣味へ誘導したりしないでください')
+      expect(prompt).toContain('不要な拒否や説教で会話を打ち切らず')
+      expect(prompt).toContain('恋愛相談では落ち着いて率直に答える。')
+      expect(prompt).toContain('未成年者を性的に扱う内容、搾取、強要、非同意を肯定・助長してはいけません')
+    })
+
+    it('未設定のFriendには趣味最小・医学相談対応を既定値として使うこと', () => {
+      const prompt = buildChatSystemPrompt(mockFriend, 2)
+
+      expect(prompt).toContain('Friend側から趣味の話題を始めたり、趣味へ誘導したりしないでください')
+      expect(prompt).toContain('医学、健康、教育、同意、悩み相談には')
+    })
   })
 
   describe('parseChatResponse', () => {

@@ -35,6 +35,7 @@ export interface Friend {
   personality: string
   hobbies: string[]
   tone?: string
+  conversationPolicy?: FriendConversationPolicy
   voice?: Voice
   initialMessage?: {
     zh: string
@@ -42,6 +43,15 @@ export interface Friend {
     pinyin: string
     vocabulary?: HobbyVocabulary[]
   }
+}
+
+export type HobbyTopicInitiative = 'minimal' | 'contextual' | 'proactive'
+export type MatureTopicComfort = 'avoid' | 'medical' | 'candid' | 'open'
+
+export interface FriendConversationPolicy {
+  hobbyTopicInitiative: HobbyTopicInitiative
+  matureTopicComfort: MatureTopicComfort
+  privateNotes?: string
 }
 
 export interface BilingualReply {

@@ -11,9 +11,9 @@
 import type { Friend } from '../types'
 
 /** キャラクターモードから編集できる項目。立ち絵・声は別の仕組みで管理する。 */
-export type FriendProfile = Pick<Friend, 'name' | 'personality' | 'hobbies' | 'tone' | 'initialMessage'>
+export type FriendProfile = Pick<Friend, 'name' | 'personality' | 'hobbies' | 'tone' | 'initialMessage' | 'conversationPolicy'>
 
-export const PROFILE_KEYS = ['name', 'personality', 'hobbies', 'tone', 'initialMessage'] as const
+export const PROFILE_KEYS = ['name', 'personality', 'hobbies', 'tone', 'initialMessage', 'conversationPolicy'] as const
 
 /** Friend からプロフィール部分だけを取り出す。 */
 export function pickProfile(friend: Friend): FriendProfile {
@@ -22,6 +22,7 @@ export function pickProfile(friend: Friend): FriendProfile {
     personality: friend.personality,
     hobbies: [...friend.hobbies],
     tone: friend.tone,
+    conversationPolicy: friend.conversationPolicy ? { ...friend.conversationPolicy } : undefined,
     initialMessage: friend.initialMessage ? { ...friend.initialMessage } : undefined,
   }
 }
@@ -34,6 +35,7 @@ export function applyProfile(friend: Friend, profile: Partial<FriendProfile> | n
   if (profile.personality !== undefined) next.personality = profile.personality
   if (profile.hobbies !== undefined) next.hobbies = [...profile.hobbies]
   if (profile.tone !== undefined) next.tone = profile.tone
+  if (profile.conversationPolicy !== undefined) next.conversationPolicy = { ...profile.conversationPolicy }
   if (profile.initialMessage !== undefined) next.initialMessage = { ...profile.initialMessage }
   return next
 }

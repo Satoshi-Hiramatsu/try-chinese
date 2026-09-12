@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import type { Expression, Friend } from '../types'
+import type { Expression, Friend, HobbyTopicInitiative, MatureTopicComfort } from '../types'
 import { EXPRESSIONS } from '../types'
 import { PRESET_FRIENDS } from '../data/presetFriends'
 import {
@@ -74,6 +74,9 @@ interface Draft {
   zh: string
   ja: string
   pinyin: string
+  hobbyTopicInitiative: HobbyTopicInitiative
+  matureTopicComfort: MatureTopicComfort
+  privateNotes: string
 }
 
 function toDraft(friend: Friend): Draft {
@@ -85,6 +88,9 @@ function toDraft(friend: Friend): Draft {
     zh: friend.initialMessage?.zh ?? '',
     ja: friend.initialMessage?.ja ?? '',
     pinyin: friend.initialMessage?.pinyin ?? '',
+    hobbyTopicInitiative: friend.conversationPolicy?.hobbyTopicInitiative ?? 'minimal',
+    matureTopicComfort: friend.conversationPolicy?.matureTopicComfort ?? 'medical',
+    privateNotes: friend.conversationPolicy?.privateNotes ?? '',
   }
 }
 
@@ -99,6 +105,11 @@ function fromDraft(draft: Draft, base: Friend): FriendProfile {
     personality: draft.personality.trim(),
     hobbies,
     tone: draft.tone.trim() || undefined,
+    conversationPolicy: {
+      hobbyTopicInitiative: draft.hobbyTopicInitiative,
+      matureTopicComfort: draft.matureTopicComfort,
+      privateNotes: draft.privateNotes.trim() || undefined,
+    },
     initialMessage: hasMessage
       ? {
           zh: draft.zh.trim(),
@@ -127,6 +138,7 @@ export function CharacterAdminPane({
   const [isExportOpen, setIsExportOpen] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
+  const [settingSide, setSettingSide] = useState<'main' | 'backside'>('main')
 
   const presetById = useMemo(() => new Map(PRESET_FRIENDS.map((f) => [f.id, f])), [])
 
@@ -212,7 +224,7 @@ export function CharacterAdminPane({
     }
   }
 
-  const update = (key: keyof Draft, value: string) => setDraft((prev) => (prev ? { ...prev, [key]: value } : prev))
+  const update = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((prev) => (prev ? { ...prev, [key]: value } : prev))
 
   return (
     <div className={'char-admin'}>
@@ -415,12 +427,19 @@ export function CharacterAdminPane({
           </div>
         </div>
 
-        {/* プロフィール */}
+        {/* メイン設定 / バックサイド設定 */}
         <h3 className={'char-admin-section-title'}>
-          プロフィール
+          キャラクター設定
           {changedKeys.length > 0 ? <em data-kind={'override'}>上書き中: {changedKeys.join(', ')}</em> : null}
         </h3>
+        <div className={'char-admin-setting-tabs'} role={'tablist'} aria-label={'キャラクター設定の種類'}>
+          <button type={'button'} role={'tab'} aria-selected={settingSide === 'main'} data-active={settingSide === 'main'} onClick={() => setSettingSide('main')}>メイン設定</button>
+          <button type={'button'} role={'tab'} aria-selected={settingSide === 'backside'} data-active={settingSide === 'backside'} onClick={() => setSettingSide('backside')}>バックサイド設定</button>
+        </div>
         <div className={'char-admin-form'}>
+          {settingSide === 'main' ? (
+            <>
+              <p className={'char-admin-form-intro'}>利用者にも見える人物像・趣味・口調を設定します。</p>
           <label>
             名前
             <input value={draft.name} onChange={(e) => update('name', e.target.value)} />
@@ -449,6 +468,36 @@ export function CharacterAdminPane({
             最初のメッセージ（日本語）
             <textarea rows={2} value={draft.ja} onChange={(e) => update('ja', e.target.value)} />
           </label>
+            </>
+          ) : (
+            <>
+              <p className={'char-admin-form-intro'}>画面上のプロフィールには出さず、会話生成にだけ反映する設定です。</p>
+              <label>
+                趣味への誘導
+                <select value={draft.hobbyTopicInitiative} onChange={(e) => update('hobbyTopicInitiative', e.target.value as HobbyTopicInitiative)}>
+                  <option value={'minimal'}>極力しない（推奨）</option>
+                  <option value={'contextual'}>自然な関連時のみ</option>
+                  <option value={'proactive'}>時々こちらから広げる</option>
+                </select>
+                <small>「極力しない」では、質問への回答後もFriend側から趣味へ話題転換しません。</small>
+              </label>
+              <label>
+                成人向け話題の許容値
+                <select value={draft.matureTopicComfort} onChange={(e) => update('matureTopicComfort', e.target.value as MatureTopicComfort)}>
+                  <option value={'avoid'}>避ける</option>
+                  <option value={'medical'}>医学・教育・相談のみ</option>
+                  <option value={'candid'}>率直（軽い下ネタを含む）</option>
+                  <option value={'open'}>オープン（成人同士の話題）</option>
+                </select>
+                <small>モデルや接続先プロバイダー固有の制限を解除する設定ではありません。</small>
+              </label>
+              <label className={'char-admin-form-wide'}>
+                非公開の人物補足
+                <textarea rows={4} value={draft.privateNotes} onChange={(e) => update('privateNotes', e.target.value)} placeholder={'例：恋愛相談では落ち着いて率直に答える。自分から話題を性的にしない。'} />
+                <small>返答本文にはそのまま引用せず、性格や距離感の背景として使用します。</small>
+              </label>
+            </>
+          )}
           <div className={'char-admin-form-actions'}>
             <button type={'button'} data-primary={true} disabled={!draftDirty || !selected.id} onClick={save}>
               保存
