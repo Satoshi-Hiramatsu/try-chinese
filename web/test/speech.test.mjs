@@ -25,7 +25,7 @@ function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob([
     require: () => ({ loadUsableApiKey: () => apiKey, markApiKeyExhausted: () => {}, FIXED_TTS_MODEL: 'fish-audio/s2.1-pro', clampVoicePitch: (v) => Math.min(1.2, Math.max(0.85, typeof v === 'number' ? v : 1)), responseToPlayableBlob: async (response) => await response.blob() }),
     window: { SpeechRecognition: class {
       constructor() { recognition = this }
-      start(track) { this.startedWith = track; this.onstart?.() }
+      start() { this.onstart?.() }
       stop() { this.onend?.() }
       abort() { this.onend?.() }
     } },
@@ -48,7 +48,7 @@ function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob([
 }
 const result = (transcript, isFinal = true) => ({ 0: { transcript }, isFinal })
 for (const [lang, greeting] of [['ja-JP', '\u3053\u3093\u306b\u3061\u306f'], ['zh-CN', '\u4f60\u597d']]) {
-  test(`${lang}: repeated results replace snapshots and preserve intentional repetition`, () => {
+  test(`${lang}: repeated results replace snapshots and never double the same phrase`, () => {
     const s = setup()
     let final = '', interim = ''
     const finalUpdates = []
@@ -68,14 +68,48 @@ for (const [lang, greeting] of [['ja-JP', '\u3053\u3093\u306b\u3061\u306f'], ['z
     assert.equal(final, greeting)
     assert.equal(interim, '')
     assert.deepEqual(finalUpdates, [greeting])
+    // 同じセッション内で同じ塊が別 index に再掲されても、本文は1回分のまま
     r.onresult({ resultIndex: 1, results: [result(greeting), result(greeting)] })
-    assert.equal(final, greeting + greeting)
+    assert.equal(final, greeting)
+    // 途中経過が確定済みを先頭に含んでいても、表示はその先だけ
+    r.onresult({ resultIndex: 1, results: [result(greeting), result(greeting + '\u3001\u5143\u6c17', false)] })
+    assert.equal(interim, '\u3001\u5143\u6c17')
     controller.abort()
-    assert.deepEqual(finalUpdates, [greeting, greeting + greeting])
+    assert.deepEqual(finalUpdates, [greeting])
     r.onresult({ resultIndex: 0, results: [result('late')] })
-    assert.equal(final, greeting + greeting)
+    assert.equal(final, greeting)
   })
 }
+
+test('重なり吸収: 蓄積済みの末尾と新しい塊の先頭が重なる分だけを落とす', () => {
+  const s = setup()
+  const merge = s.api.mergeTranscript
+  // 丸ごと再掲
+  assert.equal(merge('我已经结婚了', '我已经结婚了'), '我已经结婚了')
+  // 再掲のうしろに新しい発話
+  assert.equal(merge('我已经结婚了', '我已经结婚了有一个孩子'), '我已经结婚了有一个孩子')
+  // 末尾の一部だけを再掲
+  assert.equal(merge('昨日は映画を見ました', '見ました。とても面白かった'), '昨日は映画を見ました。とても面白かった')
+  // 重ならない塊はそのまま足す（英数字同士は空白で区切る）
+  assert.equal(merge('我喜欢', '看电影'), '我喜欢看电影')
+  assert.equal(merge('HSK', '3'), 'HSK 3')
+  // 1文字の言い直しは残す
+  assert.equal(merge('好', '好'), '好好')
+  assert.equal(merge('', ' 你好 '), '你好')
+  assert.equal(merge('你好', ''), '你好')
+})
+
+test('隣接反復の畳み込み: 4文字以上の同じ並びが続いたら1回にする', () => {
+  const s = setup()
+  const collapse = s.api.collapseAdjacentRepeat
+  assert.equal(collapse('我已经结婚了我已经结婚了'), '我已经结婚了')
+  assert.equal(collapse('我已经结婚了。我已经结婚了。有一个孩子'), '我已经结婚了。有一个孩子')
+  assert.equal(collapse('昨日は映画を見ました昨日は映画を見ました昨日は映画を見ました'), '昨日は映画を見ました')
+  // 短い相づちや挨拶の繰り返しは意図的なものとして残す
+  assert.equal(collapse('谢谢谢谢'), '谢谢谢谢')
+  assert.equal(collapse('はいはい'), 'はいはい')
+  assert.equal(collapse('好好学习天天向上'), '好好学习天天向上')
+})
 const flush = () => new Promise(resolve => setImmediate(resolve))
 /** Fish の話者IDを持つ友達の声。読み上げは話者IDが無いと送らない。 */
 const fishVoice = (voiceModel = '4d9ea3a384294fe39dc9e235f7052ede') => ({ gender: 'female', voiceModel })
@@ -194,7 +228,7 @@ test('a reopened microphone never repeats the utterance it already captured', ()
   assert.deepEqual(finals, ['我已经结婚了'])
 })
 
-test('開き直した直後に前セッションの確定文が再掲されても、プレビューは重ねない', () => {
+test('開き直した直後に前セッションの確定文が再掲されても、本文は重ねない', () => {
   const s = setup()
   const finals = []
   const controller = s.api.createSpeechRecognizer({
@@ -223,26 +257,6 @@ test('開き直した直後に前セッションの確定文が再掲されて�
   const r3 = s.recognition()
   r3.onresult({ resultIndex: 0, results: [result('好'), result('好')] })
   assert.deepEqual(finals[finals.length - 1], '我已经结婚了有一个孩子好好')
-})
-
-test('録音側の音声トラックを渡すと、開き直すときも同じトラックで認識を開く', () => {
-  const s = setup()
-  const controller = s.api.createSpeechRecognizer({ lang: 'zh-CN', silenceTimeoutMs: 20000 })
-  const track = { kind: 'audio' }
-  controller.start(track)
-  const r = s.recognition()
-  assert.equal(r.startedWith, track)
-
-  r.onend()
-  assert.equal(s.runTimer(250), true)
-  const r2 = s.recognition()
-  assert.notEqual(r2, r)
-  assert.equal(r2.startedWith, track)
-  controller.abort()
-
-  // トラックを渡さなければ従来どおりマイクを直接開く
-  controller.start()
-  assert.equal(s.recognition().startedWith, undefined)
 })
 
 test('running out of silence between sessions still ends listening', () => {

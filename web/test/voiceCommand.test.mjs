@@ -55,18 +55,3 @@ test('中国語入力中でも「送信」で送れる', () => {
     { hasSendCommand: true, content: '我昨天去了电影院。' }
   )
 })
-
-test('プレビューで合図を聞き取っていれば、一括STTが同音で書いた末尾も剥がす', () => {
-  for (const [transcript, lang, content] of [
-    ['我昨天去了电影院。发颂', 'zh-CN', '我昨天去了电影院。'],
-    ['我昨天去了电影院，法送。', 'zh-CN', '我昨天去了电影院，'],
-    ['今日は映画を見ました。そして', 'ja-JP', '今日は映画を見ました。'],
-  ]) {
-    assert.deepEqual(
-      { ...exports.parseVoiceSendCommand(transcript, lang, { lenient: true }) },
-      { hasSendCommand: true, content }
-    )
-    // 合図の検出そのものは厳密なまま。近音の語だけでは送らない。
-    assert.equal(exports.parseVoiceSendCommand(transcript, lang).hasSendCommand, false)
-  }
-})

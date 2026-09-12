@@ -95,21 +95,15 @@ test('STTの残高切れをAPIキー状態へ反映する', async () => {
   assert.equal(s.requests.length, 1)
 })
 
-test('会話入力は録音STTを正本にし、ブラウザ認識はプレビューと合図にしか使わない', () => {
+test('会話入力はブラウザ認識を正本にし、重なり吸収を通した確定テキストだけを受け取る', () => {
   const chatInput = readFileSync(new URL('../src/components/ChatInput.tsx', import.meta.url), 'utf8')
-  assert.match(chatInput, /transcribeRecording/)
-  assert.match(chatInput, /startRecording/)
+  assert.match(chatInput, /createSpeechRecognizer/)
+  // 録音→一括STTは開発者モードの比較用に残すだけで、会話入力の経路には使わない
+  assert.doesNotMatch(chatInput, /transcribeRecording/)
+  assert.doesNotMatch(chatInput, /startRecording/)
 
-  // ブラウザ認識のコールバック本体を切り出す。ここから本文や送信へ直接触れてはいけない。
-  const start = chatInput.indexOf('createSpeechRecognizer({')
-  assert.notEqual(start, -1)
-  const end = chatInput.indexOf('recognizer.start(', start)
-  assert.notEqual(end, -1)
-  const recognizerBlock = chatInput.slice(start, end)
-  assert.doesNotMatch(recognizerBlock, /textRef\.current\s*=/)
-  assert.doesNotMatch(recognizerBlock, /setText\(/)
-  assert.doesNotMatch(recognizerBlock, /sendContent\(/)
-  assert.doesNotMatch(recognizerBlock, /onSendMessage/)
-  // 本文へ入るのは録音の文字起こし結果だけ
-  assert.match(recognizerBlock, /setPreview(Final|Interim)\(/)
+  const speech = readFileSync(new URL('../src/services/speech.ts', import.meta.url), 'utf8')
+  const onresult = speech.slice(speech.indexOf('recognition.onresult'), speech.indexOf('recognition.onerror'))
+  assert.match(onresult, /mergeTranscript\(committedFinal/)
+  assert.match(onresult, /collapseAdjacentRepeat\(/)
 })

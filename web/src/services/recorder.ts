@@ -67,8 +67,6 @@ export interface RecordingResult {
 }
 
 export interface RecorderController {
-  /** 録音しているマイクの音声トラック。同じ音を別の消費者（ブラウザ認識）にも渡すために公開する。 */
-  audioTrack: MediaStreamTrack | undefined
   /** 録音を締めて結果を返す。既に停止していれば同じ結果を返す。 */
   stop: () => Promise<RecordingResult>
   /** 結果を捨てて停止する。マイクも解放する。 */
@@ -155,7 +153,6 @@ export async function startRecording(options: StartRecordingOptions = {}): Promi
   recorder.start()
 
   return {
-    audioTrack: stream.getAudioTracks()[0],
     stop,
     cancel: () => {
       release()

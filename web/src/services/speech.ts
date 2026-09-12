@@ -21,8 +21,7 @@ interface RecognitionInstance {
   onresult: ((event: RecognitionResultEvent) => void) | null
   onerror: ((event: { error: string }) => void) | null
   onend: (() => void) | null
-  /** Chrome 132+ は音声トラックを渡せる。古いブラウザは引数を無視してマイクを直接開く。 */
-  start(audioTrack?: MediaStreamTrack): void
+  start(): void
   stop(): void
   abort(): void
 }
@@ -349,11 +348,7 @@ export function isSpeechRecognitionSupported(): boolean {
 }
 
 export interface SpeechRecognitionController {
-  /**
-   * 認識を始める。録音と同時に使うときは録音側の音声トラックを渡す。
-   * 別々にマイクを開くと端末によっては片方が音を取れないため。
-   */
-  start: (audioTrack?: MediaStreamTrack) => void
+  start: () => void
   stop: () => void
   abort: () => void
 }
@@ -408,11 +403,64 @@ function joinTranscript(head: string, tail: string): string {
 }
 
 /**
+ * 重なりとみなす最小文字数。
+ * 「好、好」のような1文字の言い直しは残し、それ以上の一致は再掲として扱う。
+ */
+export const MIN_TRANSCRIPT_OVERLAP = 2
+
+/**
+ * 蓄積済みテキストの末尾と新しい塊の先頭が重なっていれば、重なりを除いた分だけを足す。
+ *
+ * ブラウザ（特に Android Chrome）は、認識を開き直した直後や継続認識の途中で、
+ * 既に確定した文字列を新しい結果の先頭に再掲することがある。
+ * 「同じ通知を捨てる」だけでは再掲の形が変わると効かないため、内容そのもので判定する。
+ * 丸ごと同じ塊が来たときは足さない。
+ */
+export function mergeTranscript(head: string, tail: string): string {
+  const chunk = tail.trim()
+  if (!chunk) return head
+  if (!head) return chunk
+  if (chunk.length >= MIN_TRANSCRIPT_OVERLAP && head.endsWith(chunk)) return head
+  const longest = Math.min(head.length, chunk.length - 1)
+  for (let size = longest; size >= MIN_TRANSCRIPT_OVERLAP; size -= 1) {
+    if (head.endsWith(chunk.slice(0, size))) {
+      return joinTranscript(head, chunk.slice(size).trim())
+    }
+  }
+  return joinTranscript(head, chunk)
+}
+
+/** 隣接反復とみなす最小文字数。挨拶や相づちの言い直し（谢谢、はいはい）は畳まない。 */
+export const MIN_ADJACENT_REPEAT = 4
+
+/**
+ * 同じ並びが隣り合って2回続く箇所を1回に畳む。
+ *
+ * 重なり吸収をすり抜けた再掲（1つの結果の中で文がそのまま2回入っている等）を、
+ * 送信前の最後の安全網として取り除く。長い並びから順に畳む。
+ */
+export function collapseAdjacentRepeat(text: string, minLength = MIN_ADJACENT_REPEAT): string {
+  let result = text
+  let changed = true
+  while (changed) {
+    changed = false
+    for (let size = Math.floor(result.length / 2); size >= minLength && !changed; size -= 1) {
+      for (let index = 0; index + size * 2 <= result.length; index += 1) {
+        if (result.slice(index, index + size) !== result.slice(index + size, index + size * 2)) continue
+        result = result.slice(0, index + size) + result.slice(index + size * 2)
+        changed = true
+        break
+      }
+    }
+  }
+  return result
+}
+
+/**
  * 音声認識セッションの作成（継続リスニング対応）
  *
- * 会話へ送る本文の正本は録音→一括STT（transcription.ts）で、ここは
- * 話している途中の文字を見せるプレビューと、「发送」「送信」の合図を拾う役に徹する。
- * 表示が一瞬乱れても送信内容には影響しない前提で、再掲の畳み込みは軽い判定に留める。
+ * 会話入力の正本。話している途中の文字をそのまま見せるため、確定テキストは
+ * mergeTranscript と collapseAdjacentRepeat を通してから通知し、再掲による重複を送らない。
  *
  * ブラウザは短い沈黙でも認識セッションを終了してしまうため、
  * 無音タイムアウトに達するまでは内部で自動的に開き直し、
@@ -438,15 +486,10 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
   let finished = false
   // 内部再開より前に確定したテキスト
   let committedFinal = ''
-  // 直前のセッションが単独で確定した塊。開き直した直後の再掲を見分けるために持つ。
-  let lastSessionFinal = ''
-  let sessionFinal = ''
   let previousFinal = ''
   let previousInterim = ''
   // 動いている実体は常にひとつだけ。古い実体からの通知はすべて捨てる。
   let active: RecognitionInstance | null = null
-  // 開き直すときも同じ音声トラックで開く
-  let sharedTrack: MediaStreamTrack | undefined
 
   let silenceTimeout: ReturnType<typeof setTimeout> | null = null
   let restartTimer: ReturnType<typeof setTimeout> | null = null
@@ -522,28 +565,25 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
       startSilenceTimer()
       // results is a session snapshot. A repeated final index must replace,
       // never append to, the previously displayed recognition text.
-      let final = ''
+      // セッション内の確定は塊ごとに重なりを吸収しながら積む。
+      // 同じ塊が同じ index で再通知されてもスナップショットから作り直すので二重にならない。
+      let sessionFinal = ''
       let interim = ''
       for (let i = 0; i < event.results.length; i++) {
         const item = event.results[i]
-        if (item.isFinal) final += item[0].transcript
+        if (item.isFinal) sessionFinal = mergeTranscript(sessionFinal, item[0].transcript)
         else interim += item[0].transcript
       }
-      let chunk = final.trim()
-      // 開き直した直後、ブラウザが前セッションで確定済みの文字列をそのまま先頭に再掲することがある。
-      // 蓄積済みの末尾と同じ塊で始まるなら、新しい発話ではなく再掲とみなして重ねない。
-      if (lastSessionFinal && chunk.startsWith(lastSessionFinal)) {
-        chunk = chunk.slice(lastSessionFinal.length).trim()
-      }
-      sessionFinal = chunk
-      const normalizedFinal = joinTranscript(committedFinal, chunk)
+      const normalizedFinal = collapseAdjacentRepeat(mergeTranscript(committedFinal, sessionFinal))
       if (normalizedFinal !== previousFinal) {
         previousFinal = normalizedFinal
         options.onFinalResult?.(normalizedFinal)
       }
-      if (interim !== previousInterim) {
-        previousInterim = interim
-        options.onInterimResult?.(interim)
+      // 途中経過も確定済みの再掲を含むことがある。表示用に重なりを落とす。
+      const visibleInterim = mergeTranscript(normalizedFinal, interim).slice(normalizedFinal.length).trim()
+      if (visibleInterim !== previousInterim) {
+        previousInterim = visibleInterim
+        options.onInterimResult?.(visibleInterim)
       }
     }
 
@@ -575,8 +615,6 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
 
       // ブラウザ都合の終了。確定済みを引き継いでマイクを開き直す。
       committedFinal = previousFinal
-      lastSessionFinal = sessionFinal
-      sessionFinal = ''
       if (previousInterim !== '') {
         previousInterim = ''
         options.onInterimResult?.('')
@@ -588,7 +626,7 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
         try {
           const next = createInstance()
           active = next
-          next.start(sharedTrack)
+          next.start()
         } catch (err) {
           console.warn('SpeechRecognition restart error:', err)
           finished = true
@@ -601,22 +639,19 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
   }
 
   return {
-    start: (audioTrack?: MediaStreamTrack) => {
+    start: () => {
       // 二重起動すると認識が二重に届く。動いている間の start は無視する。
       if (active && !aborted) return
       aborted = false
-      sharedTrack = audioTrack
       finished = false
       committedFinal = ''
-      lastSessionFinal = ''
-      sessionFinal = ''
       previousFinal = ''
       previousInterim = ''
       clearTimers()
       try {
         const next = createInstance()
         active = next
-        next.start(sharedTrack)
+        next.start()
       } catch (err) {
         console.warn('SpeechRecognition start error:', err)
         active = null
