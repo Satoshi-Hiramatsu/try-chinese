@@ -13,7 +13,7 @@ const STORAGE_KEYS = {
   CUSTOM_FRIENDS: 'shabe_china_custom_friends',
   SELECTED_FRIEND_ID: 'shabe_china_selected_friend_id',
   SESSION_PREFIX: 'shabe_china_session_',
-  SELECTED_MODEL: 'shabe_china_selected_model',
+  DEV_LLM_MODEL: 'shabe_china_dev_llm_model',
   AUTO_PLAY_TTS: 'shabe_china_auto_play_tts',
   SPEECH_INPUT_LANG: 'shabe_china_speech_input_lang',
   SILENCE_TIMEOUT_MS: 'shabe_china_silence_timeout_ms',
@@ -260,20 +260,24 @@ export function clearFriendMessages(friendId: string): void {
   }
 }
 
-export function loadSelectedModel(defaultModel = 'deepseek/deepseek-v4.1-flash'): string {
+// --- 会話 LLM の開発者上書き（テストモード） ---
+// 利用者向けの設定は持たない。旧キー shabe_china_selected_model は読まず、固定モデルで動く。
+
+export function loadDevLlmModel(): string | null {
   try {
-    return localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL) || defaultModel
+    return localStorage.getItem(STORAGE_KEYS.DEV_LLM_MODEL)
   } catch {
-    return defaultModel
+    return null
   }
 }
 
-export function saveSelectedModel(model: string): void {
+/** 空を渡すと上書きを消して固定モデルに戻す。 */
+export function saveDevLlmModel(model: string): void {
   try {
     if (model.trim()) {
-      localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL, model.trim())
+      localStorage.setItem(STORAGE_KEYS.DEV_LLM_MODEL, model.trim())
     } else {
-      localStorage.removeItem(STORAGE_KEYS.SELECTED_MODEL)
+      localStorage.removeItem(STORAGE_KEYS.DEV_LLM_MODEL)
     }
   } catch {
     // ignore

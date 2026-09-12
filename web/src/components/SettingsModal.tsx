@@ -2,9 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import {
   SettingsIcon,
   CloseIcon,
-  CpuIcon,
-  ExternalLinkIcon,
-  CheckIcon,
   SparklesIcon,
   ChinaFlagIcon,
   JapanFlagIcon,
@@ -24,7 +21,6 @@ interface SettingsModalProps {
   currentApiKey: string
   /** 保存済みキーの検査結果。入力欄の下に出す。 */
   apiKeyStatus: ApiKeyStatus
-  currentModel: string
   autoPlayTts?: boolean
   speechInputLang?: 'zh-CN' | 'ja-JP'
   toneColoring?: boolean
@@ -39,7 +35,6 @@ interface SettingsModalProps {
   onResetAllVoices?: () => number
   onSave: (
     apiKey: string,
-    model: string,
     autoPlayTts: boolean,
     speechInputLang: 'zh-CN' | 'ja-JP',
     toneColoring: boolean,
@@ -47,20 +42,12 @@ interface SettingsModalProps {
   ) => void
 }
 
-const PRESET_MODELS = [
-  { id: 'deepseek/deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash', tag: '推奨・中国語ネイティブ', desc: '出力単価が従来の1/4。スキーマ指定に対応し返答が崩れない' },
-  { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: '従来の既定', desc: '実績のある比較基準。単価は高め' },
-  { id: 'google/gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', tag: '速度優先', desc: 'さらに安く速い。返答の厚みは落ちる' },
-  { id: 'openai/gpt-4o-mini', name: 'GPT-4o mini', tag: '定番・高精度', desc: '指示遵守力が高く安定した構造化JSON生成' },
-  { id: 'deepseek/deepseek-v3.2', name: 'DeepSeek V3.2', tag: '中国語ニュアンス特化', desc: 'ネイティブらしい自然な中国語口語表現' },
-]
 
 export function SettingsModal({
   isOpen,
   onClose,
   currentApiKey,
   apiKeyStatus,
-  currentModel,
   autoPlayTts = false,
   speechInputLang = 'zh-CN',
   toneColoring = false,
@@ -72,7 +59,6 @@ export function SettingsModal({
   onSave,
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey)
-  const [model, setModel] = useState(currentModel || PRESET_MODELS[0].id)
   const [autoPlay, setAutoPlay] = useState(autoPlayTts)
   const [inputLang, setInputLang] = useState<'zh-CN' | 'ja-JP'>(speechInputLang)
   const [enableToneColor, setEnableToneColor] = useState(toneColoring)
@@ -83,17 +69,16 @@ export function SettingsModal({
 
   useEffect(() => {
     setApiKey(currentApiKey)
-    setModel(currentModel || PRESET_MODELS[0].id)
     setAutoPlay(autoPlayTts)
     setInputLang(speechInputLang)
     setEnableToneColor(toneColoring)
     setSilenceMs(clampSilenceTimeoutMs(silenceTimeoutMs))
-  }, [currentApiKey, currentModel, autoPlayTts, speechInputLang, toneColoring, silenceTimeoutMs, isOpen])
+  }, [currentApiKey, autoPlayTts, speechInputLang, toneColoring, silenceTimeoutMs, isOpen])
 
   if (!isOpen) return null
 
   const handleSave = () => {
-    onSave(apiKey, model, autoPlay, inputLang, enableToneColor, silenceMs)
+    onSave(apiKey, autoPlay, inputLang, enableToneColor, silenceMs)
     onClose()
   }
 
@@ -141,77 +126,6 @@ export function SettingsModal({
             <p className="text-[11px] text-stone-400 mt-1 m-0">
               ※ キーはブラウザ内にのみ保持されます。未入力のあいだは無料の音声モデル（Fish Audio S2.1 Pro Free）で動きます。
             </p>
-          </div>
-
-          {/* Section 2: 会話LLMモデル選択 */}
-          <div className="pt-3 border-t border-stone-100 space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold text-stone-800 flex items-center gap-1.5">
-                <CpuIcon className="w-4 h-4 text-stone-600" />
-                <span>会話用 AI モデル (LLM):</span>
-              </label>
-              <a
-                href="https://openrouter.ai/models"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-rose-600 hover:underline flex items-center gap-0.5"
-              >
-                <span>モデル一覧</span>
-                <ExternalLinkIcon className="w-3 h-3" />
-              </a>
-            </div>
-
-            {/* プリセット一覧 */}
-            <div className="grid grid-cols-1 gap-1.5">
-              {PRESET_MODELS.map((m) => {
-                const isSelected = model === m.id
-                return (
-                  <div
-                    key={m.id}
-                    onClick={() => setModel(m.id)}
-                    className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between ${
-                      isSelected
-                        ? 'border-rose-400 bg-rose-50/60 shadow-2xs font-semibold'
-                        : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50 text-stone-700'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-stone-900">{m.name}</span>
-                        <span
-                          className={`text-[10px] px-1.5 py-0.2 rounded-md ${
-                            isSelected
-                              ? 'bg-rose-200 text-rose-800 font-bold'
-                              : 'bg-stone-100 text-stone-600'
-                          }`}
-                        >
-                          {m.tag}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 m-0 mt-0.5">{m.desc}</p>
-                    </div>
-                    {isSelected && (
-                      <span className="flex items-center gap-1 text-rose-600 text-xs font-bold flex-shrink-0">
-                        <CheckIcon className="w-4 h-4" />
-                        <span>選択中</span>
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* モデル名直接入力 */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-stone-500 flex-shrink-0">カスタム指定:</span>
-              <input
-                type="text"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="例: openai/gpt-4o または deepseek/deepseek-chat"
-                className="flex-1 px-3 py-1.5 border border-stone-300 rounded-xl text-xs font-mono focus:border-rose-500 focus:outline-none"
-              />
-            </div>
           </div>
 
           {/* Section 3: 音声・入力の設定 */}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import type { Friend, ChatMessage, Voice, VocabularyItem } from './types'
 import { PRESET_FRIENDS } from './data/presetFriends'
+import { resolveLlmModel } from './data/llmModel'
 import { applyProfile, type FriendProfile } from './data/friendProfile'
 import { Header } from './components/Header'
 import { FriendCard } from './components/FriendCard'
@@ -37,8 +38,7 @@ import {
   saveApiKey,
   loadHskLevel,
   saveHskLevel,
-  loadSelectedModel,
-  saveSelectedModel,
+  loadDevLlmModel,
   loadCustomFriends,
   saveCustomFriend,
   deleteCustomFriend,
@@ -151,7 +151,8 @@ export default function App() {
   const [apiKeyStatus, setApiKeyStatus] = useState<ApiKeyStatus>(() =>
     loadApiKey() ? loadApiKeyStatus() ?? { state: 'checking' } : NO_KEY_STATUS
   )
-  const [model, setModel] = useState<string>(() => loadSelectedModel())
+  /** 会話 LLM。固定値だが、開発者モードのテストモードで上書きできる。 */
+  const [llmModel] = useState(() => resolveLlmModel(loadDevLlmModel()))
   const [customFriends, setCustomFriends] = useState<Friend[]>(() => loadCustomFriends())
   /** 声設定・プロフィール上書きの保存を検知して友達リストを組み直すための世代番号。 */
   const [voiceRevision, setVoiceRevision] = useState(0)
@@ -361,7 +362,6 @@ export default function App() {
 
   const handleSaveSettings = (
     newKey: string,
-    newModel: string,
     newAutoPlay: boolean,
     newSpeechLang: 'zh-CN' | 'ja-JP',
     newToneColoring: boolean,
@@ -372,8 +372,6 @@ export default function App() {
       saveApiKey(newKey)
       void verifyApiKey(newKey)
     }
-    setModel(newModel)
-    saveSelectedModel(newModel)
     setAutoPlayTts(newAutoPlay)
     saveAutoPlayTts(newAutoPlay)
     if (!newAutoPlay) setHandsFreeEnabled(false)
@@ -642,7 +640,7 @@ export default function App() {
         history: nextMessages,
         // 無効・残高切れと分かっているキーは送らず、無料モードで会話する
         apiKey: apiKey && isApiKeyUsable(apiKeyStatus) ? apiKey : undefined,
-        model: model || undefined,
+        model: llmModel.model,
         onSupport: (support) => {
           setMessages((prev) =>
             prev.map((item) =>
@@ -935,7 +933,6 @@ export default function App() {
         apiKeyStatus={apiKeyStatus}
         voiceOverrideCount={listFriendVoiceOverrides().length}
         onResetAllVoices={handleResetAllVoices}
-        currentModel={model}
         autoPlayTts={autoPlayTts}
         speechInputLang={speechInputLang}
         toneColoring={toneColoring}
