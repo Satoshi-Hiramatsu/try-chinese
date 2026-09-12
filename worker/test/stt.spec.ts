@@ -134,7 +134,10 @@ describe('STT API (/api/stt)', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ audio: 'AAAA' }),
     })
-    const response = await send(request)
+    // .dev.vars の有無に関わらず、キーの無い env で 401 を検証
+    const ctx = createExecutionContext()
+    const response = await worker.fetch(request, { ...env, OPENROUTER_API_KEY: undefined, OPENAI_API_KEY: undefined }, ctx)
+    await waitOnExecutionContext(ctx)
     expect(response.status).toBe(401)
   })
 

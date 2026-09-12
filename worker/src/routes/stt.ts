@@ -5,6 +5,7 @@ import {
   MODEL_ID_PATTERN,
   type SpeechModel,
 } from '../services/openRouterCatalog'
+import { FREE_MODE_PAID_MODEL_ERROR, isModelAllowedForKey, resolveApiKey } from '../lib/apiKey'
 
 export interface SttEnv {
   OPENROUTER_API_KEY?: string
@@ -41,14 +42,6 @@ const SUPPORTED_FORMATS: readonly string[] = ['webm', 'wav', 'mp3', 'flac', 'm4a
 const DEFAULT_FORMAT = 'webm'
 
 const sttRoute = new Hono<{ Bindings: SttEnv }>()
-
-function resolveApiKey(c: { req: { header: (name: string) => string | undefined }; env?: SttEnv }, bodyKey?: string) {
-  const headerKey =
-    c.req.header('x-openrouter-key') ||
-    c.req.header('x-api-key') ||
-    c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
-  return bodyKey || headerKey || c.env?.OPENROUTER_API_KEY || c.env?.OPENAI_API_KEY
-}
 
 /** 形式名を正規化する。未対応の値は既定へ寄せず、呼び出し側でエラーにする。 */
 export function normalizeAudioFormat(value: unknown): string | undefined {
@@ -101,7 +94,7 @@ export function normalizeTranscription(payload: unknown): NormalizedTranscriptio
  * 開発者モードのモデル選択と、本体の既定モデルの妥当性確認に使う。
  */
 sttRoute.get('/stt/models', async (c) => {
-  const models = await fetchTranscriptionModels(resolveApiKey(c))
+  const models = await fetchTranscriptionModels(resolveApiKey(c)?.key)
   if (!models) {
     return c.json(
       {
@@ -142,15 +135,21 @@ sttRoute.post('/stt', async (c) => {
     return c.json({ error: `対応していない音声形式です: ${String(format)}` }, 400)
   }
 
-  const resolvedApiKey = resolveApiKey(c, apiKey)
-  if (!resolvedApiKey) {
+  const resolved = resolveApiKey(c, apiKey)
+  if (!resolved) {
     return c.json(
       { error: 'OpenRouter APIキーが見つかりません。設定画面でAPIキーを設定してください。' },
       401
     )
   }
+  const resolvedApiKey = resolved.key
 
   const targetModel = model || DEFAULT_STT_MODEL
+
+  // 所有者キーでの代行は無料モデルに限る。
+  if (!isModelAllowedForKey(targetModel, resolved)) {
+    return c.json({ error: FREE_MODE_PAID_MODEL_ERROR }, 402)
+  }
 
   // 対応モデルはOpenRouterのカタログを正とし、取得できないときのみ既知の一覧で判定する。
   const catalog = await fetchTranscriptionModels(resolvedApiKey)

@@ -405,7 +405,8 @@ describe('T-75: DeepSeek 移行と構造化出力', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const response = await send(chatRequest())
-    expect(response.status).toBe(500)
+    // 残高切れ(402)は画面が無料モードへ切り替える合図なので、番号をそのまま返す
+    expect(response.status).toBe(402)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 

@@ -16,6 +16,20 @@ export interface CallLLMOptions {
 }
 
 const DEFAULT_MODEL = 'deepseek/deepseek-v4.1-flash'
+
+/**
+ * 上流が非 2xx を返したときのエラー。
+ * 402（残高切れ）や 429（混雑）はそのままの番号で利用者へ返し、画面側が判断できるようにする。
+ */
+export class LlmRequestError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message)
+    this.name = 'LlmRequestError'
+  }
+}
 const DEFAULT_API_BASE = 'https://openrouter.ai/api/v1'
 
 /**
@@ -343,7 +357,10 @@ export async function callChatLLM(options: CallLLMOptions): Promise<ChatResponse
     }
     if (!response.ok) {
       const detail = response.bodyUsed ? errorText : await response.text().catch(() => errorText)
-      throw new Error(`LLMプロバイダへのリクエストに失敗しました (Status: ${response.status}): ${detail.slice(0, 300)}`)
+      throw new LlmRequestError(
+        response.status,
+        `LLMプロバイダへのリクエストに失敗しました (Status: ${response.status}): ${detail.slice(0, 300)}`
+      )
     }
   }
 

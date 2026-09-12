@@ -6,6 +6,7 @@ import {
   type SpeechModel,
 } from '../services/openRouterCatalog'
 import { adaptSpeechMarkers } from '../lib/speechText'
+import { FREE_MODE_PAID_MODEL_ERROR, isModelAllowedForKey, resolveApiKey } from '../lib/apiKey'
 
 export interface TtsEnv {
   OPENROUTER_API_KEY?: string
@@ -89,14 +90,6 @@ const PREFERRED_VOICES: Record<string, { female: string; male: string }> = {
 }
 
 const ttsRoute = new Hono<{ Bindings: TtsEnv }>()
-
-function resolveApiKey(c: { req: { header: (name: string) => string | undefined }; env?: TtsEnv }, bodyKey?: string) {
-  const headerKey =
-    c.req.header('x-openrouter-key') ||
-    c.req.header('x-api-key') ||
-    c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
-  return bodyKey || headerKey || c.env?.OPENROUTER_API_KEY || c.env?.OPENAI_API_KEY
-}
 
 function matches(list: readonly RegExp[], modelId: string): boolean {
   return list.some((pattern) => pattern.test(modelId))
@@ -222,7 +215,7 @@ export function buildTuningPayload(modelId: string, tuning?: TtsTuningInput): Re
  * 検証モードのモデル選択と話者プリセットの生成元になる。
  */
 ttsRoute.get('/tts/models', async (c) => {
-  const models = await fetchSpeechModels(resolveApiKey(c))
+  const models = await fetchSpeechModels(resolveApiKey(c)?.key)
   if (!models) {
     return c.json(
       {
@@ -259,9 +252,9 @@ ttsRoute.post('/tts', async (c) => {
   }
 
   // APIキーの解決（リクエスト指定 > ヘッダー > 環境変数）
-  const resolvedApiKey = resolveApiKey(c, apiKey)
+  const resolved = resolveApiKey(c, apiKey)
 
-  if (!resolvedApiKey) {
+  if (!resolved) {
     return c.json(
       {
         error:
@@ -270,8 +263,14 @@ ttsRoute.post('/tts', async (c) => {
       401
     )
   }
+  const resolvedApiKey = resolved.key
 
   const targetModel = model || DEFAULT_TTS_MODEL
+
+  // 所有者キーでの代行は無料モデルに限る。有料モデルを通すと所有者に課金される。
+  if (!isModelAllowedForKey(targetModel, resolved)) {
+    return c.json({ error: FREE_MODE_PAID_MODEL_ERROR }, 402)
+  }
 
   // 対応モデルはOpenRouterのカタログを正とし、取得できないときのみ既知の一覧で判定する。
   const catalog = await fetchSpeechModels(resolvedApiKey)
