@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react'
 import { SendIcon, MicIcon, StopCircleIcon, ChinaFlagIcon, JapanFlagIcon } from './Icons'
 import {
-  createSpeechRecognizer,
-  isSpeechRecognitionSupported,
   stopSpeaking,
   clampSilenceTimeoutMs,
   DEFAULT_SILENCE_TIMEOUT_MS,
-  type SpeechRecognitionController,
 } from '../services/speech'
+import {
+  isRecordingSupported,
+  startRecording,
+  type RecorderController,
+} from '../services/recorder'
+import { transcribeRecording } from '../services/transcription'
 import { parseVoiceSendCommand } from '../services/voiceCommand'
 import { SilenceCountdownRing } from './SilenceCountdownRing'
 
@@ -26,6 +29,9 @@ interface ChatInputProps {
   onError?: (message: string) => void
 }
 type InputMethod = 'text' | 'voice'
+
+const MIN_VOICE_RMS = 0.018
+const VOICE_TO_NOISE_RATIO = 2.5
 
 function joinSpeechText(baseText: string, speechText: string): string {
   if (!baseText) return speechText
@@ -49,18 +55,27 @@ export function ChatInput({
 }: ChatInputProps) {
   const [text, setText] = useState('')
   const [isListening, setIsListening] = useState(false)
-  const [interimText, setInterimText] = useState('')
+  const [isPreparingRecording, setIsPreparingRecording] = useState(false)
+  const [isTranscribing, setIsTranscribing] = useState(false)
   // 無音タイムアウトに到達する時刻。カウントダウン表示のためだけに持つ。
   const [silenceDeadline, setSilenceDeadline] = useState<number | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const recognizerRef = useRef<SpeechRecognitionController | null>(null)
+  const recorderRef = useRef<RecorderController | null>(null)
+  const recordingGenerationRef = useRef(0)
+  const recordingBaseTextRef = useRef('')
+  const recordingLangRef = useRef<'zh-CN' | 'ja-JP'>(speechLang)
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const transcriptionAbortRef = useRef<AbortController | null>(null)
+  const isStartingRecordingRef = useRef(false)
+  const isFinalizingRecordingRef = useRef(false)
+  const noiseFloorRef = useRef(0.01)
+  const heardVoiceRef = useRef(false)
   const textRef = useRef('')
   const handsFreeRef = useRef(handsFreeEnabled)
   const isLoadingRef = useRef(isLoading)
   const disabledRef = useRef(disabled)
   const onSendMessageRef = useRef(onSendMessage)
   const onErrorRef = useRef(onError)
-  const intentionalStopRef = useRef(false)
   const inputMethodRef = useRef<InputMethod>('text')
   const restoreTextFocusRef = useRef(false)
   const wasLoadingRef = useRef(isLoading)
@@ -88,7 +103,7 @@ export function ChatInput({
   onErrorRef.current = onError
   silenceTimeoutRef.current = clampSilenceTimeoutMs(silenceTimeoutMs)
 
-  const isSupported = isSpeechRecognitionSupported()
+  const isSupported = isRecordingSupported()
 
   const clearRestartTimer = useCallback(() => {
     if (restartTimerRef.current) {
@@ -96,6 +111,28 @@ export function ChatInput({
       restartTimerRef.current = null
     }
   }, [])
+
+  const clearSilenceTimer = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current)
+      silenceTimerRef.current = null
+    }
+    setSilenceDeadline(null)
+  }, [])
+
+  const cancelActiveRecording = useCallback(() => {
+    recordingGenerationRef.current += 1
+    clearSilenceTimer()
+    recorderRef.current?.cancel()
+    recorderRef.current = null
+    transcriptionAbortRef.current?.abort()
+    transcriptionAbortRef.current = null
+    isStartingRecordingRef.current = false
+    isFinalizingRecordingRef.current = false
+    setIsPreparingRecording(false)
+    setIsTranscribing(false)
+    setIsListening(false)
+  }, [clearSilenceTimer])
 
   const sendContent = useCallback((content: string, inputMethod = inputMethodRef.current) => {
     const trimmed = content.trim()
@@ -108,103 +145,167 @@ export function ChatInput({
     pendingRestartRef.current = false
     awaitingResumeRef.current = handsFreeRef.current
 
-    intentionalStopRef.current = true
     restoreTextFocusRef.current = inputMethod === 'text'
-    recognizerRef.current?.abort()
-    recognizerRef.current = null
-    setIsListening(false)
-    setInterimText('')
-    setSilenceDeadline(null)
+    cancelActiveRecording()
     onSendMessageRef.current(trimmed)
     textRef.current = ''
     setText('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-  }, [clearRestartTimer])
+  }, [cancelActiveRecording, clearRestartTimer])
 
-  const startListening = useCallback(() => {
-    if (!isSupported || isLoadingRef.current || disabledRef.current || recognizerRef.current) return
+  const finishRecording = useCallback(async (sendWhenReady: boolean) => {
+    if (isFinalizingRecordingRef.current) return
+    const recorder = recorderRef.current
+    if (!recorder) return
+
+    const generation = recordingGenerationRef.current
+    recorderRef.current = null
+    isFinalizingRecordingRef.current = true
+    clearSilenceTimer()
+    setIsListening(false)
+    setIsTranscribing(true)
+
+    try {
+      const recording = await recorder.stop()
+      if (generation !== recordingGenerationRef.current) return
+
+      const abortController = new AbortController()
+      transcriptionAbortRef.current = abortController
+      const finalSpeech = await transcribeRecording(recording, {
+        language: recordingLangRef.current,
+        signal: abortController.signal,
+      })
+      if (generation !== recordingGenerationRef.current || abortController.signal.aborted) return
+
+      transcriptionAbortRef.current = null
+      const parsed = parseVoiceSendCommand(finalSpeech, recordingLangRef.current)
+      const next = joinSpeechText(recordingBaseTextRef.current, parsed.content)
+      textRef.current = next
+      setText(next)
+      setTimeout(handleInput, 10)
+
+      if (sendWhenReady || parsed.hasSendCommand) {
+        if (next) {
+          sendContent(next, 'voice')
+        } else {
+          onErrorRef.current?.('音声を聞き取れませんでした。もう一度話しかけてください。')
+          if (handsFreeRef.current && !disabledRef.current) {
+            setRestartListeningToken((previous) => previous + 1)
+          }
+        }
+      }
+    } catch (error) {
+      if (generation !== recordingGenerationRef.current) return
+      const aborted = error instanceof DOMException && error.name === 'AbortError'
+      if (!aborted) {
+        onErrorRef.current?.(error instanceof Error ? error.message : '文字起こしに失敗しました。')
+        if (handsFreeRef.current) {
+          handsFreeRef.current = false
+          onHandsFreeChange?.(false)
+        }
+      }
+    } finally {
+      if (generation === recordingGenerationRef.current) {
+        transcriptionAbortRef.current = null
+        isFinalizingRecordingRef.current = false
+        setIsTranscribing(false)
+      }
+    }
+  }, [clearSilenceTimer, onHandsFreeChange, sendContent])
+
+  const armSilenceTimer = useCallback(() => {
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+    const deadline = Date.now() + silenceTimeoutRef.current
+    setSilenceDeadline(deadline)
+    silenceTimerRef.current = setTimeout(() => {
+      silenceTimerRef.current = null
+      setSilenceDeadline(null)
+      void finishRecording(handsFreeRef.current)
+    }, silenceTimeoutRef.current)
+  }, [finishRecording])
+
+  const startListening = useCallback(async () => {
+    if (
+      !isSupported ||
+      isLoadingRef.current ||
+      disabledRef.current ||
+      recorderRef.current ||
+      isStartingRecordingRef.current ||
+      isFinalizingRecordingRef.current
+    ) return
 
     stopSpeaking()
     pendingRestartRef.current = false
-    intentionalStopRef.current = false
     inputMethodRef.current = 'voice'
     restoreTextFocusRef.current = false
     textareaRef.current?.blur()
-    const baseText = textRef.current.trim()
-    setInterimText('')
-    let recognizer: SpeechRecognitionController | null = null
+    recordingBaseTextRef.current = textRef.current.trim()
+    recordingLangRef.current = speechLang
+    noiseFloorRef.current = 0.01
+    heardVoiceRef.current = false
 
-    recognizer = createSpeechRecognizer({
-      lang: speechLang,
-      onStart: () => setIsListening(true),
-      onInterimResult: (interim) => setInterimText(interim),
-      // 通常入力でも短い沈黙で打ち切らせない。停止は「完了」ボタンか無音タイムアウトに任せる。
-      continuous: true,
-      silenceTimeoutMs: silenceTimeoutRef.current,
-      // 声が入るたびに持ち時間が巻き戻る。その残りをリングで見せる。
-      onSilenceWindowChange: (deadline) => setSilenceDeadline(deadline),
-      onSilenceTimeout: () => {
-        // ハンズフリーは無音の使い切りが送信の合図。通常モードはマイクを閉じるだけ。
-        if (!handsFreeRef.current) return
-        const pending = textRef.current.trim()
-        if (pending) sendContent(pending, 'voice')
-      },
-      onFinalResult: (finalSpeech) => {
-        const parsed = parseVoiceSendCommand(finalSpeech, speechLang)
-        const next = joinSpeechText(baseText, parsed.content)
-        textRef.current = next
-        setText(next)
-        setInterimText('')
-        setTimeout(handleInput, 10)
+    const generation = recordingGenerationRef.current + 1
+    recordingGenerationRef.current = generation
+    isStartingRecordingRef.current = true
+    setIsPreparingRecording(true)
 
-        if (parsed.hasSendCommand) {
-          if (next) {
-            sendContent(next, 'voice')
-          } else {
-            onErrorRef.current?.('送信する内容がありません。続けて話しかけてください。')
-            recognizerRef.current?.abort()
-            recognizerRef.current = null
-            setIsListening(false)
-            if (handsFreeRef.current) setRestartListeningToken((prev) => prev + 1)
+    try {
+      const recorder = await startRecording({
+        onLevel: (level) => {
+          if (
+            generation !== recordingGenerationRef.current ||
+            isFinalizingRecordingRef.current ||
+            !recorderRef.current
+          ) return
+          const threshold = Math.max(MIN_VOICE_RMS, noiseFloorRef.current * VOICE_TO_NOISE_RATIO)
+          if (level >= threshold) {
+            heardVoiceRef.current = true
+            armSilenceTimer()
+          } else if (!heardVoiceRef.current) {
+            noiseFloorRef.current = noiseFloorRef.current * 0.9 + Math.min(level, 0.05) * 0.1
           }
-        }
-      },
-      onError: (err) => {
-        setIsListening(false)
-        setInterimText('')
-        setSilenceDeadline(null)
-        onErrorRef.current?.(err)
-      },
-      onEnd: () => {
-        if (recognizerRef.current === recognizer) recognizerRef.current = null
-        setIsListening(false)
-        setInterimText('')
-        setSilenceDeadline(null)
-        // 返答待ち中に終了しても要求だけは発行する。起動の可否は requestListening が判断する。
-        // ここで捨てると、返答後に再開するきっかけが失われる。
-        if (!intentionalStopRef.current && handsFreeRef.current && !disabledRef.current) {
-          setRestartListeningToken((prev) => prev + 1)
-        }
-        intentionalStopRef.current = false
-      },
-    })
-
-    if (recognizer) {
-      recognizerRef.current = recognizer
-      recognizer.start()
+        },
+      })
+      if (generation !== recordingGenerationRef.current) {
+        recorder.cancel()
+        return
+      }
+      recorderRef.current = recorder
+      setIsListening(true)
+      armSilenceTimer()
+    } catch (error) {
+      if (generation !== recordingGenerationRef.current) return
+      onErrorRef.current?.(error instanceof Error ? error.message : 'マイクを開始できませんでした。')
+      if (handsFreeRef.current) {
+        handsFreeRef.current = false
+        onHandsFreeChange?.(false)
+      }
+    } finally {
+      if (generation === recordingGenerationRef.current) {
+        isStartingRecordingRef.current = false
+        setIsPreparingRecording(false)
+      }
     }
-  }, [isSupported, sendContent, speechLang])
+  }, [armSilenceTimer, isSupported, onHandsFreeChange, speechLang])
 
   useEffect(() => {
     const wasLoading = wasLoadingRef.current
     wasLoadingRef.current = isLoading
     // isLoading が反映されたら、以降は isLoadingRef が二重送信を止める。
     if (isLoading !== wasLoading) sendingRef.current = false
-    if (wasLoading && !isLoading && restoreTextFocusRef.current && textareaRef.current && !isListening && !handsFreeEnabled) {
+    if (
+      wasLoading &&
+      !isLoading &&
+      restoreTextFocusRef.current &&
+      textareaRef.current &&
+      !isListening &&
+      !isTranscribing &&
+      !handsFreeEnabled
+    ) {
       restoreTextFocusRef.current = false
       textareaRef.current.focus()
     }
-  }, [handsFreeEnabled, isLoading, isListening])
+  }, [handsFreeEnabled, isLoading, isListening, isTranscribing])
 
   // 起動できる状態なら即座に、無理なら保留して条件が整うのを待つ。
   const requestListening = useCallback(() => {
@@ -215,10 +316,10 @@ export function ChatInput({
       pendingRestartRef.current = true
       return
     }
-    startListening()
+    void startListening()
   }, [startListening])
 
-  // 認識が自然終了したときの再開。トークンが増えたときだけ間を置いて起動する。
+  // ハンズフリーで空の録音だったときだけ、少し間を置いて録音をやり直す。
   useEffect(() => {
     if (restartListeningToken === consumedRestartTokenRef.current) return
     consumedRestartTokenRef.current = restartListeningToken
@@ -239,31 +340,27 @@ export function ChatInput({
     requestListening()
   }, [handsFreeEnabled, requestListening, resumeListeningToken])
 
-  // 友達が話し始めたらマイクを閉じる。読み上げ音声を自分の発話として拾わせない。
+  // 友達が話し始めたら録音を破棄する。読み上げ音声を自分の発話として拾わせない。
   useEffect(() => {
     const wasSpeaking = wasFriendSpeakingRef.current
     wasFriendSpeakingRef.current = isFriendSpeaking
-    if (!isFriendSpeaking || wasSpeaking || !recognizerRef.current) return
-    intentionalStopRef.current = true
-    recognizerRef.current.abort()
-    recognizerRef.current = null
-    setIsListening(false)
-    setInterimText('')
-    setSilenceDeadline(null)
-  }, [isFriendSpeaking])
+    if (!isFriendSpeaking || wasSpeaking) return
+    if (!recorderRef.current && !isStartingRecordingRef.current && !isFinalizingRecordingRef.current) return
+    cancelActiveRecording()
+  }, [cancelActiveRecording, isFriendSpeaking])
 
   // 保留していた再開要求を、返答待ちと読み上げが終わった時点で実行する。
   useEffect(() => {
     if (!pendingRestartRef.current) return
     if (!handsFreeEnabled || isLoading || isFriendSpeaking || awaitingResumeRef.current) return
     pendingRestartRef.current = false
-    startListening()
+    void startListening()
   }, [handsFreeEnabled, isFriendSpeaking, isLoading, startListening])
 
   useEffect(() => () => {
     if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
-    recognizerRef.current?.abort()
-  }, [])
+    cancelActiveRecording()
+  }, [cancelActiveRecording])
 
   const handleSend = () => sendContent(textRef.current)
 
@@ -288,12 +385,11 @@ export function ChatInput({
 
   const toggleListening = () => {
     if (!isSupported) {
-      onError?.('お使いのブラウザは音声認識に対応していません。ChromeまたはEdgeをご利用ください。')
+      onError?.('お使いのブラウザはマイク録音に対応していません。')
       return
     }
 
     if (isListening) {
-      intentionalStopRef.current = true
       if (handsFreeRef.current) {
         handsFreeRef.current = false
         onHandsFreeChange?.(false)
@@ -301,15 +397,16 @@ export function ChatInput({
       clearRestartTimer()
       pendingRestartRef.current = false
       awaitingResumeRef.current = false
-      recognizerRef.current?.stop()
+      void finishRecording(false)
       return
     }
-    startListening()
+    if (isPreparingRecording || isTranscribing) return
+    void startListening()
   }
 
   const toggleHandsFree = () => {
     if (!isSupported) {
-      onError?.('お使いのブラウザは音声認識に対応していません。ChromeまたはEdgeをご利用ください。')
+      onError?.('お使いのブラウザはマイク録音に対応していません。')
       return
     }
     const next = !handsFreeRef.current
@@ -319,21 +416,16 @@ export function ChatInput({
     pendingRestartRef.current = false
     awaitingResumeRef.current = false
     if (next) {
-      startListening()
+      void startListening()
     } else {
-      intentionalStopRef.current = true
-      recognizerRef.current?.abort()
-      recognizerRef.current = null
-      setIsListening(false)
-      setInterimText('')
-      setSilenceDeadline(null)
+      cancelActiveRecording()
     }
   }
 
   return (
     <div className="chat-input-shell w-full bg-white/95 backdrop-blur-md rounded-2xl p-2 sm:p-3 shadow-md border border-rose-200/80">
-      {/* ハンズフリー / 音声認識の状態 */}
-      {(isListening || handsFreeEnabled) && (
+      {/* ハンズフリー / 録音・文字起こしの状態 */}
+      {(isListening || isPreparingRecording || isTranscribing || handsFreeEnabled) && (
         <div className="mb-2 px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between" aria-live="polite">
           <div className="flex items-center gap-2 text-xs font-semibold text-rose-600 min-w-0">
             <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
@@ -345,47 +437,38 @@ export function ChatInput({
                 ? '友達が話しています...'
                 : isLoading
                   ? '返答を待っています...'
-                  : isListening
-                    ? (speechLang === 'zh-CN' ? '中国語で聞き取り中...' : '日本語で聞き取り中...')
-                    : 'マイクを再開します...'}
+                  : isTranscribing
+                    ? '文字起こし中...'
+                    : isPreparingRecording
+                      ? 'マイクを準備中...'
+                      : isListening
+                        ? (speechLang === 'zh-CN' ? '中国語で録音中...' : '日本語で録音中...')
+                        : 'マイクを再開します...'}
             </span>
-            {interimText && (
-              <span className="text-stone-600 font-normal italic truncate">
-                "{interimText}"
-              </span>
-            )}
           </div>
           {isListening && (
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <SilenceCountdownRing
-              deadline={silenceDeadline}
-              totalMs={clampSilenceTimeoutMs(silenceTimeoutMs)}
-              mode={handsFreeEnabled ? 'send' : 'stop'}
-            />
-            {/*
-              無音の使い切りを待たずに送れることが分かるよう、幅に関わらず出す。
-              待ち時間の短縮はこの合図を知っているかどうかで決まるため、
-              主端末であるスマートフォンで隠れていては意味がない。
-            */}
-            <span className="text-[10px] font-bold text-rose-500 whitespace-nowrap">
-              {`「${speechLang === 'zh-CN' ? '发送' : '送信'}」で送信`}
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                if (handsFreeEnabled) {
-                  handleSend()
-                } else {
-                  intentionalStopRef.current = true
-                  recognizerRef.current?.stop()
-                }
-              }}
-              disabled={handsFreeEnabled && !text.trim()}
-              className="px-2 py-0.5 text-xs bg-white border border-rose-200 text-rose-600 font-bold rounded-md hover:bg-rose-100 transition-colors cursor-pointer"
-            >
-              {handsFreeEnabled ? '送信' : '完了'}
-            </button>
-          </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <SilenceCountdownRing
+                deadline={silenceDeadline}
+                totalMs={clampSilenceTimeoutMs(silenceTimeoutMs)}
+                mode={handsFreeEnabled ? 'send' : 'stop'}
+              />
+              {/*
+                無音の使い切りを待たずに送れることが分かるよう、幅に関わらず出す。
+                待ち時間の短縮はこの合図を知っているかどうかで決まるため、
+                主端末であるスマートフォンで隠れていては意味がない。
+              */}
+              <span className="text-[10px] font-bold text-rose-500 whitespace-nowrap">
+                {`「${speechLang === 'zh-CN' ? '发送' : '送信'}」で送信`}
+              </span>
+              <button
+                type="button"
+                onClick={() => void finishRecording(handsFreeEnabled)}
+                className="px-2 py-0.5 text-xs bg-white border border-rose-200 text-rose-600 font-bold rounded-md hover:bg-rose-100 transition-colors cursor-pointer"
+              >
+                {handsFreeEnabled ? '送信' : '完了'}
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -410,7 +493,7 @@ export function ChatInput({
         {/* 言語切り替えボタン (中国語 / 日本語) */}
         <button
           type="button"
-          disabled={isListening}
+          disabled={isListening || isPreparingRecording || isTranscribing}
           onClick={() => {
             const nextLang = speechLang === 'zh-CN' ? 'ja-JP' : 'zh-CN'
             onSpeechLangChange?.(nextLang)
@@ -451,7 +534,7 @@ export function ChatInput({
               ? `話しかけて、「${speechLang === 'zh-CN' ? '发送' : '送信'}」で送信`
               : '中国語でも日本語でもOK！'
           }
-          disabled={isLoading || disabled || isListening}
+          disabled={isLoading || disabled || isListening || isPreparingRecording || isTranscribing}
           className="flex-1 min-w-0 max-h-32 resize-none bg-transparent px-2.5 py-2 text-sm sm:text-base text-stone-900 placeholder:text-stone-400 outline-none leading-relaxed"
         />
 
@@ -459,7 +542,7 @@ export function ChatInput({
         <button
           type="button"
           onClick={toggleListening}
-          disabled={isLoading || disabled}
+          disabled={isLoading || disabled || isPreparingRecording || isTranscribing}
           aria-label={isListening ? '音声入力を停止' : '音声入力を開始'}
           title={isListening ? (handsFreeEnabled ? 'ハンズフリーを終了' : '停止') : `音声入力 (${speechLang === 'zh-CN' ? '中国語' : '日本語'})`}
           className={`p-2.5 rounded-xl font-medium transition-all flex items-center justify-center cursor-pointer ${
@@ -478,10 +561,10 @@ export function ChatInput({
         {/* 送信ボタン */}
         <button
           onClick={handleSend}
-          disabled={!text.trim() || isLoading || disabled}
+          disabled={!text.trim() || isLoading || disabled || isPreparingRecording || isTranscribing}
           aria-label="送信"
           className={`px-3 sm:px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-1.5 justify-center transition-all ${
-            text.trim() && !isLoading && !disabled
+            text.trim() && !isLoading && !disabled && !isPreparingRecording && !isTranscribing
               ? 'bg-rose-500 text-white hover:bg-rose-600 shadow-sm cursor-pointer'
               : 'bg-stone-100 text-stone-300 cursor-not-allowed'
           }`}
@@ -499,4 +582,3 @@ export function ChatInput({
     </div>
   )
 }
-
