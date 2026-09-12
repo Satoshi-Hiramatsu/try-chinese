@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import type { Friend } from '../types'
 import {
   UsersIcon,
@@ -15,11 +15,8 @@ import {
 import { FriendAvatar } from './FriendAvatar'
 import { PortraitFace } from './PortraitFace'
 import { PORTRAITS, isPortraitLocked } from '../data/portraits'
-import {
-  CHARACTER_VOICE_OPTIONS,
-  type CharacterVoiceOption,
-} from '../data/characterVoices'
-import { loadCustomVoices } from '../services/storage'
+import { PRESET_FRIENDS } from '../data/presetFriends'
+import { borrowVoice, presetVoiceChoices } from '../data/fishVoice'
 
 interface FriendListModalProps {
   isOpen: boolean
@@ -55,23 +52,12 @@ export function FriendListModal({
   const [hobbiesInput, setHobbiesInput] = useState('')
   const [tone, setTone] = useState('')
   const [voiceGender, setVoiceGender] = useState<'female' | 'male'>('female')
-  const [selectedVoiceId, setSelectedVoiceId] = useState('char-xiaoxiao')
+  /** 声を借りるプリセット友達のID。カスタム友達は自分で Fish の話者を用意できないため、既存の声を使う */
+  const [selectedVoiceFriendId, setSelectedVoiceFriendId] = useState('')
   const [formError, setFormError] = useState('')
 
-  // カスタム声質を含めた全声質リスト
-  const [allVoiceOptions, setAllVoiceOptions] = useState<CharacterVoiceOption[]>([])
-
-  useEffect(() => {
-    if (isOpen) {
-      const customs = loadCustomVoices()
-      setAllVoiceOptions([...CHARACTER_VOICE_OPTIONS, ...customs])
-    }
-  }, [isOpen])
-
-  // 性別にマッチする声質オプション
-  const matchedVoiceOptions = useMemo(() => {
-    return allVoiceOptions.filter((v) => v.gender === voiceGender)
-  }, [allVoiceOptions, voiceGender])
+  // 同性のプリセット友達のうち、話者IDが決まっているもの
+  const voiceChoices = useMemo(() => presetVoiceChoices(PRESET_FRIENDS, voiceGender), [voiceGender])
 
   // Keep hooks unconditional across modal open/close renders.
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -86,7 +72,7 @@ export function FriendListModal({
     setHobbiesInput('')
     setTone('')
     setVoiceGender('female')
-    setSelectedVoiceId('char-xiaoxiao')
+    setSelectedVoiceFriendId(presetVoiceChoices(PRESET_FRIENDS, 'female')[0]?.friendId || '')
     setFormError('')
     setActiveTab('create')
   }
@@ -101,15 +87,10 @@ export function FriendListModal({
     const gender = friend.voice?.gender || 'female'
     setVoiceGender(gender)
 
-    // 音声マッチング
-    const matchedVoice = allVoiceOptions.find(
-      (v) =>
-        v.kokoroVoice === friend.voice?.voiceModel ||
-        v.edgeVoiceName === friend.voice?.voiceName
-    )
-    setSelectedVoiceId(
-      matchedVoice ? matchedVoice.id : gender === 'male' ? 'char-yunxi' : 'char-xiaoxiao'
-    )
+    // いま借りている声のプリセット友達を選び直す。見つからなければ先頭
+    const choices = presetVoiceChoices(PRESET_FRIENDS, gender)
+    const matched = choices.find((choice) => choice.voice.voiceModel === friend.voice?.voiceModel)
+    setSelectedVoiceFriendId(matched?.friendId || choices[0]?.friendId || '')
 
     setFormError('')
     setActiveTab('create')
@@ -117,12 +98,8 @@ export function FriendListModal({
 
   const handleGenderChange = (newGender: 'female' | 'male') => {
     setVoiceGender(newGender)
-    // 性別に合わせてデフォルト声質を選択
-    if (newGender === 'male') {
-      setSelectedVoiceId('char-yunxi')
-    } else {
-      setSelectedVoiceId('char-xiaoxiao')
-    }
+    // 性別に合わせて借りる声も同性の先頭にする
+    setSelectedVoiceFriendId(presetVoiceChoices(PRESET_FRIENDS, newGender)[0]?.friendId || '')
     // 立ち絵の性別が食い違う場合は同性の立ち絵に切り替える
     setPortraitId((current) => {
       const spec = PORTRAITS[current]
@@ -148,11 +125,16 @@ export function FriendListModal({
       .map((h) => h.trim())
       .filter(Boolean)
 
-    // 選択された声質オプションを取得
-    const voiceOpt =
-      allVoiceOptions.find((v) => v.id === selectedVoiceId) ||
-      allVoiceOptions.find((v) => v.gender === voiceGender) ||
-      CHARACTER_VOICE_OPTIONS[0]
+    // 借りる声。同性のプリセットに話者IDが1人も無ければ声なしで作る（読み上げ時にエラーで気付ける）
+    const chosen = voiceChoices.find((choice) => choice.friendId === selectedVoiceFriendId) || voiceChoices[0]
+    const editing = editingFriendId ? friends.find((f) => f.id === editingFriendId) : undefined
+    // 編集で同じ声を選び直したときは、その友達がすでに持つ高さの調整を保つ
+    const voice =
+      chosen && editing?.voice && editing.voice.voiceModel === chosen.voice.voiceModel
+        ? editing.voice
+        : chosen
+          ? borrowVoice(chosen.voice)
+          : undefined
 
     const updatedOrNewFriend: Friend = {
       id: editingFriendId || `custom-${Date.now()}`,
@@ -161,15 +143,7 @@ export function FriendListModal({
       personality: personality.trim(),
       hobbies: hobbies.length > 0 ? hobbies : ['日常会話'],
       tone: tone.trim() || undefined,
-      voice: {
-        quality: 'natural',
-        gender: voiceGender,
-        rate: voiceOpt.defaultRate,
-        pitch: voiceOpt.defaultPitch,
-        voiceName: voiceOpt.edgeVoiceName,
-        voiceModel: voiceOpt.kokoroVoice,
-        ttsModel: 'hexgrad/kokoro-82m',
-      },
+      voice,
     }
 
     if (editingFriendId && onUpdateFriend) {
@@ -518,25 +492,32 @@ export function FriendListModal({
                 </div>
               </div>
 
-              {/* 声質キャラクターの選択 */}
+              {/* 借りる声の選択 */}
               <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1 flex items-center gap-1">
+                <label className="block text-xs font-bold text-stone-700 mb-1 flex items-center gap-1" htmlFor="friend-voice-choice">
                   <SparklesIcon className="w-3.5 h-3.5 text-amber-500" />
-                  <span>声質キャラクター（話者）:</span>
+                  <span>声（プリセットの友達から借りる）:</span>
                 </label>
-                <select
-                  value={selectedVoiceId}
-                  onChange={(e) => setSelectedVoiceId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-stone-300 rounded-xl focus:border-rose-500 focus:outline-none bg-white font-medium"
-                >
-                  {matchedVoiceOptions.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.name} {opt.isCustom ? '[カスタム]' : ''}
-                    </option>
-                  ))}
-                </select>
+                {voiceChoices.length === 0 ? (
+                  <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 m-0">
+                    この性別で声が決まっている友達がまだいません。作成はできますが、読み上げは鳴りません。
+                  </p>
+                ) : (
+                  <select
+                    id="friend-voice-choice"
+                    value={selectedVoiceFriendId}
+                    onChange={(e) => setSelectedVoiceFriendId(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-stone-300 rounded-xl focus:border-rose-500 focus:outline-none bg-white font-medium"
+                  >
+                    {voiceChoices.map((choice) => (
+                      <option key={choice.friendId} value={choice.friendId}>
+                        {choice.friendName} の声
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <p className="text-[11px] text-stone-500 mt-1">
-                  ※ 会話画面の「声質」ボタンから、さらに詳細なピッチ・速度の微調整や独自ボイスの作成も可能です。
+                  ※ 声の高さは会話画面の「声」ボタンからあとで変えられます。
                 </p>
               </div>
 

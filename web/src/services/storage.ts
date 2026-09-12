@@ -1,7 +1,7 @@
 import type { FriendProfile } from '../data/friendProfile'
 import type { ChatMessage, Friend, Voice, VocabularyItem } from '../types'
 import { DEFAULT_SILENCE_TIMEOUT_MS, clampSilenceTimeoutMs } from './speech'
-import type { CharacterVoiceOption } from '../data/characterVoices'
+import { normalizeStoredVoice } from '../data/fishVoice'
 
 const STORAGE_KEYS = {
   API_KEY: 'shabe_china_api_key',
@@ -20,10 +20,6 @@ const STORAGE_KEYS = {
   FRIEND_VOICE_PREFIX: 'shabe_china_voice_',
   VOCABULARY_LIST: 'shabe_china_vocabulary_list',
   TONE_COLORING: 'shabe_china_tone_coloring',
-  OPENAI_API_KEY: 'shabe_china_openai_api_key',
-  TTS_PROVIDER: 'shabe_china_tts_provider',
-  TTS_MODEL: 'shabe_china_tts_model',
-  CUSTOM_VOICES: 'shabe_china_custom_voices',
   VIEW_MODE: 'shabe_china_view_mode',
   FRIEND_PROFILE_PREFIX: 'shabe_china_profile_',
 } as const
@@ -180,8 +176,13 @@ export function loadCustomFriends(): Friend[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CUSTOM_FRIENDS)
     if (!raw) return []
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    // Kokoro の時代に作った友達の声は Fish の話者を持たないため外す（作成画面で選び直せる）。
+    return (parsed as Friend[]).map((friend) => {
+      const voice = normalizeStoredVoice(friend.voice)
+      return voice ? { ...friend, voice } : { ...friend, voice: undefined }
+    })
   } catch {
     return []
   }
@@ -336,11 +337,15 @@ export function saveSilenceTimeoutMs(ms: number): void {
   }
 }
 
+/**
+ * 開発者モードで保存した声の上書き。
+ * Kokoro・ブラウザ音声の時代の保存データは Fish の話者IDを持つものだけ拾い、それ以外は無いものとして扱う。
+ */
 export function loadFriendVoice(friendId: string): Voice | null {
   try {
     const raw = localStorage.getItem(`${STORAGE_KEYS.FRIEND_VOICE_PREFIX}${friendId}`)
     if (!raw) return null
-    return JSON.parse(raw) as Voice
+    return normalizeStoredVoice(JSON.parse(raw))
   } catch {
     return null
   }
@@ -509,113 +514,3 @@ export function saveToneColoring(enabled: boolean): void {
     // ignore
   }
 }
-
-// --- OpenAI APIキー (TTS用) ---
-
-export function loadOpenAiKey(): string {
-  try {
-    return localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || ''
-  } catch {
-    return ''
-  }
-}
-
-export function saveOpenAiKey(key: string): void {
-  try {
-    if (key.trim()) {
-      localStorage.setItem(STORAGE_KEYS.OPENAI_API_KEY, key.trim())
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.OPENAI_API_KEY)
-    }
-  } catch {
-    // ignore
-  }
-}
-
-// --- TTSプロバイダ設定 ('browser' | 'openrouter') ---
-
-export function loadTtsProvider(
-  defaultProvider: 'browser' | 'openrouter' = 'openrouter'
-): 'browser' | 'openrouter' {
-  try {
-    const val = localStorage.getItem(STORAGE_KEYS.TTS_PROVIDER)
-    if (val === 'openrouter' || val === 'browser') return val
-    if (val === 'openai') return 'openrouter' // 旧openai設定からの安全な自動マイグレーション
-    return defaultProvider
-  } catch {
-    return defaultProvider
-  }
-}
-
-export function saveTtsProvider(provider: 'browser' | 'openrouter'): void {
-  try {
-    localStorage.setItem(STORAGE_KEYS.TTS_PROVIDER, provider)
-  } catch {
-    // ignore
-  }
-}
-
-// --- TTS音声モデル設定 (OpenRouter) ---
-
-export const DEFAULT_TTS_MODEL = 'qwen/qwen-audio-3.0-tts-flash'
-
-export function loadTtsModel(defaultModel = DEFAULT_TTS_MODEL): string {
-  try {
-    const val = localStorage.getItem(STORAGE_KEYS.TTS_MODEL)
-    return val && val.trim() ? val.trim() : defaultModel
-  } catch {
-    return defaultModel
-  }
-}
-
-export function saveTtsModel(model: string): void {
-  try {
-    if (model.trim()) {
-      localStorage.setItem(STORAGE_KEYS.TTS_MODEL, model.trim())
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.TTS_MODEL)
-    }
-  } catch {
-    // ignore
-  }
-}
-
-// --- ユーザー作成のカスタム声質管理 ---
-
-export function loadCustomVoices(): CharacterVoiceOption[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.CUSTOM_VOICES)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-export function saveCustomVoice(voice: CharacterVoiceOption): void {
-  try {
-    const current = loadCustomVoices()
-    const index = current.findIndex((v) => v.id === voice.id)
-    if (index >= 0) {
-      current[index] = voice
-    } else {
-      current.push(voice)
-    }
-    localStorage.setItem(STORAGE_KEYS.CUSTOM_VOICES, JSON.stringify(current))
-  } catch {
-    // ignore
-  }
-}
-
-export function deleteCustomVoice(id: string): void {
-  try {
-    const current = loadCustomVoices()
-    const filtered = current.filter((v) => v.id !== id)
-    localStorage.setItem(STORAGE_KEYS.CUSTOM_VOICES, JSON.stringify(filtered))
-  } catch {
-    // ignore
-  }
-}
-
-

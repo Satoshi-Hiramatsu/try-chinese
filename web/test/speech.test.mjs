@@ -7,7 +7,7 @@ import ts from 'typescript'
 const source = ts.transpileModule(readFileSync(new URL('../src/services/speech.ts', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText
-function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob(['audio']) })) {
+function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob(['audio']) }), apiKey = 'test-key') {
   let recognition
   const played = []
   // 文単位の読み上げでは再生の終わりを外から起こす必要があるため、実体を控えておく。
@@ -22,7 +22,7 @@ function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob([
     URL: { createObjectURL: () => 'blob:' + nextObjectUrlId++, revokeObjectURL: () => {} },
     setTimeout: (fn, ms) => { const id = nextTimerId++; timers.set(id, { fn, ms }); return id },
     clearTimeout: (id) => { timers.delete(id) },
-    require: () => ({ loadUsableApiKey: () => 'test-key', markApiKeyExhausted: () => {}, resolveEffectiveVoice: (voice) => voice, loadTtsProvider: () => 'openrouter', loadTtsModel: () => 'qwen/qwen-audio-3.0-tts-flash', responseToPlayableBlob: async (response) => await response.blob() }),
+    require: () => ({ loadUsableApiKey: () => apiKey, markApiKeyExhausted: () => {}, FIXED_TTS_MODEL: 'fish-audio/s2.1-pro', responseToPlayableBlob: async (response) => await response.blob() }),
     window: { SpeechRecognition: class {
       constructor() { recognition = this }
       start() { this.onstart?.() }
@@ -77,6 +77,8 @@ for (const [lang, greeting] of [['ja-JP', '\u3053\u3093\u306b\u3061\u306f'], ['z
   })
 }
 const flush = () => new Promise(resolve => setImmediate(resolve))
+/** Fish の話者IDを持つ友達の声。読み上げは話者IDが無いと送らない。 */
+const fishVoice = (voiceModel = '4d9ea3a384294fe39dc9e235f7052ede') => ({ gender: 'female', voiceModel })
 /** 文単位の読み上げは取得→再生の段が重なるため、数回ぶん流す。 */
 const settle = async (times = 6) => { for (let i = 0; i < times; i += 1) await flush() }
 test('single utterance mode can disable continuous recognition', () => {
@@ -86,20 +88,40 @@ test('single utterance mode can disable continuous recognition', () => {
   assert.equal(s.recognition().continuous, false)
 })
 
-test('each selected speaker keeps its model and distinct speaker ID', async () => {
+test('話者IDごとに別の音声を Fish の固定モデルで求める', async () => {
   const requests = []
   const s = setup(async (_, init) => { requests.push(JSON.parse(init.body)); return { ok: true, blob: async () => new Blob(['audio']) } })
-  for (const voiceModel of ['zf_xiaobei', 'zf_xiaoni', 'zf_xiaoxiao', 'zf_xiaoyi', 'zm_yunjian', 'zm_yunxi', 'zm_yunxia', 'zm_yunyang']) {
-    s.api.speakChinese('test', { ttsModel: 'hexgrad/kokoro-82m', voiceModel })
+  const ids = ['4d9ea3a384294fe39dc9e235f7052ede', '4f5d1e5c63fd41cfae6c2e4525962b48', '2daca7855fa44ab6b6e994ee93e5bd48']
+  for (const voiceModel of ids) {
+    s.api.speakChinese('test', fishVoice(voiceModel), { onError: (e) => { throw e } })
     await flush()
   }
-  assert.equal(new Set(requests.map(r => r.voice)).size, 8)
-  assert.ok(requests.every(r => r.model === 'hexgrad/kokoro-82m'))
+  assert.deepEqual(requests.map(r => r.voice), ids)
+  assert.ok(requests.every(r => r.model === 'fish-audio/s2.1-pro'))
+  assert.ok(requests.every(r => r.apiKey === 'test-key'))
+})
+test('話者IDが無い友達は送らずにエラーを返す', async () => {
+  const requests = []
+  const s = setup(async (_, init) => { requests.push(init); return { ok: true, blob: async () => new Blob(['audio']) } })
+  let error
+  s.api.speakChinese('test', { gender: 'male', voiceModel: '' }, { onError: (e) => { error = e } })
+  await flush()
+  assert.equal(requests.length, 0)
+  assert.equal(error?.message, s.api.NO_VOICE_MESSAGE)
+})
+test('使えるキーが無いときは送らずにエラーを返す', async () => {
+  const requests = []
+  const s = setup(async (_, init) => { requests.push(init); return { ok: true, blob: async () => new Blob(['audio']) } }, '')
+  let error
+  s.api.speakChinese('test', fishVoice(), { onError: (e) => { error = e } })
+  await flush()
+  assert.equal(requests.length, 0)
+  assert.equal(error?.message, s.api.NO_API_KEY_MESSAGE)
 })
 test('stopping while audio is loading prevents stale playback', async () => {
   let resolve
   const s = setup(() => new Promise(r => resolve = r))
-  s.api.speakChinese('test')
+  s.api.speakChinese('test', fishVoice())
   s.api.stopSpeaking()
   resolve({ ok: true, blob: async () => new Blob(['audio']) })
   await flush()
@@ -108,7 +130,7 @@ test('stopping while audio is loading prevents stale playback', async () => {
 test('failed cloud synthesis reports an error instead of replacing the voice', async () => {
   const s = setup(async () => ({ ok: false, status: 503 }))
   let error
-  s.api.speakChinese('test', undefined, { onError: e => error = e })
+  s.api.speakChinese('test', fishVoice(), { onError: e => error = e })
   await flush()
   assert.ok(error)
   assert.equal(s.played.length, 0)
@@ -346,7 +368,7 @@ test('分割しすぎないよう上限を超えた分は最後にまとめる',
 test('1文目を鳴らしている間に次の文を取りに行く', async () => {
   const requests = []
   const s = setup(async (_, init) => { requests.push(JSON.parse(init.body).text); return { ok: true, blob: async () => new Blob(['audio']) } })
-  s.api.speakChinese('我昨天去了电影院看了一部电影。那部电影真的非常好看啊我很喜欢。')
+  s.api.speakChinese('我昨天去了电影院看了一部电影。那部电影真的非常好看啊我很喜欢。', fishVoice())
   await settle()
 
   // 1文目だけを取得して再生を始め、この時点で2文目の取得も走っている。
@@ -359,7 +381,7 @@ test('1文目を鳴らしている間に次の文を取りに行く', async () =
 test('最後の文が鳴り終わってから読み上げ終了を伝える', async () => {
   const s = setup()
   let ended = 0
-  s.api.speakChinese('我昨天去了电影院看了一部电影。那部电影真的非常好看啊我很喜欢。', undefined, { onEnd: () => { ended += 1 } })
+  s.api.speakChinese('我昨天去了电影院看了一部电影。那部电影真的非常好看啊我很喜欢。', fishVoice(), { onEnd: () => { ended += 1 } })
   await settle()
 
   assert.equal(ended, 0)
@@ -376,7 +398,7 @@ test('最後の文が鳴り終わってから読み上げ終了を伝える', as
 
 test('途中で停止したら次の文を鳴らさない', async () => {
   const s = setup()
-  s.api.speakChinese('我昨天去了电影院看了一部电影。那部电影真的非常好看啊我很喜欢。')
+  s.api.speakChinese('我昨天去了电影院看了一部电影。那部电影真的非常好看啊我很喜欢。', fishVoice())
   await settle()
 
   s.api.stopSpeaking()

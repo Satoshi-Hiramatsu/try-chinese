@@ -22,9 +22,7 @@ test('friendId をキーに Voice を TypeScript 断片として並べる', () =
         id: 'friend-meiling',
         name: '陈美玲 (Chen Meiling)',
         voice: {
-          quality: 'natural',
           gender: 'female',
-          ttsModel: 'fish-audio/s2.1-pro-free:free',
           voiceModel: '3c54bb55bf514bdc932f52ef81cb4023',
           voiceTuning: { temperature: 0.9 },
         },
@@ -40,19 +38,19 @@ test('friendId をキーに Voice を TypeScript 断片として並べる', () =
 
 test('undefined と空文字は落とし、キーは名前順に固定する', () => {
   const text = formatVoiceExport(
-    [{ id: 'f', name: 'x', voice: { quality: 'standard', gender: 'male', voiceName: '', rate: undefined, ttsModel: 'a' } }],
+    [{ id: 'f', name: 'x', voice: { voiceModel: 'a', gender: 'male', rate: undefined, pitch: 1 } }],
     'now'
   )
-  assert.doesNotMatch(text, /voiceName|rate/)
-  assert.ok(text.indexOf('"gender"') < text.indexOf('"quality"'))
-  assert.ok(text.indexOf('"quality"') < text.indexOf('"ttsModel"'))
+  assert.doesNotMatch(text, /rate/)
+  assert.ok(text.indexOf('"gender"') < text.indexOf('"pitch"'))
+  assert.ok(text.indexOf('"pitch"') < text.indexOf('"voiceModel"'))
 })
 
 test('声が未設定の友達はコメントで示し、id のない友達は飛ばす', () => {
   const text = formatVoiceExport(
     [
       { id: 'f-empty', name: '未設定さん' },
-      { name: 'id なし', voice: { quality: 'standard', gender: 'male' } },
+      { name: 'id なし', voice: { gender: 'male', voiceModel: '' } },
     ],
     'now'
   )

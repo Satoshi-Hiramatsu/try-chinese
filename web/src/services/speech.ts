@@ -1,9 +1,12 @@
 /**
- * Web Speech API を活用した中国語 TTS（音声合成）および STT（音声認識）サービス
+ * 中国語 TTS（Fish Audio、OpenRouter 経由）と STT（ブラウザの Web Speech API）のサービス
  * 用語定義書.md および 要件定義書.md に準拠
  */
 
 import type { Voice } from '../types'
+import { FIXED_TTS_MODEL } from '../data/fishVoice'
+import { loadUsableApiKey, markApiKeyExhausted } from './openRouterKey'
+import { responseToPlayableBlob } from './audioFormat'
 
 interface RecognitionResultEvent {
   resultIndex: number
@@ -33,157 +36,11 @@ declare const window: IWindow
 
 // --- TTS (音声合成: Text-to-Speech) ---
 
-let cachedVoices: SpeechSynthesisVoice[] = []
-
-/**
- * 利用可能な音声一覧を取得（非同期ロード対応）
- */
-export function getAvailableVoices(): Promise<SpeechSynthesisVoice[]> {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      resolve([])
-      return
-    }
-
-    const voices = window.speechSynthesis.getVoices()
-    if (voices.length > 0) {
-      cachedVoices = voices
-      resolve(voices)
-      return
-    }
-
-    // 初回ロード待ち
-    const handleVoicesChanged = () => {
-      cachedVoices = window.speechSynthesis.getVoices()
-      window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged)
-      resolve(cachedVoices)
-    }
-
-    window.speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged)
-    // タイムアウトフォールバック
-    setTimeout(() => {
-      resolve(window.speechSynthesis.getVoices())
-    }, 500)
-  })
-}
-
-/**
- * 中国語に対応した音声一覧を取得
- */
-export function getChineseVoices(): SpeechSynthesisVoice[] {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    return []
-  }
-  const voices = cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices()
-  cachedVoices = voices
-
-  return voices.filter(
-    (v) =>
-      v.lang.toLowerCase().startsWith('zh') ||
-      v.lang.toLowerCase().includes('cmn') ||
-      v.lang.toLowerCase().includes('chinese')
-  )
-}
-
-/**
- * 声質が男性向け音声かどうかを判定
- */
-export function isKnownMaleVoice(v?: SpeechSynthesisVoice | null): boolean {
-  if (!v) return false
-  const name = v.name.toLowerCase()
-  return (
-    name.includes('yunxi') ||
-    name.includes('yunjian') ||
-    name.includes('yunyang') ||
-    name.includes('kangkang') ||
-    name.includes('danny') ||
-    name.includes('zhiwei') ||
-    name.includes('wanlung') ||
-    (/\bmale\b/.test(name)) ||
-    name.includes('brian') ||
-    name.includes('george')
-  )
-}
-
-/**
- * 声質が女性向け音声かどうかを判定
- */
-export function isKnownFemaleVoice(v?: SpeechSynthesisVoice | null): boolean {
-  if (!v) return false
-  const name = v.name.toLowerCase()
-  return (
-    name.includes('xiaoxiao') ||
-    name.includes('xiaoyi') ||
-    name.includes('yaoyao') ||
-    name.includes('huihui') ||
-    name.includes('tingting') ||
-    name.includes('hanhan') ||
-    name.includes('female') ||
-    name.includes('mei-jia') ||
-    name.includes('sin-ji') ||
-    name.includes('google')
-  )
-}
-
-/**
- * 声質設定 (Voice) に合致する SpeechSynthesisVoice を選択
- */
-function findMatchingVoice(chineseVoices: SpeechSynthesisVoice[], voice?: Voice): SpeechSynthesisVoice | null {
-  if (chineseVoices.length === 0) return null
-
-  // 1. 指定された名前がある場合
-  if (voice?.voiceName) {
-    const namedVoice = chineseVoices.find((v) => v.name === voice.voiceName)
-    if (namedVoice) return namedVoice
-  }
-
-  // 2. 性別 (gender) による絞り込み推測
-  if (voice?.gender === 'female') {
-    const femaleVoice = chineseVoices.find((v) => isKnownFemaleVoice(v))
-    if (femaleVoice) return femaleVoice
-  } else if (voice?.gender === 'male') {
-    const maleVoice = chineseVoices.find((v) => isKnownMaleVoice(v))
-    if (maleVoice) return maleVoice
-  }
-
-  // 3. 自然音声 (Edge Natural / Online) を優先
-  const naturalVoice = chineseVoices.find((v) => v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('online'))
-  if (naturalVoice) return naturalVoice
-
-  // 4. デフォルト（zh-CN 優先）
-  const zhCnVoice = chineseVoices.find((v) => v.lang.toLowerCase().replace('_', '-') === 'zh-cn')
-  return zhCnVoice || chineseVoices[0]
-}
-
 export interface SpeakOptions {
   onStart?: () => void
   onEnd?: () => void
   onError?: (err: unknown) => void
 }
-
-/**
- * ユーザージェスチャー同期コールバック内で呼び出し、
- * ブラウザの音声再生制限（Autoplay Policy）を解除＆キューをクリアしておく
- */
-export function unlockSpeechSynthesis(): void {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
-  try {
-    if (window.speechSynthesis.paused) {
-      window.speechSynthesis.resume()
-    }
-    // 極めて短い無音Utteranceを軽く再生してブラウザの音声コンテキストをアクティブにする
-    const dummy = new SpeechSynthesisUtterance('')
-    dummy.volume = 0
-    window.speechSynthesis.speak(dummy)
-  } catch {
-    // ignore
-  }
-}
-
-import { loadTtsProvider, loadTtsModel } from './storage'
-import { loadUsableApiKey, markApiKeyExhausted } from './openRouterKey'
-import { resolveEffectiveVoice } from './freeMode'
-import { responseToPlayableBlob } from './audioFormat'
 
 // 再生中のオーディオオブジェクト
 let currentAudio: HTMLAudioElement | null = null
@@ -238,49 +95,25 @@ export function splitIntoSpeechSegments(text: string): string[] {
   return merged
 }
 
-/** 声の指定から、TTSリクエストに載せるモデル・話者・速度を決める。 */
-function resolveTtsRequest(text: string, voice?: Voice) {
-  const ttsModel = voice?.ttsModel || loadTtsModel()
-  const isMale =
-    voice?.gender === 'male' ||
-    (voice?.voiceModel &&
-      (voice.voiceModel.includes('john') ||
-        voice.voiceModel.includes('yun') ||
-        voice.voiceModel.includes('male') ||
-        voice.voiceModel.includes('onyx') ||
-        voice.voiceModel.includes('echo')))
-
-  let voiceModel = voice?.voiceModel || ''
-
-  // 話者が未指定のときだけ、モデルごとの既定話者に寄せる。
-  // 明示的に選ばれた話者はそのまま送り、そのモデルに無い場合はWorkerがカタログで解決する。
-  if (!voiceModel) {
-    if (ttsModel.includes('kokoro')) {
-      voiceModel = isMale ? 'zm_yunxi' : 'zf_xiaoxiao'
-    } else if (ttsModel.includes('qwen')) {
-      if (ttsModel.includes('plus')) voiceModel = isMale ? 'longanlufeng' : 'longanlingxin'
-      else voiceModel = isMale ? 'loongjohn' : 'longanhuan_v3.6'
-    }
-  }
-
-  const speed = voice?.rate ?? 1.0
-  const tuning = voice?.voiceTuning
+/** 声の指定から、TTSリクエストに載せる話者・速度を決める。モデルは Fish に固定。 */
+function resolveTtsRequest(text: string, voice: Voice) {
+  const speed = voice.rate ?? 1.0
+  const tuning = voice.voiceTuning
   // 声の調整値が変われば別の音声になるため、キャッシュキーにも含める。
   const tuningKey = tuning ? JSON.stringify(tuning) : ''
   return {
-    ttsModel,
-    voiceModel,
+    ttsModel: FIXED_TTS_MODEL,
+    voiceModel: voice.voiceModel,
     speed,
     tuning,
-    cacheKey: `${ttsModel}_${voiceModel}_${speed}_${tuningKey}_${text}`,
+    cacheKey: `${FIXED_TTS_MODEL}_${voice.voiceModel}_${speed}_${tuningKey}_${text}`,
   }
 }
 
 /**
  * 1文ぶんの音声を取得する。取得済みならキャッシュを返す。
- * apiKey が空なら無料モードとして送り、Worker が所有者キーで無料モデルを代行する。
  */
-async function fetchSegmentAudioUrl(text: string, voice: Voice | undefined, apiKey: string): Promise<string | undefined> {
+async function fetchSegmentAudioUrl(text: string, voice: Voice, apiKey: string): Promise<string | undefined> {
   const { ttsModel, voiceModel, speed, tuning, cacheKey } = resolveTtsRequest(text, voice)
   const cached = audioBlobCache.get(cacheKey)
   if (cached) return cached
@@ -289,7 +122,7 @@ async function fetchSegmentAudioUrl(text: string, voice: Voice | undefined, apiK
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(apiKey ? { 'x-api-key': apiKey } : {}),
+      'x-api-key': apiKey,
     },
     body: JSON.stringify({
       text,
@@ -297,14 +130,14 @@ async function fetchSegmentAudioUrl(text: string, voice: Voice | undefined, apiK
       voice: voiceModel,
       speed,
       tuning,
-      ...(apiKey ? { apiKey } : {}),
+      apiKey,
     }),
   })
 
   if (!res.ok) {
     console.warn('OpenRouter TTS API error, request failed:', res.status)
-    // 残高切れ。以後は無料モードで鳴らす。
-    if (res.status === 402 && apiKey) markApiKeyExhausted()
+    // 残高切れ。以後はキーの状態を「残高切れ」にして送らない。
+    if (res.status === 402) markApiKeyExhausted()
     return undefined
   }
 
@@ -364,7 +197,7 @@ function playSegment(
  */
 async function speakWithOpenRouterTts(
   text: string,
-  voice: Voice | undefined,
+  voice: Voice,
   apiKey: string,
   options?: SpeakOptions
 ): Promise<boolean> {
@@ -409,127 +242,39 @@ async function speakWithOpenRouterTts(
 }
 
 /**
- * 中国語テキストを音声で読み上げる（ハイブリッド対応）
+ * 中国語テキストを Fish Audio の声で読み上げる。
+ *
+ * 使えるキーが無いときと話者IDが無いときは送らずにエラーを返す。
+ * 呼び出し側はキー無しならキー入力を促し、話者ID無しなら設定漏れとして見せる。
  */
-export function speakChinese(text: string, savedVoice?: Voice, options?: SpeakOptions): void {
+export function speakChinese(text: string, voice?: Voice, options?: SpeakOptions): void {
   // 既存の音声をすべて停止
   stopSpeaking()
   const generation = playbackGeneration
 
   if (!text.trim()) return
 
-  // 使えるキーが無ければ無料モードの声に差し替える（保存された設定は変えない）。
   const apiKey = loadUsableApiKey()
-  const globalProvider = loadTtsProvider('openrouter')
-  const voice = resolveEffectiveVoice(savedVoice, {
-    hasApiKey: Boolean(apiKey),
-    globalProvider,
-    globalModel: loadTtsModel(),
-  })
-  const effectiveProvider = voice?.ttsProvider || globalProvider
-
-  if (effectiveProvider === 'openrouter') {
-    speakWithOpenRouterTts(text, voice, apiKey, options).then((success) => {
-      if (!success && generation === playbackGeneration) {
-        options?.onError?.(
-          new Error(
-            apiKey
-              ? 'AI音声を再生できません。APIキー・残高・音声モデルを確認してください。'
-              : '無料の AI 音声が混み合っています。少し待ってからもう一度お試しください。'
-          )
-        )
-      }
-    })
+  if (!apiKey) {
+    options?.onError?.(new Error(NO_API_KEY_MESSAGE))
+    return
+  }
+  if (!voice || !voice.voiceModel) {
+    options?.onError?.(new Error(NO_VOICE_MESSAGE))
     return
   }
 
-  // 2. それ以外はブラウザ標準 Web Speech API で発話
-  speakWithBrowserTts(text, voice, options)
-}
-
-/**
- * ブラウザ標準の Web Speech API による中国語発話
- */
-function speakWithBrowserTts(text: string, voice?: Voice, options?: SpeakOptions): void {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    options?.onError?.(new Error('お使いのブラウザは音声合成に対応していません'))
-    return
-  }
-
-  // Chrome等のキュー詰まり・一時停止状態を解除
-  if (window.speechSynthesis.paused) {
-    window.speechSynthesis.resume()
-  }
-
-  // iOS Safari や Chrome 対策で少し待機してから発話
-  const generation = playbackGeneration
-  setTimeout(() => {
-    if (generation !== playbackGeneration) return
-    try {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume()
-      }
-
-      const utterance = new SpeechSynthesisUtterance(text)
-      utterance.lang = 'zh-CN'
-
-      // 音声選択
-      const chineseVoices = getChineseVoices()
-      const matchedVoice = findMatchingVoice(chineseVoices, voice)
-      if (matchedVoice) {
-        utterance.voice = matchedVoice
-      }
-
-      // 話す速度 (rate)
-      utterance.rate = voice?.rate ?? 0.95
-
-      // ピッチ (pitch): 男性指定で女性音声フォールバック時のピッチ自動補正
-      let basePitch = voice?.pitch ?? 1.0
-      if (voice?.gender === 'male' && (!matchedVoice || !isKnownMaleVoice(matchedVoice))) {
-        // 女性音声で男性キャラを話す場合、ピッチを0.68〜0.72の低音にシフト
-        basePitch = Math.min(basePitch * 0.72, 0.72)
-      }
-      utterance.pitch = Math.max(0.5, Math.min(2.0, basePitch))
-
-      let hasStarted = false
-      let resumeWatchTimer: ReturnType<typeof setTimeout> | null = null
-
-      utterance.onstart = () => {
-        hasStarted = true
-        if (resumeWatchTimer) clearTimeout(resumeWatchTimer)
-        options?.onStart?.()
-      }
-
-      utterance.onend = () => {
-        if (resumeWatchTimer) clearTimeout(resumeWatchTimer)
-        options?.onEnd?.()
-      }
-
-      utterance.onerror = (e) => {
-        if (resumeWatchTimer) clearTimeout(resumeWatchTimer)
-        // キャンセルや中断によるエラーは正常終了扱い
-        if (e.error === 'interrupted' || e.error === 'canceled') {
-          options?.onEnd?.()
-          return
-        }
-        console.warn('SpeechSynthesis error:', e)
-        options?.onError?.(e)
-      }
-
-      window.speechSynthesis.speak(utterance)
-
-      // Chromeの長期サスペンド防止：500ms経過しても未開始かつキューにある場合はresumeをキック
-      resumeWatchTimer = setTimeout(() => {
-        if (!hasStarted && window.speechSynthesis.speaking) {
-          window.speechSynthesis.resume()
-        }
-      }, 500)
-    } catch (err) {
-      console.error('TTS execution error:', err)
-      options?.onError?.(err)
+  speakWithOpenRouterTts(text, voice, apiKey, options).then((success) => {
+    if (!success && generation === playbackGeneration) {
+      options?.onError?.(new Error('AI音声を再生できません。APIキーと残高を確認してください。'))
     }
-  }, 60)
+  })
 }
+
+/** キーが無くて読み上げを送らなかったときの文言。呼び出し側がキー入力への導線に使う。 */
+export const NO_API_KEY_MESSAGE = '読み上げには OpenRouter API キーが必要です。'
+/** 話者IDが無い友達を読み上げようとしたときの文言。 */
+export const NO_VOICE_MESSAGE = 'この友達の声はまだ設定されていません。'
 
 /**
  * 現在再生中の音声を停止する
@@ -546,27 +291,13 @@ export function stopSpeaking(): void {
     }
     currentAudio = null
   }
-
-  // Web Speech API の停止
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    window.speechSynthesis.cancel()
-    if (window.speechSynthesis.paused) {
-      window.speechSynthesis.resume()
-    }
-  }
 }
 
 /**
  * 現在音声再生中かどうか
  */
 export function isSpeaking(): boolean {
-  if (currentAudio && !currentAudio.paused) {
-    return true
-  }
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    return false
-  }
-  return window.speechSynthesis.speaking
+  return Boolean(currentAudio && !currentAudio.paused)
 }
 
 // --- STT (音声認識: Speech-to-Text) ---

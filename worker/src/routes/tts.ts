@@ -44,7 +44,8 @@ interface TtsRequestBody {
 }
 
 const MAX_TTS_CHARACTERS = 1000
-const DEFAULT_TTS_MODEL = 'qwen/qwen-audio-3.0-tts-flash'
+/** model を省略したときの音声モデル。会話画面が使う Fish Audio S2.1 Pro に揃える。 */
+const DEFAULT_TTS_MODEL = 'fish-audio/s2.1-pro'
 const DEFAULT_RESPONSE_FORMAT = 'mp3'
 
 /**

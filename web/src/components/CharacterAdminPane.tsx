@@ -63,11 +63,6 @@ function shortName(friend: Friend): string {
   return friend.name.replace(/\s*\(.*?\)/g, '')
 }
 
-function shortModel(modelId?: string): string {
-  if (!modelId) return '未設定'
-  return modelId.split('/')[1] || modelId
-}
-
 /** フォームの下書き。hobbies は読点区切りの文字列として持つ。 */
 interface Draft {
   name: string
@@ -246,7 +241,7 @@ export function CharacterAdminPane({
                   <span className={'char-admin-list-name'}>
                     <strong>{shortName(friend)}</strong>
                     <small>
-                      {friend.portraitId ?? 'SVG'} · {shortModel(friend.voice?.ttsModel)} / {friend.voice?.voiceModel ?? '話者なし'}
+                      {friend.portraitId ?? 'SVG'} · {friend.voice?.voiceModel || '話者なし'}
                     </small>
                   </span>
                   <span className={'char-admin-badges'}>
@@ -389,18 +384,14 @@ export function CharacterAdminPane({
         <h3 className={'char-admin-section-title'}>声</h3>
         <div className={'char-admin-voice'}>
           <dl>
-            <dt>モデル</dt>
-            <dd>{selected.voice?.ttsModel ?? '未設定'}</dd>
-            <dt>話者</dt>
-            <dd>{selected.voice?.voiceModel ?? selected.voice?.voiceName ?? '未設定'}</dd>
+            <dt>話者ID</dt>
+            <dd>{selected.voice?.voiceModel || '未設定'}</dd>
             <dt>速度 / 高さ</dt>
             <dd>
               {selected.voice?.rate ?? '—'} / {selected.voice?.pitch ?? '—'}
             </dd>
-            <dt>品質 / 性別</dt>
-            <dd>
-              {selected.voice?.quality ?? '—'} / {selected.voice?.gender ?? '—'}
-            </dd>
+            <dt>性別</dt>
+            <dd>{selected.voice?.gender ?? '—'}</dd>
             <dt>調整値</dt>
             <dd>{describeTuning(selected.voice?.voiceTuning) || 'なし'}</dd>
           </dl>

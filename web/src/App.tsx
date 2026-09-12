@@ -70,10 +70,6 @@ import {
   toggleVocabularyMastered,
   loadToneColoring,
   saveToneColoring,
-  loadTtsModel,
-  saveTtsModel,
-  loadTtsProvider,
-  saveTtsProvider,
   loadViewMode,
   saveViewMode,
 } from './services/storage'
@@ -189,8 +185,6 @@ export default function App() {
   const [toneColoring, setToneColoring] = useState<boolean>(() => loadToneColoring(false))
   // 音声入力を打ち切る（ハンズフリーでは自動送信する）までの無音許容時間
   const [silenceTimeoutMs, setSilenceTimeoutMs] = useState<number>(() => loadSilenceTimeoutMs())
-  const [ttsModel, setTtsModel] = useState<string>(() => loadTtsModel())
-  const [ttsProvider, setTtsProvider] = useState<'browser' | 'openrouter'>(() => loadTtsProvider('openrouter'))
   /** 声質カスタマイズの対象。null のあいだはモーダルを閉じる。管理画面から別の友達を開くために持つ。 */
   const [voiceSettingsFriend, setVoiceSettingsFriend] = useState<Friend | null>(null)
   /** 声の管理ダッシュボード。URLハッシュ #admin で開く。 */
@@ -371,9 +365,7 @@ export default function App() {
     newAutoPlay: boolean,
     newSpeechLang: 'zh-CN' | 'ja-JP',
     newToneColoring: boolean,
-    newSilenceTimeoutMs: number,
-    newTtsModel?: string,
-    newTtsProvider?: 'browser' | 'openrouter'
+    newSilenceTimeoutMs: number
   ) => {
     if (newKey.trim() !== apiKey) {
       setApiKey(newKey.trim())
@@ -391,14 +383,6 @@ export default function App() {
     saveToneColoring(newToneColoring)
     setSilenceTimeoutMs(newSilenceTimeoutMs)
     saveSilenceTimeoutMs(newSilenceTimeoutMs)
-    if (newTtsModel !== undefined) {
-      setTtsModel(newTtsModel)
-      saveTtsModel(newTtsModel)
-    }
-    if (newTtsProvider !== undefined) {
-      setTtsProvider(newTtsProvider)
-      saveTtsProvider(newTtsProvider)
-    }
     setErrorMessage(null)
   }
 
@@ -952,8 +936,6 @@ export default function App() {
         voiceOverrideCount={listFriendVoiceOverrides().length}
         onResetAllVoices={handleResetAllVoices}
         currentModel={model}
-        currentTtsModel={ttsModel}
-        currentTtsProvider={ttsProvider}
         autoPlayTts={autoPlayTts}
         speechInputLang={speechInputLang}
         toneColoring={toneColoring}

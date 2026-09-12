@@ -6,8 +6,6 @@ import {
   ExternalLinkIcon,
   CheckIcon,
   SparklesIcon,
-  SpeakerIcon,
-  GlobeIcon,
   ChinaFlagIcon,
   JapanFlagIcon,
 } from './Icons'
@@ -20,37 +18,6 @@ import {
 import type { ApiKeyStatus } from '../services/openRouterKey'
 import { ApiKeyField } from './ApiKeyField'
 
-export const PRESET_TTS_MODELS = [
-  {
-    id: 'hexgrad/kokoro-82m',
-    name: 'Kokoro 82M',
-    tag: '推奨・5人全員の個別声質対応',
-    price: '$4 / 100万tok',
-    desc: '破格の低価格オープンTTS。中国語8話者対応で王浩・張偉・美玲たち5人全員を別々のリアルな声に演じ分け！',
-  },
-  {
-    id: 'qwen/qwen-audio-3.0-tts-flash',
-    name: 'Qwen Audio 3.0 TTS Flash',
-    tag: '中国語最高峰の抑揚',
-    price: '$15 / 100万tok',
-    desc: 'アリババ製。四声や抑揚が圧倒的に自然（※話者は男性1種・女性1種の計2種のみ提供）',
-  },
-  {
-    id: 'qwen/qwen-audio-3.0-tts-plus',
-    name: 'Qwen Audio 3.0 TTS Plus',
-    tag: '最高品質',
-    price: '$20 / 100万tok',
-    desc: 'Qwenの上位モデル。豊かな表現力と細やかなニュアンス（男女各1種）',
-  },
-  {
-    id: 'fish-audio/s2.1-pro-free:free',
-    name: 'Fish Audio S2.1 Pro (Free)',
-    tag: '完全無料枠',
-    price: '$0 (無料)',
-    desc: 'Fish Audioが提供する無料利用枠。APIキー未入力のときは自動でこれに切り替わります',
-  },
-]
-
 interface SettingsModalProps {
   isOpen: boolean
   onClose: () => void
@@ -58,8 +25,6 @@ interface SettingsModalProps {
   /** 保存済みキーの検査結果。入力欄の下に出す。 */
   apiKeyStatus: ApiKeyStatus
   currentModel: string
-  currentTtsModel?: string
-  currentTtsProvider?: 'browser' | 'openrouter'
   autoPlayTts?: boolean
   speechInputLang?: 'zh-CN' | 'ja-JP'
   toneColoring?: boolean
@@ -78,9 +43,7 @@ interface SettingsModalProps {
     autoPlayTts: boolean,
     speechInputLang: 'zh-CN' | 'ja-JP',
     toneColoring: boolean,
-    silenceTimeoutMs: number,
-    ttsModel?: string,
-    ttsProvider?: 'browser' | 'openrouter'
+    silenceTimeoutMs: number
   ) => void
 }
 
@@ -98,8 +61,6 @@ export function SettingsModal({
   currentApiKey,
   apiKeyStatus,
   currentModel,
-  currentTtsModel = 'qwen/qwen-audio-3.0-tts-flash',
-  currentTtsProvider = 'openrouter',
   autoPlayTts = false,
   speechInputLang = 'zh-CN',
   toneColoring = false,
@@ -112,8 +73,6 @@ export function SettingsModal({
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey)
   const [model, setModel] = useState(currentModel || PRESET_MODELS[0].id)
-  const [ttsModel, setTtsModel] = useState(currentTtsModel)
-  const [ttsProvider, setTtsProvider] = useState<'browser' | 'openrouter'>(currentTtsProvider)
   const [autoPlay, setAutoPlay] = useState(autoPlayTts)
   const [inputLang, setInputLang] = useState<'zh-CN' | 'ja-JP'>(speechInputLang)
   const [enableToneColor, setEnableToneColor] = useState(toneColoring)
@@ -125,18 +84,16 @@ export function SettingsModal({
   useEffect(() => {
     setApiKey(currentApiKey)
     setModel(currentModel || PRESET_MODELS[0].id)
-    setTtsModel(currentTtsModel || 'qwen/qwen-audio-3.0-tts-flash')
-    setTtsProvider(currentTtsProvider)
     setAutoPlay(autoPlayTts)
     setInputLang(speechInputLang)
     setEnableToneColor(toneColoring)
     setSilenceMs(clampSilenceTimeoutMs(silenceTimeoutMs))
-  }, [currentApiKey, currentModel, currentTtsModel, currentTtsProvider, autoPlayTts, speechInputLang, toneColoring, silenceTimeoutMs, isOpen])
+  }, [currentApiKey, currentModel, autoPlayTts, speechInputLang, toneColoring, silenceTimeoutMs, isOpen])
 
   if (!isOpen) return null
 
   const handleSave = () => {
-    onSave(apiKey, model, autoPlay, inputLang, enableToneColor, silenceMs, ttsModel, ttsProvider)
+    onSave(apiKey, model, autoPlay, inputLang, enableToneColor, silenceMs)
     onClose()
   }
 
@@ -257,102 +214,8 @@ export function SettingsModal({
             </div>
           </div>
 
-          {/* Section 3: 音声合成 (TTS) エンジン & モデル設定 */}
+          {/* Section 3: 音声・入力の設定 */}
           <div className="pt-3 border-t border-stone-100 space-y-3">
-            <label className="block text-xs font-bold text-stone-800 flex items-center gap-1.5">
-              <SpeakerIcon className="w-4 h-4 text-stone-600" />
-              <span>中国語 音声合成 (TTS) エンジン設定:</span>
-            </label>
-
-            {/* TTSプロバイダ切り替え */}
-            <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80 space-y-2">
-              <span className="text-xs font-bold text-stone-800 block">
-                読み上げエンジン
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTtsProvider('openrouter')}
-                  className={`py-2 px-3 text-xs font-bold rounded-xl border text-left cursor-pointer transition-all ${
-                    ttsProvider === 'openrouter'
-                      ? 'border-rose-400 bg-rose-50 text-rose-800 shadow-2xs'
-                      : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-100'
-                  }`}
-                >
-                  <div className="flex items-center gap-1">
-                    <SparklesIcon className="w-3 h-3 text-amber-500" />
-                    <span>OpenRouter AI音声</span>
-                  </div>
-                  <div className="text-[10px] text-stone-400 font-normal mt-0.5">
-                    推奨・ネイティブ四声 (要キー)
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTtsProvider('browser')}
-                  className={`py-2 px-3 text-xs font-bold rounded-xl border text-left cursor-pointer transition-all ${
-                    ttsProvider === 'browser'
-                      ? 'border-rose-400 bg-rose-50 text-rose-800 shadow-2xs'
-                      : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-100'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <GlobeIcon className="w-3.5 h-3.5 text-sky-600" />
-                    <span>ブラウザ / Edge</span>
-                  </div>
-                  <div className="text-[10px] text-stone-400 font-normal mt-0.5">
-                    完全無料・ローカル音声
-                  </div>
-                </button>
-              </div>
-
-              {/* OpenRouter TTS モデル一覧 (OpenRouter選択時) */}
-              {ttsProvider === 'openrouter' && (
-                <div className="mt-3 pt-2 border-t border-stone-200/60 space-y-1.5">
-                  <span className="text-[11px] font-bold text-stone-700 block">
-                    使用するTTS音声モデル（高コスパ厳選・高額モデル除外済み）:
-                  </span>
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {PRESET_TTS_MODELS.map((m) => {
-                      const isSelected = ttsModel === m.id
-                      return (
-                        <div
-                          key={m.id}
-                          onClick={() => setTtsModel(m.id)}
-                          className={`p-2 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between ${
-                            isSelected
-                              ? 'border-rose-400 bg-white shadow-2xs font-semibold'
-                              : 'border-stone-200 bg-white/70 hover:border-stone-300 hover:bg-white text-stone-700'
-                          }`}
-                        >
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-stone-900 text-xs">{m.name}</span>
-                              <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-rose-100 text-rose-700 font-bold">
-                                {m.tag}
-                              </span>
-                              <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-stone-100 text-stone-600 font-mono">
-                                {m.price}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-stone-500 m-0 mt-0.5 leading-tight">{m.desc}</p>
-                          </div>
-                          {isSelected && (
-                            <span className="flex items-center gap-1 text-rose-600 text-xs font-bold flex-shrink-0 ml-2">
-                              <CheckIcon className="w-3.5 h-3.5" />
-                            </span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <p className="text-[10px] text-stone-400 mt-1 m-0">
-                    ※ 各友達キャラクター（美玲や王浩など）の「声のトーン・話者」は、友達カードの「声質」ボタンから個別にカスタマイズ可能です（Kokoro 82M または ブラウザ/Edge なら5人全員が別々の個性的な声になります）。
-                  </p>
-                </div>
-              )}
-            </div>
-
             {onOpenVoiceAdmin && (
               <button
                 type="button"

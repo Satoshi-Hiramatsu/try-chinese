@@ -3,7 +3,6 @@ import { SendIcon, MicIcon, StopCircleIcon, ChinaFlagIcon, JapanFlagIcon } from 
 import {
   createSpeechRecognizer,
   isSpeechRecognitionSupported,
-  unlockSpeechSynthesis,
   stopSpeaking,
   clampSilenceTimeoutMs,
   DEFAULT_SILENCE_TIMEOUT_MS,
@@ -116,7 +115,6 @@ export function ChatInput({
     setIsListening(false)
     setInterimText('')
     setSilenceDeadline(null)
-    unlockSpeechSynthesis()
     onSendMessageRef.current(trimmed)
     textRef.current = ''
     setText('')
@@ -321,7 +319,6 @@ export function ChatInput({
     pendingRestartRef.current = false
     awaitingResumeRef.current = false
     if (next) {
-      unlockSpeechSynthesis()
       startListening()
     } else {
       intentionalStopRef.current = true

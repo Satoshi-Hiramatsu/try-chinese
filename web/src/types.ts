@@ -53,35 +53,27 @@ export interface TtsVoiceTuning {
   providerOptions?: Record<string, unknown>
 }
 
-/**
- * 1つの音声モデルに対する話者IDと調整値の組。
- *
- * 話者IDはモデルごとに体系が異なるため（Kokoro の zf_xiaoxiao、Fish Audio の reference_id など）、
- * モデルを切り替えても前のモデルで作り込んだ設定を失わないようモデルIDごとに覚えておく。
- */
-export interface VoiceModelBinding {
-  /** そのモデルでの話者ID。 */
-  voiceModel?: string
-  /** そのモデルでの声の調整値。 */
-  voiceTuning?: TtsVoiceTuning
-}
+/** 声の高さ（再生側で作る）の下限・上限・標準値。 */
+export const MIN_VOICE_PITCH = 0.85
+export const MAX_VOICE_PITCH = 1.2
+export const DEFAULT_VOICE_PITCH = 1.0
 
+/**
+ * 友達の声。Fish Audio S2.1 Pro（OpenRouter 経由）専用。
+ *
+ * 話者は voiceModel（Fish の reference_id）で決まり、指定しないと生成のたびに声が変わる。
+ * 利用者が触れるのは pitch だけで、それ以外は開発者モードで作り込む。
+ */
 export interface Voice {
-  quality: 'standard' | 'natural' | 'high'
   gender: 'male' | 'female'
-  voiceName?: string // ブラウザ/Edge音声名 (例: Microsoft Yunxi Online (Natural))
-  voiceModel?: string // 話者キャラクターID (例: longanhuan_v3.6, loongjohn, zf_xiaobei, zm_yunxi 等)
-  ttsProvider?: 'browser' | 'openrouter'
-  ttsModel?: string
+  /** Fish Audio の話者ID (reference_id)。空なら未設定で、読み上げはエラーになる。 */
+  voiceModel: string
+  /** 話す速さ。Fish の speed にそのまま渡す。 */
   rate?: number
+  /** 声の高さ。MIN_VOICE_PITCH〜MAX_VOICE_PITCH。再生速度で音程を変え、speed で速さを打ち消して作る。 */
   pitch?: number
-  /** 話者一覧を持たないモデルで声を安定させるための調整値。 */
+  /** 話者IDだけでは揃わない揺らぎを抑える調整値。 */
   voiceTuning?: TtsVoiceTuning
-  /**
-   * モデルIDごとの話者ID・調整値。選択中モデルの値は voiceModel / voiceTuning にも入る。
-   * 既存の保存データには存在しないため、読み出し側は未定義を許容する。
-   */
-  voiceByModel?: Record<string, VoiceModelBinding>
 }
 
 export interface Friend {
@@ -158,8 +150,6 @@ export interface VocabularyItem {
 export interface AppConfig {
   apiKey?: string
   model?: string
-  ttsModel?: string
-  ttsProvider?: 'browser' | 'openrouter'
   autoPlayTts?: boolean
   speechInputLang?: 'zh-CN' | 'ja-JP'
   /** 音声入力を打ち切るまでの無音許容時間(ms) */
