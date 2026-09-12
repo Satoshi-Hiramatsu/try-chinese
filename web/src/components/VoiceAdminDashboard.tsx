@@ -33,7 +33,9 @@ import {
 } from '../data/voiceAssignment'
 import { CHARACTER_VOICE_OPTIONS, resolveVoiceIdForModel } from '../data/characterVoices'
 import { formatVoiceExport } from '../data/voiceExport'
-import { loadCustomVoices, loadTtsModel } from '../services/storage'
+import { loadCustomVoices, loadTtsModel, loadTtsProvider } from '../services/storage'
+import { loadUsableApiKey } from '../services/openRouterKey'
+import { canSpeakWithFreeModel } from '../services/freeMode'
 
 interface VoiceAdminDashboardProps {
   isOpen: boolean
@@ -464,6 +466,19 @@ export function VoiceAdminDashboard({
           {message && (
             <p role="status" className="m-0 text-[11px] text-stone-600 bg-white border border-stone-200 rounded-xl px-3 py-1.5">
               {message}
+            </p>
+          )}
+
+          {/* 無料モードの注記。試聴も会話も Fish の無料版で鳴り、話者の無い友達はブラウザ音声になる */}
+          {!loadUsableApiKey() && (
+            <p className="m-0 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 leading-relaxed">
+              無料モード（APIキー未入力）: 試聴と会話は Fish Audio S2.1 Pro (Free) で鳴ります。
+              Fish の話者IDが無い友達はブラウザ音声になります（
+              {friends.filter((friend) => !canSpeakWithFreeModel(friend.voice, {
+                globalProvider: loadTtsProvider('openrouter'),
+                globalModel: loadTtsModel(),
+              })).length}
+              人）。設定はそのまま保存され、キーを入れると有効になります。
             </p>
           )}
         </div>

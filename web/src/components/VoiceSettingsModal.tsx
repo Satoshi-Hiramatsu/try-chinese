@@ -23,7 +23,6 @@ import {
   getAvailableVoices,
 } from '../services/speech'
 import {
-  loadApiKey,
   loadTtsProvider,
   saveTtsProvider,
   loadTtsModel,
@@ -45,6 +44,8 @@ import {
   type TtsCatalogModel,
 } from '../services/ttsCatalog'
 import { VoiceTuningFields } from './VoiceTuningFields'
+import { loadUsableApiKey } from '../services/openRouterKey'
+import { canSpeakWithFreeModel } from '../services/freeMode'
 
 /**
  * 声質キャラクターの話者IDを、選択中のモデルの話者へ読み替える。
@@ -122,7 +123,8 @@ export function VoiceSettingsModal({
   const [isPlayingPreview, setIsPlayingPreview] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const hasApiKey = Boolean(loadApiKey())
+  // 使えるキー（有効、または未確認で前回無効ではない）があるか。無ければ再生は無料モードになる。
+  const hasApiKey = Boolean(loadUsableApiKey())
   const [currentTtsModel, setCurrentTtsModel] = useState(friend.voice?.ttsModel || loadTtsModel())
   const [previewError, setPreviewError] = useState('')
   /** OpenRouterで音声出力できるモデル一覧。話者はモデルごとに異なるため実行時に取得する。 */
@@ -489,7 +491,7 @@ export function VoiceSettingsModal({
                 <p className="text-[10px] text-stone-500 m-0 mt-0.5">
                   {hasApiKey
                     ? '推奨・ネイティブ四声 (設定済み)'
-                    : '要APIキー (設定で入力)'}
+                    : 'キー未入力 · 無料モデルで再生'}
                 </p>
               </button>
 
@@ -517,6 +519,27 @@ export function VoiceSettingsModal({
               </button>
             </div>
           </div>
+
+          {/* 無料モードの注記。保存値は変えず、再生時にだけ差し替わることを伝える */}
+          {provider === 'openrouter' && !hasApiKey && (
+            <p className="m-0 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 leading-relaxed">
+              いまは無料モード（APIキー未入力）のため、再生時は Fish Audio S2.1 Pro (Free) に自動で切り替わります。
+              {canSpeakWithFreeModel(
+                {
+                  quality: 'natural',
+                  gender,
+                  ttsProvider: provider,
+                  ttsModel: currentTtsModel,
+                  voiceModel: voiceModel || undefined,
+                  voiceByModel: friend.voice?.voiceByModel,
+                },
+                { globalProvider: loadTtsProvider('openrouter'), globalModel: loadTtsModel() }
+              )
+                ? ' この友達は Fish の話者IDがあるので、その声で鳴ります。'
+                : ' この友達は Fish の話者IDが無いため、ブラウザ音声で鳴ります。'}
+              ここでの設定はそのまま保存され、キーを入れると有効になります。
+            </p>
+          )}
 
           {/* 音声モデル選択（OpenRouter利用時のみ。話者はモデルごとに異なる） */}
           {provider === 'openrouter' && (
