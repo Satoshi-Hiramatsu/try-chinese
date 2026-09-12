@@ -39,6 +39,9 @@ import {
   loadHskLevel,
   saveHskLevel,
   loadDevLlmModel,
+  saveDevLlmModel,
+  clearAllFriendVoices,
+  listFriendVoiceOverrides,
   loadCustomFriends,
   saveCustomFriend,
   deleteCustomFriend,
@@ -164,7 +167,8 @@ export default function App() {
     loadApiKey() ? loadApiKeyStatus() ?? { state: 'checking' } : NO_KEY_STATUS
   )
   /** 会話 LLM。固定値だが、開発者モードのテストモードで上書きできる。 */
-  const [llmModel] = useState(() => resolveLlmModel(loadDevLlmModel()))
+  const [devLlmModel, setDevLlmModel] = useState<string | null>(() => loadDevLlmModel())
+  const llmModel = useMemo(() => resolveLlmModel(devLlmModel), [devLlmModel])
   const [customFriends, setCustomFriends] = useState<Friend[]>(() => loadCustomFriends())
   /** 声設定・プロフィール上書きの保存を検知して友達リストを組み直すための世代番号。 */
   const [voiceRevision, setVoiceRevision] = useState(0)
@@ -455,6 +459,21 @@ export default function App() {
       friend.id === friendId && friend.voice ? { ...friend, voice: { ...friend.voice, pitch: pitch ?? 1.0 } } : friend
     setCurrentFriend(apply)
     setVoiceRevision((current) => current + 1)
+  }
+
+  /** 全員の声の上書きを捨てる。消した件数を返す。 */
+  const handleResetAllVoices = (): number => {
+    const count = clearAllFriendVoices()
+    setCurrentFriend((prev) => (prev.id ? withStoredVoice({ ...prev, voice: PRESET_FRIENDS.find((f) => f.id === prev.id)?.voice ?? prev.voice }) : prev))
+    setVoiceSettingsFriend(null)
+    setVoiceRevision((current) => current + 1)
+    return count
+  }
+
+  /** テストモードの会話モデル上書き。空で固定値に戻す。 */
+  const handleChangeDevLlmModel = (model: string) => {
+    saveDevLlmModel(model)
+    setDevLlmModel(model.trim() || null)
   }
 
   /**
@@ -849,6 +868,7 @@ export default function App() {
         onToggleToneColoring={handleToggleToneColoring}
         viewMode={viewMode}
         onChangeViewMode={handleChangeViewMode}
+        testModeLabel={llmModel.isOverridden ? llmModel.model : undefined}
       />
 
       {/* Main Stage / Chat Container */}
@@ -985,6 +1005,10 @@ export default function App() {
         onEditVoice={(friend) => setVoiceSettingsFriend(friend)}
         onSelectFriend={handleSelectFriend}
         onSaveVoice={handleSaveVoiceForFriend}
+        devLlmModel={devLlmModel}
+        onChangeDevLlmModel={handleChangeDevLlmModel}
+        voiceOverrideCount={listFriendVoiceOverrides().length}
+        onResetAllVoices={handleResetAllVoices}
       />
 
       {/* 利用者向け: 声の高さ */}

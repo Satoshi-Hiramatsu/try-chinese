@@ -5,9 +5,10 @@ import { SttDebugPane } from './SttDebugPane'
 import { LlmDebugPane } from './LlmDebugPane'
 import { CharacterAdminPane } from './CharacterAdminPane'
 import { VoiceAdminDashboard } from './VoiceAdminDashboard'
+import { DevTestModePane } from './DevTestModePane'
 import '../styles/devConsole.css'
 
-export type DevTab = 'character' | 'voices' | 'stt' | 'llm' | 'tts'
+export type DevTab = 'character' | 'voices' | 'test' | 'stt' | 'llm' | 'tts'
 
 interface Props {
   isOpen: boolean
@@ -26,13 +27,19 @@ interface Props {
   onSelectFriend: (friend: Friend) => void
   /** 声の管理: 1人分の声設定を保存する。 */
   onSaveVoice: (friendId: string, voice: Voice) => void
+  /** テストモード: 会話モデルの上書きと、声の上書きの全リセット。 */
+  devLlmModel: string | null
+  onChangeDevLlmModel: (model: string) => void
+  voiceOverrideCount: number
+  onResetAllVoices: () => number
 }
 
-const TAB_ORDER: readonly DevTab[] = ['character', 'voices', 'stt', 'llm', 'tts']
+const TAB_ORDER: readonly DevTab[] = ['character', 'voices', 'test', 'stt', 'llm', 'tts']
 
 const TAB_LABELS: Record<DevTab, string> = {
   character: 'キャラクター',
   voices: '声の管理',
+  test: 'テストモード',
   stt: 'STT 比較',
   llm: 'LLM 比較',
   tts: 'TTS 比較',
@@ -60,6 +67,10 @@ export function DevConsole({
   onEditVoice,
   onSelectFriend,
   onSaveVoice,
+  devLlmModel,
+  onChangeDevLlmModel,
+  voiceOverrideCount,
+  onResetAllVoices,
 }: Props) {
   const [tab, setTab] = useState<DevTab>(initialTab)
 
@@ -102,6 +113,14 @@ export function DevConsole({
         ) : null}
         {tab === 'voices' ? (
           <VoiceAdminDashboard friends={[...friends]} onSaveVoice={onSaveVoice} onEditFriend={onEditVoice} />
+        ) : null}
+        {tab === 'test' ? (
+          <DevTestModePane
+            devLlmModel={devLlmModel}
+            onChangeDevLlmModel={onChangeDevLlmModel}
+            voiceOverrideCount={voiceOverrideCount}
+            onResetAllVoices={onResetAllVoices}
+          />
         ) : null}
         {tab === 'stt' ? <SttDebugPane /> : null}
         {tab === 'llm' ? (

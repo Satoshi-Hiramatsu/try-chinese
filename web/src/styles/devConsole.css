@@ -72,3 +72,28 @@
 @media (max-width: 720px) {
   .stt-debug-capture { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* テストモード */
+.dev-test-mode { display: flex; flex-direction: column; gap: 14px; max-width: 56rem; }
+.dev-test-section { padding: 16px 18px; background: white; border: 1px solid #e7e5e4; border-radius: 18px; }
+.dev-test-section h2 { margin: 0 0 8px; color: #44403c; font-size: .85rem; font-weight: 700; }
+.dev-test-section dl { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: .78rem; }
+.dev-test-section dt { color: #78716c; }
+.dev-test-section dd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; color: #1c1917; }
+.dev-test-section code { padding: 1px 6px; background: #f5f5f4; border-radius: 6px; font-size: .74rem; }
+.dev-test-section em { padding: 1px 8px; border-radius: 999px; font-size: .66rem; font-style: normal; font-weight: 700; }
+.dev-test-section em[data-kind=fixed] { color: #166534; background: #dcfce7; }
+.dev-test-section em[data-kind=override] { color: #9f1239; background: #ffe4e6; }
+.dev-test-help { margin: 0 0 10px; color: #78716c; font-size: .74rem; line-height: 1.6; }
+.dev-test-message { margin: 10px 0 0; color: #0f766e; font-size: .74rem; }
+.dev-test-models { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.dev-test-models button { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; text-align: left; background: white; border: 1px solid #e7e5e4; border-radius: 14px; }
+.dev-test-models button[data-selected=true] { border-color: #fb7185; background: #fff1f2; }
+.dev-test-models strong { color: #1c1917; font-size: .78rem; }
+.dev-test-models small { color: #78716c; font-size: .68rem; line-height: 1.5; }
+.dev-test-custom { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .74rem; }
+.dev-test-custom label { color: #57534e; font-weight: 700; }
+.dev-test-custom input { flex: 1; min-width: 16rem; padding: 7px 10px; border: 1px solid #d6d3d1; border-radius: 10px; font-family: ui-monospace, monospace; font-size: .74rem; }
+.dev-test-custom button, .dev-test-danger { padding: 7px 12px; color: #57534e; background: #f5f5f4; border-radius: 999px; font-size: .74rem; font-weight: 700; }
+.dev-test-custom button:disabled, .dev-test-danger:disabled { color: #a8a29e; }
+.dev-test-danger { color: #9f1239; background: #fff1f2; border: 1px solid #fecdd3; }

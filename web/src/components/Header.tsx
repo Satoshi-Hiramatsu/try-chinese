@@ -24,6 +24,8 @@ interface HeaderProps {
   onToggleToneColoring?: () => void
   viewMode?: ViewMode
   onChangeViewMode?: (mode: ViewMode) => void
+  /** 開発者モードで会話モデルを上書きしているとき、そのモデルID。戻し忘れに気付くためのバッジを出す */
+  testModeLabel?: string
 }
 
 /** 表示に使う状態。検査できなかったときは前回の確定状態で見せる。 */
@@ -67,7 +69,7 @@ function apiKeyDotClass(status: ApiKeyStatus): string {
 const actionClass = 'header-menu-item flex items-center gap-2 rounded-xl border border-stone-200 bg-white text-stone-700 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer whitespace-nowrap'
 
 export function Header({
-  hskLevel, onHskChange, apiKeyStatus, onOpenApiKey, onOpenSettings, onClearHistory,
+  hskLevel, onHskChange, apiKeyStatus, onOpenApiKey, onOpenSettings, onClearHistory, testModeLabel,
   onOpenOnboarding, onOpenFriendList, onOpenVocabulary, vocabularyCount = 0,
   autoPlayTts = false, onToggleAutoPlayTts, toneColoring = false,
   onToggleToneColoring, viewMode = 'novel', onChangeViewMode,
@@ -129,6 +131,11 @@ export function Header({
       <div className="app-brand flex items-center flex-shrink min-w-0">
         <img src="/favicon.svg" alt="" aria-hidden="true" className="app-logo rounded-xl shadow-md shadow-rose-500/20 flex-shrink-0" />
         <h1 className="app-title font-bold tracking-tight text-stone-900 m-0 leading-tight truncate">しゃべチャイナ</h1>
+        {testModeLabel && (
+          <a href="#dev" title={`会話モデルを上書き中: ${testModeLabel}`} className="ml-2 px-2 py-0.5 rounded-full bg-rose-100 border border-rose-300 text-rose-700 text-[10px] font-bold whitespace-nowrap no-underline flex-shrink-0">
+            テストモード中
+          </a>
+        )}
       </div>
 
       <div className="header-primary ml-auto flex items-center min-w-0">
