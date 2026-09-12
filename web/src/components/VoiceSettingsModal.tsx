@@ -69,6 +69,10 @@ interface VoiceSettingsModalProps {
   onClose: () => void
   friend: Friend
   onSaveVoice: (updatedVoice: Voice) => void
+  /** プリセットの友達で、このブラウザに声の上書きがあるとき true。「プリセットに戻す」を出す */
+  canResetToPreset?: boolean
+  /** 声の上書きを捨てて presetFriends.ts の値に戻す。呼び出し側でモーダルを閉じる */
+  onResetToPreset?: () => void
 }
 
 export function VoiceSettingsModal({
@@ -76,6 +80,8 @@ export function VoiceSettingsModal({
   onClose,
   friend,
   onSaveVoice,
+  canResetToPreset = false,
+  onResetToPreset,
 }: VoiceSettingsModalProps) {
   const [provider, setProvider] = useState<'browser' | 'openrouter'>(() =>
     loadTtsProvider('openrouter')
@@ -1163,11 +1169,11 @@ export function VoiceSettingsModal({
         </div>
 
         {/* Footer */}
-        <div className="px-5 sm:px-6 py-3.5 border-t border-stone-100 bg-stone-50/80 flex-shrink-0 flex items-center justify-between">
+        <div className="px-5 sm:px-6 py-3.5 border-t border-stone-100 bg-stone-50/80 flex-shrink-0 flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => handlePreview()}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors cursor-pointer whitespace-nowrap"
           >
             {isPlayingPreview ? (
               <>
@@ -1182,8 +1188,29 @@ export function VoiceSettingsModal({
             )}
           </button>
 
-          {/* キャンセル & 保存 */}
-          <div className="flex items-center gap-2">
+          {/* プリセットに戻す & キャンセル & 保存 */}
+          <div className="flex items-center gap-2 ml-auto whitespace-nowrap">
+            {canResetToPreset && onResetToPreset && (
+              <button
+                type="button"
+                onClick={() => {
+                  const name = friend.name.replace(/\s*\(.*?\)/g, '')
+                  if (
+                    !confirm(
+                      `「${name}」の声をプリセットの値に戻します。\nこのブラウザで保存した音声モデル・話者ID・調整値は消え、元に戻せません。\n続けますか？`
+                    )
+                  ) {
+                    return
+                  }
+                  stopSpeaking()
+                  onResetToPreset()
+                }}
+                className="px-3 py-2 rounded-xl text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                title="このブラウザで保存した声の上書きを消して、プリセットの値に戻します"
+              >
+                プリセットに戻す
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {

@@ -58,6 +58,9 @@ import {
   saveSilenceTimeoutMs,
   loadFriendVoice,
   saveFriendVoice,
+  clearFriendVoice,
+  clearAllFriendVoices,
+  listFriendVoiceOverrides,
   loadFriendProfile,
   saveFriendProfile,
   clearFriendProfile,
@@ -443,6 +446,30 @@ export default function App() {
     setCurrentFriend((prev) => (prev.id === friendId ? { ...prev, voice: updatedVoice } : prev))
     setVoiceSettingsFriend((prev) => (prev && prev.id === friendId ? { ...prev, voice: updatedVoice } : prev))
     setVoiceRevision((current) => current + 1)
+  }
+
+  /**
+   * プリセットの友達の声の上書きを捨てて presetFriends.ts の値に戻す。
+   * カスタム友達は声が本体にしか無いため対象にしない（呼び出し側でボタンを出さない）。
+   */
+  const handleResetVoiceToPreset = (friendId: string) => {
+    clearFriendVoice(friendId)
+    const preset = PRESET_FRIENDS.find((f) => f.id === friendId)
+    if (preset) {
+      setCurrentFriend((prev) => (prev.id === friendId ? { ...prev, voice: preset.voice } : prev))
+    }
+    setVoiceSettingsFriend(null)
+    setVoiceRevision((current) => current + 1)
+  }
+
+  /** 全員の声の上書きを捨てる。消した件数を返す。 */
+  const handleResetAllVoices = (): number => {
+    const count = clearAllFriendVoices()
+    const preset = PRESET_FRIENDS.find((f) => f.id === currentFriend.id)
+    if (preset) setCurrentFriend((prev) => ({ ...prev, voice: preset.voice }))
+    setVoiceSettingsFriend(null)
+    setVoiceRevision((current) => current + 1)
+    return count
   }
 
   /**
@@ -922,6 +949,8 @@ export default function App() {
         onClose={() => setIsSettingsModalOpen(false)}
         currentApiKey={apiKey}
         apiKeyStatus={apiKeyStatus}
+        voiceOverrideCount={listFriendVoiceOverrides().length}
+        onResetAllVoices={handleResetAllVoices}
         currentModel={model}
         currentTtsModel={ttsModel}
         currentTtsProvider={ttsProvider}
@@ -976,6 +1005,15 @@ export default function App() {
         onSaveVoice={(updatedVoice) => {
           const targetId = (voiceSettingsFriend || currentFriend).id
           if (targetId) handleSaveVoiceForFriend(targetId, updatedVoice)
+        }}
+        // プリセットの友達で、このブラウザに上書きがあるときだけ「プリセットに戻す」を出す
+        canResetToPreset={(() => {
+          const target = voiceSettingsFriend || currentFriend
+          return Boolean(target.id && PRESET_FRIENDS.some((f) => f.id === target.id) && loadFriendVoice(target.id))
+        })()}
+        onResetToPreset={() => {
+          const targetId = (voiceSettingsFriend || currentFriend).id
+          if (targetId) handleResetVoiceToPreset(targetId)
         }}
       />
 

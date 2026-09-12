@@ -354,6 +354,38 @@ export function saveFriendVoice(friendId: string, voice: Voice): void {
   }
 }
 
+/** この友達の声の上書きを捨て、presetFriends.ts の値に戻す。 */
+export function clearFriendVoice(friendId: string): void {
+  try {
+    localStorage.removeItem(`${STORAGE_KEYS.FRIEND_VOICE_PREFIX}${friendId}`)
+  } catch {
+    // ignore
+  }
+}
+
+/** 声の上書きが保存されている友達IDの一覧。全リセットの件数表示と実行に使う。 */
+export function listFriendVoiceOverrides(): string[] {
+  try {
+    const ids: string[] = []
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index)
+      if (key && key.startsWith(STORAGE_KEYS.FRIEND_VOICE_PREFIX)) {
+        ids.push(key.slice(STORAGE_KEYS.FRIEND_VOICE_PREFIX.length))
+      }
+    }
+    return ids
+  } catch {
+    return []
+  }
+}
+
+/** すべての友達の声の上書きを捨てる。消した件数を返す。 */
+export function clearAllFriendVoices(): number {
+  const ids = listFriendVoiceOverrides()
+  for (const id of ids) clearFriendVoice(id)
+  return ids.length
+}
+
 // --- プリセット友達のプロフィール上書き（キャラクターモード） ---
 
 export function loadFriendProfile(friendId: string): Partial<FriendProfile> | null {

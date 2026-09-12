@@ -68,6 +68,10 @@ interface SettingsModalProps {
   onOpenTtsDebug?: () => void
   /** 声の管理ダッシュボード（全キャラクターの声設定）を開く。 */
   onOpenVoiceAdmin?: () => void
+  /** このブラウザに保存されている声の上書きの件数。0 なら全リセットを出さない */
+  voiceOverrideCount?: number
+  /** 全員の声の上書きを捨ててプリセットに戻す。消した件数を返す */
+  onResetAllVoices?: () => number
   onSave: (
     apiKey: string,
     model: string,
@@ -102,6 +106,8 @@ export function SettingsModal({
   silenceTimeoutMs = DEFAULT_SILENCE_TIMEOUT_MS,
   onOpenTtsDebug,
   onOpenVoiceAdmin,
+  voiceOverrideCount = 0,
+  onResetAllVoices,
   onSave,
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey)
@@ -355,6 +361,26 @@ export function SettingsModal({
               >
                 <SettingsIcon className="w-3.5 h-3.5 text-rose-500" />
                 <span>声の管理ダッシュボードを開く（全キャラクターの声設定）</span>
+              </button>
+            )}
+
+            {onResetAllVoices && voiceOverrideCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    !confirm(
+                      `${voiceOverrideCount}人分の声の設定をプリセットの値に戻します。\nこのブラウザで保存した音声モデル・話者ID・調整値はすべて消え、元に戻せません。\n続けますか？`
+                    )
+                  ) {
+                    return
+                  }
+                  const count = onResetAllVoices()
+                  alert(`${count}人分の声の設定をプリセットに戻しました。`)
+                }}
+                className="w-full py-2 px-3 rounded-2xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>全員の声をプリセットに戻す（このブラウザの上書き {voiceOverrideCount} 人分を削除）</span>
               </button>
             )}
 
