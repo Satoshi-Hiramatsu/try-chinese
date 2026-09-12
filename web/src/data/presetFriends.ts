@@ -1,4 +1,4 @@
-import type { Friend, Voice } from '../types'
+import type { Friend, TtsVoiceTuning, Voice } from '../types'
 
 /**
  * プリセットの Friend（外国人の友達）
@@ -45,15 +45,50 @@ const VOICE = {
 
 type VoiceKey = keyof typeof VOICE
 
-const voice = (key: VoiceKey, gender: 'male' | 'female', rate: number, pitch: number): Voice => ({
-  quality: 'natural',
-  gender,
-  rate,
-  pitch,
-  voiceName: VOICE[key].voiceName,
-  voiceModel: VOICE[key].voiceModel,
-  ttsModel: 'hexgrad/kokoro-82m',
-})
+const KOKORO_MODEL = 'hexgrad/kokoro-82m'
+const FISH_MODEL = 'fish-audio/s2.1-pro'
+
+/** Fish Audio S2.1 で使う話者（reference_id）と調整値。声設定画面で作り込んだ値を書き出しから転記する。 */
+interface FishVoice {
+  referenceId: string
+  tuning?: TtsVoiceTuning
+}
+
+/**
+ * Kokoro の話者を基本にした Voice を組み立てる。
+ * fish を渡すと Fish Audio S2.1 を選択中モデルにし、Kokoro の話者は voiceByModel に退避して
+ * モデルを切り替えても戻れるようにする（voiceAssignment.ts の流儀と同じ）。
+ */
+const voice = (
+  key: VoiceKey,
+  gender: 'male' | 'female',
+  rate: number,
+  pitch: number,
+  fish?: FishVoice,
+): Voice => {
+  const base: Voice = {
+    quality: 'natural',
+    gender,
+    rate,
+    pitch,
+    voiceName: VOICE[key].voiceName,
+    voiceModel: VOICE[key].voiceModel,
+    ttsModel: KOKORO_MODEL,
+  }
+  if (!fish) return base
+  const voiceTuning = fish.tuning
+  return {
+    ...base,
+    ttsProvider: 'openrouter',
+    ttsModel: FISH_MODEL,
+    voiceModel: fish.referenceId,
+    voiceTuning,
+    voiceByModel: {
+      [KOKORO_MODEL]: { voiceModel: VOICE[key].voiceModel },
+      [FISH_MODEL]: { voiceModel: fish.referenceId, ...(voiceTuning ? { voiceTuning } : {}) },
+    },
+  }
+}
 
 export const PRESET_FRIENDS: Friend[] = [
   // ==================================================================== 女性
@@ -64,7 +99,10 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '親しみやすく好奇心旺盛、上海在住の大学生。日本のサブカルチャーや歴史にも詳しい。',
     hobbies: ['三国志', '映画鑑賞', '台湾料理'],
     tone: '明るくフランクな同年代の友達言葉',
-    voice: voice('xiaoxiao', 'female', 0.96, 1.05),
+    voice: voice('xiaoyi', 'female', 0.9, 1.0, {
+      referenceId: '4d9ea3a384294fe39dc9e235f7052ede',
+      tuning: { temperature: 0.95 },
+    }),
     initialMessage: {
       zh: '你好！我是陈美玲。很高兴认识你！你想聊点什么？三国志、看电影，还是台湾美食？',
       ja: 'こんにちは！陳美玲です。はじめまして！何について話したい？三国志、映画、それとも台湾グルメ？',
@@ -84,7 +122,9 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '成都在住のグラフィックデザイナー。感性豊かでのんびり屋。四川の激辛グルメとアート、猫が大好き。',
     hobbies: ['四川料理・火鍋', 'アート・イラスト', '猫・ペット', '旅行'],
     tone: 'ゆったり優しく、愛嬌のある話し方',
-    voice: voice('xiaoyi', 'female', 0.88, 1.18),
+    voice: voice('xiaoyi', 'female', 0.88, 1.18, {
+      referenceId: '4f5d1e5c63fd41cfae6c2e4525962b48',
+    }),
     initialMessage: {
       zh: '你好呀！我是李雪。很高兴认识你！想聊聊四川火锅、画画，还是可爱的猫猫？',
       ja: 'こんにちは！李雪だよ。はじめまして！四川火鍋やお絵描き、それとも可愛い猫ちゃんについて話す？',
@@ -104,7 +144,10 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '杭州在住の写真家・旅行ブロガー。穏やかで風情を大切にする。中国各地の名所巡りとお茶、中国伝統衣装（漢服）が好き。',
     hobbies: ['旅行・風景写真', '中国茶・茶道', '歴史文化・漢服', 'カフェ'],
     tone: '穏やかで品があり、旅情豊かなトーン',
-    voice: voice('xiaobei', 'female', 0.92, 0.96),
+    voice: voice('xiaobei', 'female', 0.9, 0.95, {
+      referenceId: '2daca7855fa44ab6b6e994ee93e5bd48',
+      tuning: { temperature: 0.9 },
+    }),
     initialMessage: {
       zh: '你好呀！我是子涵。很高兴能认识你！你想聊聊旅行、摄影，还是西湖的龙井茶？',
       ja: 'こんにちは！子涵（ズーハン）です。お会いできて嬉しいです！旅行や写真、それとも西湖の龍井茶について話しますか？',
@@ -124,7 +167,10 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '厦門在住のヨガ・ランニングコーチ。さっぱりした性格で面倒見がよい。海沿いを走ることと健康的な食事が日課。',
     hobbies: ['ヨガ・ランニング', '海辺の散歩', '健康料理', 'ドキュメンタリー'],
     tone: 'さっぱりして頼りがいのある、姉御肌のトーン',
-    voice: voice('xiaoni', 'female', 0.98, 1.0),
+    voice: voice('xiaoni', 'female', 1.05, 0.7, {
+      referenceId: 'be6cfb2466414562ae47c6791bb838ae',
+      tuning: { volume: 3, temperature: 0.85, repetitionPenalty: 1.35, latency: 'normal' },
+    }),
     initialMessage: {
       zh: '嗨！我是苏雨辰。很高兴认识你！你平时运动吗？我们可以聊聊瑜伽、跑步或者海边的风景。',
       ja: 'やあ！蘇雨辰です。はじめまして！普段運動してる？ヨガやランニング、海辺の景色について話そうよ。',
@@ -144,7 +190,10 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '昆明在住のパティシエ見習い。天真爛漫でよく笑う。お菓子作りと花市場めぐり、パンダの動画を見るのが好き。',
     hobbies: ['お菓子作り', '花・植物', 'パンダ', 'カフェ巡り'],
     tone: '天真爛漫で元気いっぱい、感嘆詞の多い話し方',
-    voice: voice('xiaoni', 'female', 1.02, 1.2),
+    voice: voice('xiaoni', 'female', 1.0, 1.05, {
+      referenceId: 'bcf813c406b74dcb81f69bd5ce52233f',
+      tuning: { temperature: 0.85, latency: 'normal' },
+    }),
     initialMessage: {
       zh: '你好你好！我是周暖，大家都叫我小暖。今天我做了蛋糕！你喜欢吃甜的吗？',
       ja: 'こんにちはこんにちは！周暖です、みんなからは小暖って呼ばれてるよ。今日はケーキを焼いたの！甘いもの好き？',
@@ -164,7 +213,10 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '深圳在住の金融アナリスト。理知的で言葉選びが丁寧。読書とジャズ、都市建築の話が好き。語学学習の相談にも乗ってくれる。',
     hobbies: ['読書', 'ジャズ', '都市・建築', '語学学習'],
     tone: '落ち着いて丁寧、大人っぽく理知的なトーン',
-    voice: voice('xiaobei', 'female', 0.9, 0.98),
+    voice: voice('xiaobei', 'female', 0.9, 0.98, {
+      referenceId: '6311cdf5503543a8882c708f46f380fc',
+      tuning: { latency: 'normal', temperature: 0.85, topP: 0.8 },
+    }),
     initialMessage: {
       zh: '你好，我是何静怡。很高兴认识你。你最近在读什么书吗？或者聊聊学中文的方法也可以。',
       ja: 'こんにちは、何静怡です。お会いできて嬉しいです。最近何か本を読んでいますか？中国語学習の方法について話すのもいいですね。',
@@ -184,7 +236,9 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '重慶在住のインディーバンドのベーシスト。マイペースで少しクール。夜のライブハウスと重慶の夜景、バイクが好き。',
     hobbies: ['バンド・音楽', 'ライブハウス', '夜景', 'バイク'],
     tone: 'クールで飾らない、短めの言い回しを好むトーン',
-    voice: voice('xiaoxiao', 'female', 0.94, 0.92),
+    voice: voice('xiaoxiao', 'female', 1.0, 0.92, {
+      referenceId: '5fb61ddb286e4654bc86b4c02bfe8610',
+    }),
     initialMessage: {
       zh: '嘿，我是唐小雨。我在乐队里弹贝斯。你平时听什么音乐？摇滚还是流行？',
       ja: 'やあ、唐小雨。バンドでベースを弾いてる。普段どんな音楽を聴くの？ロック、それともポップス？',
