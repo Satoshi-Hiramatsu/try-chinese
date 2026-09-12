@@ -2,6 +2,7 @@ import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import worker from '../src'
 import { isFreeModel, isModelAllowedForKey, parseFreeModelList, resolveApiKey } from '../src/lib/apiKey'
+import { looksLikeJapanese } from '../src/routes/chat'
 import { resetSpeechModelCache } from '../src/services/openRouterCatalog'
 
 /**
@@ -95,6 +96,13 @@ describe('lib/apiKey', () => {
     expect(isModelAllowedForKey('fish-audio/s2.1-pro', { key: 'k', source: 'user' })).toBe(true)
   })
 
+  it('日本語訳の判定は仮名の有無で行う', () => {
+    expect(looksLikeJapanese('私も好きです。')).toBe(true)
+    expect(looksLikeJapanese('映画が好き')).toBe(true)
+    expect(looksLikeJapanese('我也很喜欢。')).toBe(false)
+    expect(looksLikeJapanese(undefined)).toBe(false)
+  })
+
   it('無料 LLM の一覧は空白を除き、無料でないものは捨てる', () => {
     expect(parseFreeModelList(' a/b:free ,c/d, ,e/f:free')).toEqual(['a/b:free', 'e/f:free'])
     expect(parseFreeModelList(undefined)).toEqual([])
@@ -152,6 +160,39 @@ describe('無料モード: /api/chat', () => {
     stubUpstream({ chat: () => new Response('busy', { status: 429 }) })
     const response = await send('/api/chat', { message: '你好', friend: mockFriend, hskLevel: 2 })
     expect(response.status).toBe(429)
+  })
+
+  it('無料モードで日本語訳に中国語が返ったら、同じモデルで1回だけやり直す', async () => {
+    const chinese = { ...chatPayload, choices: [{ message: { content: JSON.stringify({
+      reply: { zh: '我也很喜欢。', ja: '我也很喜欢。', hskLevel: 2 }, correction: { hasCorrection: false }, vocabulary: [], expression: 'smile',
+    }) } }] }
+    const calls = stubUpstream({ chat: (_body, index) => Response.json(index === 0 ? chinese : chatPayload) })
+    const response = await send('/api/chat', { message: '你好', friend: mockFriend, hskLevel: 2, part: 'reply' })
+    expect(response.status).toBe(200)
+    expect(calls).toHaveLength(2)
+    expect(calls.map((call) => call.model)).toEqual(['nvidia/nemotron-3-super-120b-a12b:free', 'nvidia/nemotron-3-super-120b-a12b:free'])
+    const data = (await response.json()) as { reply: { ja: string } }
+    expect(data.reply.ja).toBe('私も好きです。')
+  })
+
+  it('やり直しても崩れていればそのまま返し、無限には繰り返さない', async () => {
+    const chinese = { ...chatPayload, choices: [{ message: { content: JSON.stringify({
+      reply: { zh: '我也很喜欢。', ja: '我也很喜欢。', hskLevel: 2 }, correction: { hasCorrection: false }, vocabulary: [], expression: 'smile',
+    }) } }] }
+    const calls = stubUpstream({ chat: () => Response.json(chinese) })
+    const response = await send('/api/chat', { message: '你好', friend: mockFriend, hskLevel: 2, part: 'reply' })
+    expect(response.status).toBe(200)
+    expect(calls).toHaveLength(2)
+  })
+
+  it('利用者キーの経路では日本語訳が崩れていてもやり直さない', async () => {
+    const chinese = { ...chatPayload, choices: [{ message: { content: JSON.stringify({
+      reply: { zh: '我也很喜欢。', ja: '我也很喜欢。', hskLevel: 2 }, correction: { hasCorrection: false }, vocabulary: [], expression: 'smile',
+    }) } }] }
+    const calls = stubUpstream({ chat: () => Response.json(chinese) })
+    const response = await send('/api/chat', { message: '你好', friend: mockFriend, hskLevel: 2, part: 'reply' }, { 'x-api-key': 'user-key' })
+    expect(response.status).toBe(200)
+    expect(calls).toHaveLength(1)
   })
 
   it('利用者キーの残高切れ(402)はそのまま 402 で返す', async () => {

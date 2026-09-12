@@ -22,6 +22,18 @@ function shouldTryNextFreeModel(error: unknown): boolean {
   return !(error instanceof LlmRequestError && error.status === 402)
 }
 
+/**
+ * 日本語訳として成立しているか。
+ * 無料モデルは1〜2割の確率で ja に中国語をそのまま返す。
+ * 日本語の文なら仮名がほぼ必ず含まれるので、それを目安にする。
+ */
+export function looksLikeJapanese(text: string | undefined): boolean {
+  return /[぀-ヿ]/.test(text || '')
+}
+
+/** 無料モードで、返答の日本語訳が崩れているときに同じモデルでやり直す回数。 */
+const FREE_MODE_JA_RETRIES = 1
+
 const chatRoute = new Hono<{ Bindings: ChatEnv }>()
 
 chatRoute.post('/chat', async (c) => {
@@ -74,18 +86,34 @@ chatRoute.post('/chat', async (c) => {
   }
 
   // 4. LLM 呼び出し。無料モデルは混雑しやすいので、失敗したら次の候補を試す。
+  const resolvedPart = part === 'reply' || part === 'support' ? part : 'all'
   let lastError: unknown
   for (const [index, model] of candidateModels.entries()) {
     try {
-      const result: ChatResponse = await callChatLLM({
+      let result: ChatResponse = await callChatLLM({
         message,
         friend,
         hskLevel: levelNum,
         history,
         apiKey: resolved.key,
         model,
-        part: part === 'reply' || part === 'support' ? part : 'all',
+        part: resolvedPart,
       })
+      // 無料モードだけ、日本語訳が崩れていたら同じモデルで少しだけやり直す。
+      // 有料キーの経路は品質が安定しているので、待ち時間を増やさない。
+      if (resolved.source === 'env' && resolvedPart !== 'support') {
+        for (let retry = 0; retry < FREE_MODE_JA_RETRIES && !looksLikeJapanese(result.reply.ja); retry += 1) {
+          result = await callChatLLM({
+            message,
+            friend,
+            hskLevel: levelNum,
+            history,
+            apiKey: resolved.key,
+            model,
+            part: resolvedPart,
+          })
+        }
+      }
       return c.json(result)
     } catch (error) {
       lastError = error
