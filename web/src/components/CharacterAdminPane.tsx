@@ -39,6 +39,8 @@ interface Props {
   onResetProfile: (friendId: string) => void
   /** 声質カスタマイズのモーダルを開く。 */
   onEditVoice: (friend: Friend) => void
+  /** 声の管理タブへ移る。 */
+  onOpenVoiceAdmin: () => void
   /** 会話画面の相手をこの友達に切り替える。 */
   onSelectFriend: (friend: Friend) => void
 }
@@ -115,6 +117,7 @@ export function CharacterAdminPane({
   onSaveProfile,
   onResetProfile,
   onEditVoice,
+  onOpenVoiceAdmin,
   onSelectFriend,
 }: Props) {
   const [filter, setFilter] = useState<FilterKey>('all')
@@ -408,7 +411,7 @@ export function CharacterAdminPane({
             <button type={'button'} onClick={() => onEditVoice(selected)}>
               声質を編集
             </button>
-            <a href={'#admin'}>声の管理ダッシュボードへ</a>
+            <button type={'button'} onClick={onOpenVoiceAdmin}>声の管理へ</button>
           </div>
         </div>
 

@@ -18,8 +18,7 @@ import { VoicePitchModal } from './components/VoicePitchModal'
 import { VocabularyModal } from './components/VocabularyModal'
 import { ReviewModal } from './components/ReviewModal'
 import { TtsDebugModal } from './components/TtsDebugModal'
-import { VoiceAdminDashboard } from './components/VoiceAdminDashboard'
-import { DevConsole } from './components/DevConsole'
+import { DevConsole, type DevTab } from './components/DevConsole'
 import { TitleScreen, type ContinueSummary } from './components/TitleScreen'
 import { AlertIcon, CloseIcon } from './components/Icons'
 import { sendMessageToChatApi, API_KEY_EXHAUSTED_MESSAGE } from './services/api'
@@ -198,10 +197,9 @@ export default function App() {
   const [voiceSettingsFriend, setVoiceSettingsFriend] = useState<Friend | null>(null)
   /** 利用者向けの「声の高さ」の対象。 */
   const [pitchFriend, setPitchFriend] = useState<Friend | null>(null)
-  /** 声の管理ダッシュボード。URLハッシュ #admin で開く。 */
-  const [isAdminOpen, setIsAdminOpen] = useState(false)
-  /** 開発者モード。URLハッシュ #dev で開く。通常の設定画面からは辿れない。 */
+  /** 開発者モード。URLハッシュ #dev で開く。通常の設定画面からは辿れない。#admin は声の管理タブへ転送する。 */
   const [isDevOpen, setIsDevOpen] = useState(false)
+  const [devInitialTab, setDevInitialTab] = useState<DevTab>('character')
   const [playingText, setPlayingText] = useState<string | null>(null)
 
   /*
@@ -268,14 +266,20 @@ export default function App() {
   }
 
   /**
-   * 声の管理ダッシュボードの開閉。
+   * 開発者モードの開閉。
    *
-   * 通常の会話画面と混ざらないよう、URLハッシュ `#admin` を入口にする。
+   * 通常の会話画面と混ざらないよう、URLハッシュ `#dev` を入口にする。
    * 直接URLを開いた場合と、戻る操作で閉じた場合の両方を拾う。
+   * 旧入口の `#admin` は `#dev` に書き換えて声の管理タブを開く。
    */
   useEffect(() => {
     const syncFromHash = () => {
-      setIsAdminOpen(window.location.hash === '#admin')
+      if (window.location.hash === '#admin') {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search + '#dev')
+        setDevInitialTab('voices')
+        setIsDevOpen(true)
+        return
+      }
       setIsDevOpen(window.location.hash === '#dev')
     }
     syncFromHash()
@@ -288,11 +292,6 @@ export default function App() {
     if (window.location.hash === hash) {
       window.history.replaceState(null, '', window.location.pathname + window.location.search)
     }
-  }
-
-  const closeAdmin = () => {
-    clearHash('#admin')
-    setIsAdminOpen(false)
   }
 
   const closeDev = () => {
@@ -976,6 +975,7 @@ export default function App() {
       <DevConsole
         isOpen={isDevOpen}
         onClose={closeDev}
+        initialTab={devInitialTab}
         onOpenTtsDebug={() => setIsTtsDebugOpen(true)}
         friends={allFriends}
         currentFriend={currentFriend}
@@ -984,15 +984,7 @@ export default function App() {
         onResetProfile={handleResetProfile}
         onEditVoice={(friend) => setVoiceSettingsFriend(friend)}
         onSelectFriend={handleSelectFriend}
-      />
-
-      {/* 声の管理ダッシュボード（#admin） */}
-      <VoiceAdminDashboard
-        isOpen={isAdminOpen}
-        onClose={closeAdmin}
-        friends={allFriends}
         onSaveVoice={handleSaveVoiceForFriend}
-        onEditFriend={(friend) => setVoiceSettingsFriend(friend)}
       />
 
       {/* 利用者向け: 声の高さ */}

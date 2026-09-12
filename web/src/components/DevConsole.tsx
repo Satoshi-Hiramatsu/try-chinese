@@ -1,14 +1,19 @@
-import { useState } from 'react'
-import type { Friend } from '../types'
+import { useEffect, useState } from 'react'
+import type { Friend, Voice } from '../types'
 import type { FriendProfile } from '../data/friendProfile'
 import { SttDebugPane } from './SttDebugPane'
 import { LlmDebugPane } from './LlmDebugPane'
 import { CharacterAdminPane } from './CharacterAdminPane'
+import { VoiceAdminDashboard } from './VoiceAdminDashboard'
 import '../styles/devConsole.css'
+
+export type DevTab = 'character' | 'voices' | 'stt' | 'llm' | 'tts'
 
 interface Props {
   isOpen: boolean
   onClose: () => void
+  /** 開いたときに出すタブ。#admin から来たときは声の管理。 */
+  initialTab?: DevTab
   /** TTS の検証は既存のモーダルをそのまま使う。ここからは開くだけ。 */
   onOpenTtsDebug: () => void
   friends: readonly Friend[]
@@ -19,12 +24,15 @@ interface Props {
   onResetProfile: (friendId: string) => void
   onEditVoice: (friend: Friend) => void
   onSelectFriend: (friend: Friend) => void
+  /** 声の管理: 1人分の声設定を保存する。 */
+  onSaveVoice: (friendId: string, voice: Voice) => void
 }
 
-type DevTab = 'character' | 'stt' | 'llm' | 'tts'
+const TAB_ORDER: readonly DevTab[] = ['character', 'voices', 'stt', 'llm', 'tts']
 
 const TAB_LABELS: Record<DevTab, string> = {
   character: 'キャラクター',
+  voices: '声の管理',
   stt: 'STT 比較',
   llm: 'LLM 比較',
   tts: 'TTS 比較',
@@ -35,12 +43,14 @@ const TAB_LABELS: Record<DevTab, string> = {
  *
  * 既定モデルを決めた以上、それが最良かを測り続けられる場所が要る。
  * STT・LLM・TTS の三段を同じ土俵で比較するための画面をここに集める。
- * キャラクターの立ち絵・声・プロフィールを俯瞰して直すキャラクターモードもここに置く。
- * 通常の設定画面からは辿れないようにし、URLハッシュだけを入口にする。
+ * キャラクターの立ち絵・声・プロフィールを俯瞰して直すキャラクターモードと、
+ * 全員の話者IDを一覧する声の管理もここに置く。
+ * 通常の設定画面からは辿れないようにし、URLハッシュだけを入口にする（#admin は声の管理タブへ転送）。
  */
 export function DevConsole({
   isOpen,
   onClose,
+  initialTab = 'character',
   onOpenTtsDebug,
   friends,
   currentFriend,
@@ -49,8 +59,14 @@ export function DevConsole({
   onResetProfile,
   onEditVoice,
   onSelectFriend,
+  onSaveVoice,
 }: Props) {
-  const [tab, setTab] = useState<DevTab>('character')
+  const [tab, setTab] = useState<DevTab>(initialTab)
+
+  // #admin で開き直したときなど、入口が変わったら指定のタブへ移る
+  useEffect(() => {
+    if (isOpen) setTab(initialTab)
+  }, [initialTab, isOpen])
 
   if (!isOpen) return null
 
@@ -65,7 +81,7 @@ export function DevConsole({
       </header>
 
       <nav className={'dev-console-tabs'}>
-        {(['character', 'stt', 'llm', 'tts'] as const).map((item) => (
+        {TAB_ORDER.map((item) => (
           <button key={item} type={'button'} data-active={tab === item} onClick={() => setTab(item)}>
             {TAB_LABELS[item]}
           </button>
@@ -81,7 +97,11 @@ export function DevConsole({
             onResetProfile={onResetProfile}
             onEditVoice={onEditVoice}
             onSelectFriend={onSelectFriend}
+            onOpenVoiceAdmin={() => setTab('voices')}
           />
+        ) : null}
+        {tab === 'voices' ? (
+          <VoiceAdminDashboard friends={[...friends]} onSaveVoice={onSaveVoice} onEditFriend={onEditVoice} />
         ) : null}
         {tab === 'stt' ? <SttDebugPane /> : null}
         {tab === 'llm' ? (

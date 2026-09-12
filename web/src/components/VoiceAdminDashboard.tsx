@@ -2,13 +2,12 @@
  * 声の管理ダッシュボード（開発者向け）。
  *
  * 全キャラクターの Fish Audio 話者ID・調整値を一覧し、カード上で直接変更・試聴する。
- * URLハッシュ `#admin` から開く。個人利用前提のため認証は設けない。
+ * 開発者モード（#dev）の「声の管理」タブに置く。個人利用前提のため認証は設けない。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Friend, TtsDebugRatings, TtsDebugRun, TtsVoiceTuning, Voice } from '../types'
 import {
-  CloseIcon,
   SpeakerIcon,
   StopCircleIcon,
   SettingsIcon,
@@ -26,8 +25,6 @@ import { FIXED_TTS_MODEL, findDuplicateAssignments, isFishReferenceId } from '..
 import { formatVoiceExport } from '../data/voiceExport'
 
 interface VoiceAdminDashboardProps {
-  isOpen: boolean
-  onClose: () => void
   friends: Friend[]
   /** 1人分の声設定を保存する。 */
   onSaveVoice: (friendId: string, voice: Voice) => void
@@ -97,8 +94,6 @@ function baseVoice(friend: Friend): Voice {
 }
 
 export function VoiceAdminDashboard({
-  isOpen,
-  onClose,
   friends,
   onSaveVoice,
   onEditFriend,
@@ -115,11 +110,11 @@ export function VoiceAdminDashboard({
   const queueRef = useRef<Friend[]>([])
 
   useEffect(() => {
-    if (!isOpen || !isImportOpen) return
+    if (!isImportOpen) return
     void loadRecentTtsDebugRuns(20)
       .then((runs) => setCombinations(toCombinations(runs)))
       .catch(() => setMessage('検証履歴を読み込めませんでした。'))
-  }, [isImportOpen, isOpen])
+  }, [isImportOpen])
 
   const stopAll = useCallback(() => {
     queueRef.current = []
@@ -128,10 +123,7 @@ export function VoiceAdminDashboard({
     setIsSequential(false)
   }, [])
 
-  useEffect(() => {
-    if (!isOpen) stopAll()
-  }, [isOpen, stopAll])
-
+  // タブを離れたら鳴らしっぱなしにしない
   useEffect(() => () => stopAll(), [stopAll])
 
   const duplicated = useMemo(() => findDuplicateAssignments(friends), [friends])
@@ -151,8 +143,6 @@ export function VoiceAdminDashboard({
   const unassignedCount = friends.filter((friend) => !friend.voice?.voiceModel).length
   const femaleCount = friends.filter((friend) => friend.voice?.gender !== 'male').length
   const maleCount = friends.filter((friend) => friend.voice?.gender === 'male').length
-
-  if (!isOpen) return null
 
   const copyExport = async () => {
     try {
@@ -241,27 +231,18 @@ export function VoiceAdminDashboard({
   ]
 
   return (
-    <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs p-2 sm:p-4 flex items-center justify-center animate-fade-in">
-      <div className="bg-white rounded-3xl w-full max-w-6xl max-h-[94vh] flex flex-col shadow-2xl border border-rose-100 overflow-hidden">
+    <div className="bg-white rounded-3xl w-full flex flex-col border border-rose-100 overflow-hidden">
         {/* Header */}
         <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-lg font-bold text-stone-900 m-0 flex items-center gap-2">
               <SettingsIcon className="w-5 h-5 text-rose-500" />
-              <span>声の管理ダッシュボード</span>
+              <span>声の管理</span>
             </h2>
             <p className="text-xs text-stone-500 m-0 mt-0.5">
               全{friends.length}人の話者ID（{FIXED_TTS_MODEL}）をまとめて確認し、割り当てを変更できます。
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="閉じる"
-            className="text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
-          >
-            <CloseIcon className="w-5 h-5" />
-          </button>
         </div>
 
         {/* 一括操作 */}
@@ -398,7 +379,7 @@ export function VoiceAdminDashboard({
         )}
 
         {/* キャラクター一覧 */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+        <div className="px-5 py-4">
           {visibleFriends.length === 0 ? (
             <p className="py-10 text-center text-xs text-stone-400">該当するキャラクターがいません。</p>
           ) : (
@@ -512,19 +493,11 @@ export function VoiceAdminDashboard({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-stone-100 bg-stone-50/80 flex-shrink-0 flex items-center justify-between">
+        <div className="px-5 py-3 border-t border-stone-100 bg-stone-50/80 flex-shrink-0">
           <p className="m-0 text-[11px] text-stone-500">
             変更は即座に保存されます。試聴と通し試聴にはAPI利用料がかかります。
           </p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-stone-200 hover:bg-stone-300 text-stone-700 cursor-pointer"
-          >
-            閉じる
-          </button>
         </div>
-      </div>
     </div>
   )
 }
