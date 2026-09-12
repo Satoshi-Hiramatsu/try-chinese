@@ -3,7 +3,7 @@
 - 対象プロジェクト: しゃべチャイナ
 - 対象画面: `web/src/components/TitleScreen.tsx` / 新規「APIキー」モーダル / `SettingsModal.tsx` / `Header.tsx`
 - 関連ファイル: `web/src/services/speech.ts`, `web/src/services/storage.ts`, `web/src/data/voiceAssignment.ts`, `web/src/data/presetFriends.ts`, `worker/src/routes/tts.ts`, `worker/src/routes/chat.ts`, `worker/src/index.ts`
-- 文書版: v0.2（D1〜D3 確定、未着手）
+- 文書版: v0.3（T-85〜T-91 実装済み。無料 LLM は Nemotron 3 Super (free) → Nex N2.5 Pro (free) に決定）
 - 作成日: 2026-09-12
 
 ---
