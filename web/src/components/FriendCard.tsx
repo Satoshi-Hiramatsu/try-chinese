@@ -9,9 +9,6 @@ interface FriendCardProps {
 }
 
 export function FriendCard({ friend, onOpenFriendList, onOpenVoiceSettings }: FriendCardProps) {
-  const genderLabel = friend.voice?.gender === 'male' ? '男性声' : '女性声'
-  const rateLabel = friend.voice?.rate ? `${friend.voice.rate.toFixed(1)}x` : '0.9x'
-
   return (
     <div className="w-full bg-white/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-sm border border-rose-150/80 transition-all">
       <div className="flex items-start gap-4">
@@ -31,14 +28,11 @@ export function FriendCard({ friend, onOpenFriendList, onOpenVoiceSettings }: Fr
                 <button
                   type="button"
                   onClick={onOpenVoiceSettings}
-                  title="相手の声質・読み上げ設定"
+                  title="声の高さを変える"
                   className="text-xs text-stone-600 hover:text-rose-600 font-medium px-2.5 py-1.5 rounded-lg hover:bg-rose-50 transition-colors flex items-center gap-1 border border-stone-200 hover:border-rose-200 cursor-pointer"
                 >
                   <SpeakerIcon className="w-3.5 h-3.5 text-rose-500" />
-                  <span>声質</span>
-                  <span className="text-[10px] text-stone-400 font-normal hidden sm:inline">
-                    ({genderLabel}·{rateLabel})
-                  </span>
+                  <span>声の高さ</span>
                 </button>
               )}
               {onOpenFriendList && (

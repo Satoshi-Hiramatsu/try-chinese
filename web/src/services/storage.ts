@@ -1,7 +1,7 @@
 import type { FriendProfile } from '../data/friendProfile'
 import type { ChatMessage, Friend, Voice, VocabularyItem } from '../types'
 import { DEFAULT_SILENCE_TIMEOUT_MS, clampSilenceTimeoutMs } from './speech'
-import { normalizeStoredVoice } from '../data/fishVoice'
+import { clampVoicePitch, normalizeStoredVoice } from '../data/fishVoice'
 
 const STORAGE_KEYS = {
   API_KEY: 'shabe_china_api_key',
@@ -18,6 +18,7 @@ const STORAGE_KEYS = {
   SPEECH_INPUT_LANG: 'shabe_china_speech_input_lang',
   SILENCE_TIMEOUT_MS: 'shabe_china_silence_timeout_ms',
   FRIEND_VOICE_PREFIX: 'shabe_china_voice_',
+  FRIEND_PITCH_PREFIX: 'shabe_china_pitch_',
   VOCABULARY_LIST: 'shabe_china_vocabulary_list',
   TONE_COLORING: 'shabe_china_tone_coloring',
   VIEW_MODE: 'shabe_china_view_mode',
@@ -367,6 +368,31 @@ export function saveFriendVoice(friendId: string, voice: Voice): void {
 export function clearFriendVoice(friendId: string): void {
   try {
     localStorage.removeItem(`${STORAGE_KEYS.FRIEND_VOICE_PREFIX}${friendId}`)
+  } catch {
+    // ignore
+  }
+}
+
+// --- 利用者が変えた声の高さ ---
+// 声そのもの（話者ID・調整値）とは別に持つ。プリセットの声を後から直しても、高さの好みだけ残して届くようにするため。
+
+export function loadFriendPitch(friendId: string): number | null {
+  try {
+    const raw = localStorage.getItem(`${STORAGE_KEYS.FRIEND_PITCH_PREFIX}${friendId}`)
+    if (raw === null) return null
+    const value = Number(raw)
+    return Number.isFinite(value) ? clampVoicePitch(value) : null
+  } catch {
+    return null
+  }
+}
+
+/** null を渡すと保存を消して標準に戻す。 */
+export function saveFriendPitch(friendId: string, pitch: number | null): void {
+  try {
+    const key = `${STORAGE_KEYS.FRIEND_PITCH_PREFIX}${friendId}`
+    if (pitch === null) localStorage.removeItem(key)
+    else localStorage.setItem(key, String(clampVoicePitch(pitch)))
   } catch {
     // ignore
   }

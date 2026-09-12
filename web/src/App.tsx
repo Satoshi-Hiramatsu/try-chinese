@@ -14,6 +14,7 @@ import { ApiKeyModal } from './components/ApiKeyModal'
 import { OnboardingModal } from './components/OnboardingModal'
 import { FriendListModal } from './components/FriendListModal'
 import { VoiceSettingsModal } from './components/VoiceSettingsModal'
+import { VoicePitchModal } from './components/VoicePitchModal'
 import { VocabularyModal } from './components/VocabularyModal'
 import { ReviewModal } from './components/ReviewModal'
 import { TtsDebugModal } from './components/TtsDebugModal'
@@ -58,6 +59,8 @@ import {
   saveSilenceTimeoutMs,
   loadFriendVoice,
   saveFriendVoice,
+  loadFriendPitch,
+  saveFriendPitch,
   clearFriendVoice,
   loadFriendProfile,
   saveFriendProfile,
@@ -139,6 +142,18 @@ const AUX_CONTROLS_HIDE_DELAY_MS = 4000
  */
 const IMMERSIVE_VIEWPORT_QUERY = '(pointer: coarse) and (orientation: landscape) and (max-height: 560px)'
 
+/**
+ * このブラウザに保存された声を友達に重ねる。
+ * 開発者の声の上書き（話者ID・調整値）→ 利用者の声の高さ、の順。高さは声そのものとは別に保存されている。
+ */
+function withStoredVoice(friend: Friend): Friend {
+  if (!friend.id) return friend
+  const voice = loadFriendVoice(friend.id) ?? friend.voice
+  if (!voice) return friend
+  const pitch = loadFriendPitch(friend.id)
+  return { ...friend, voice: pitch !== null ? { ...voice, pitch } : voice }
+}
+
 export default function App() {
   const [hskLevel, setHskLevel] = useState<number>(() => loadHskLevel(2))
   const [apiKey, setApiKey] = useState<string>(() => loadApiKey())
@@ -155,15 +170,10 @@ export default function App() {
   /** 声設定・プロフィール上書きの保存を検知して友達リストを組み直すための世代番号。 */
   const [voiceRevision, setVoiceRevision] = useState(0)
 
-  // 全友達リスト（プリセット＋カスタム）※保存された個別声質設定・プロフィール上書きをマージ
+  // 全友達リスト（プリセット＋カスタム）※保存された声・高さ・プロフィールの上書きをマージ
   const allFriends = useMemo(() => {
     const list = [...PRESET_FRIENDS, ...customFriends]
-    return list.map((f) => {
-      if (!f.id) return f
-      const withProfile = applyProfile(f, loadFriendProfile(f.id))
-      const savedVoice = loadFriendVoice(f.id)
-      return savedVoice ? { ...withProfile, voice: savedVoice } : withProfile
-    })
+    return list.map((f) => (f.id ? withStoredVoice(applyProfile(f, loadFriendProfile(f.id))) : f))
     // voiceRevision は保存のたびに増える。プリセットの声・プロフィールはlocalStorage側にあるため再読込が要る。
   }, [customFriends, voiceRevision])
 
@@ -184,8 +194,10 @@ export default function App() {
   const [toneColoring, setToneColoring] = useState<boolean>(() => loadToneColoring(false))
   // 音声入力を打ち切る（ハンズフリーでは自動送信する）までの無音許容時間
   const [silenceTimeoutMs, setSilenceTimeoutMs] = useState<number>(() => loadSilenceTimeoutMs())
-  /** 声質カスタマイズの対象。null のあいだはモーダルを閉じる。管理画面から別の友達を開くために持つ。 */
+  /** 開発者向けの声設定の対象。null のあいだはモーダルを閉じる。管理画面から別の友達を開くために持つ。 */
   const [voiceSettingsFriend, setVoiceSettingsFriend] = useState<Friend | null>(null)
+  /** 利用者向けの「声の高さ」の対象。 */
+  const [pitchFriend, setPitchFriend] = useState<Friend | null>(null)
   /** 声の管理ダッシュボード。URLハッシュ #admin で開く。 */
   const [isAdminOpen, setIsAdminOpen] = useState(false)
   /** 開発者モード。URLハッシュ #dev で開く。通常の設定画面からは辿れない。 */
@@ -437,6 +449,15 @@ export default function App() {
     setVoiceRevision((current) => current + 1)
   }
 
+  /** 利用者が変えた声の高さを保存する。null は標準に戻す。 */
+  const handleSavePitchForFriend = (friendId: string, pitch: number | null) => {
+    saveFriendPitch(friendId, pitch)
+    const apply = (friend: Friend): Friend =>
+      friend.id === friendId && friend.voice ? { ...friend, voice: { ...friend.voice, pitch: pitch ?? 1.0 } } : friend
+    setCurrentFriend(apply)
+    setVoiceRevision((current) => current + 1)
+  }
+
   /**
    * プリセットの友達の声の上書きを捨てて presetFriends.ts の値に戻す。
    * カスタム友達は声が本体にしか無いため対象にしない（呼び出し側でボタンを出さない）。
@@ -523,11 +544,8 @@ export default function App() {
     const initial = saved.length > 0 ? saved : [buildWelcomeMessage(newFriend, hskLevel)]
     const nextMessages = sanitizeWelcomeHistory(initial, newFriend, hskLevel)
 
-    // 保存された音声設定を反映
-    const savedVoice = loadFriendVoice(newFriendId)
-    const friendWithVoice = savedVoice ? { ...newFriend, voice: savedVoice } : newFriend
-
-    setCurrentFriend(friendWithVoice)
+    // 保存された声と高さを反映
+    setCurrentFriend(withStoredVoice(newFriend))
     setMessages(nextMessages)
     saveSelectedFriendId(newFriendId)
     setErrorMessage(null)
@@ -606,8 +624,7 @@ export default function App() {
     handleSelectFriend(friend)
     if (titleFriendPick === 'new') {
       // 同じ友達を選び直した場合は handleSelectFriend が早期リターンするので、ここで確実に新規にする
-      const savedVoice = loadFriendVoice(friendId)
-      setCurrentFriend(savedVoice ? { ...friend, voice: savedVoice } : friend)
+      setCurrentFriend(withStoredVoice(friend))
       setMessages([buildWelcomeMessage(friend, hskLevel)])
     }
     enterPlay()
@@ -874,7 +891,7 @@ export default function App() {
             onSaveVocabulary={handleAddVocabulary}
             onOpenLog={() => setIsLogModalOpen(true)}
             onOpenFriendList={() => setIsFriendListOpen(true)}
-            onOpenVoiceSettings={() => setVoiceSettingsFriend(currentFriend)}
+            onOpenVoiceSettings={() => setPitchFriend(currentFriend)}
             logCount={messages.length}
           />
         ) : (
@@ -883,7 +900,7 @@ export default function App() {
             <FriendCard
               friend={currentFriend}
               onOpenFriendList={() => setIsFriendListOpen(true)}
-              onOpenVoiceSettings={() => setVoiceSettingsFriend(currentFriend)}
+              onOpenVoiceSettings={() => setPitchFriend(currentFriend)}
             />
 
             {/* Chat Message List */}
@@ -978,7 +995,18 @@ export default function App() {
         onEditFriend={(friend) => setVoiceSettingsFriend(friend)}
       />
 
-      {/* Voice Settings Modal */}
+      {/* 利用者向け: 声の高さ */}
+      <VoicePitchModal
+        isOpen={pitchFriend !== null}
+        onClose={() => setPitchFriend(null)}
+        friend={pitchFriend || currentFriend}
+        onSave={(pitch) => {
+          const targetId = (pitchFriend || currentFriend).id
+          if (targetId) handleSavePitchForFriend(targetId, pitch)
+        }}
+      />
+
+      {/* 開発者向け: 声設定（話者ID・調整値） */}
       <VoiceSettingsModal
         isOpen={voiceSettingsFriend !== null}
         onClose={() => setVoiceSettingsFriend(null)}
