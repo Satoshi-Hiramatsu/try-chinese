@@ -7,6 +7,102 @@
 
 ---
 
+## T-103 — 開発者モードに「テストモード」タブを足し、会話モデルの上書きと声の全リセットを置く
+
+**2026-09-12** · [`1d2e1a8`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/1d2e1a8ed4356fd523c9e8d2e776a6b321f59172)
+
+利用者には固定している会話モデルを、開発者だけが `#dev` → テストモードで差し替えられます。上書き中は通常画面のヘッダーに「テストモード中」バッジ（`#dev` へのリンク）が出て、戻し忘れに気付けます。旧設定画面にあった「全員の声をプリセットに戻す」もここへ移しました。音声モデルは Fish 固定のまま表示だけします。
+
+---
+
+## T-102 — 声の管理ダッシュボードを開発者モードの「声の管理」タブに統合する
+
+**2026-09-12** · [`4abbaeb`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/4abbaebf1bd6377414fe2b7feafff411c0f67164)
+
+`#admin` を開くと `#dev` に書き換えて声の管理タブを出します。ダッシュボードは全画面ダイアログからペインになり、キャラクタータブの「声の管理へ」はタブ切替になりました。
+
+---
+
+## T-101 — 利用者向けの「声の高さ」モーダルを足し、声そのものの設定は開発者モードだけにする
+
+**2026-09-12** · [`5823ee4`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/5823ee4797e29dea2641b08f95310b9b7dd2d442)
+
+ノベル画面の ⚙️ とチャット画面の「声の高さ」は、スライダー・試聴・標準に戻すだけの `VoicePitchModal` を開きます。高さは `shabe_china_pitch_<friendId>` に声とは別に保存し、読み込み時に「開発者の声の上書き → 利用者の高さ」の順で重ねるため、プリセットの声を後から直しても高さの好みだけ残って届きます。⚙️ の文言も揃えました（[`cb60456`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/cb6045672bd7b5044b663b20bdb4cd04714f297a)）。
+
+---
+
+## T-99 — キーが使えないときは会話も読み上げも送らず、理由つきでキー入力を促す
+
+**2026-09-12** · [`f8cc346`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/f8cc346569a4b0ac04a58027fb6592800e7e422d)
+
+送信前・読み上げ前・オンボーディング完了時に使えるキーを確認し、無ければ API キーのモーダルを理由つきで開きます。残高切れ（402）は別モデルへ黙って切り替えず、キーの状態を「残高切れ」にしてチャージ後の再確認へ誘導します。Worker の無料代行コードは残していますが、フロントからは呼びません。
+
+---
+
+## T-98 — 設定画面を利用者向けに絞り、「無料モード」の文言をキー必須の案内に変える
+
+**2026-09-12** · [`49f0cee`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/49f0ceeee3533338aa8d670687574711317feaf8)
+
+設定に残すのは API キー・自動読み上げ・マイク言語・無音待機・声調カラーだけです。声の管理ダッシュボード・全員リセット・TTS 検証ボタン・`?ttsDebug=1`・コスト案内枠を外しました。キー未設定はヘッダーとタイトルで琥珀色のバッジにして気付けるようにしました。
+
+---
+
+## T-100 — 声の高さ（ピッチ）を再生速度で作り、Fish の speed で速さを打ち消す
+
+**2026-09-12** · [`9a33cfb`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/9a33cfb01856a6ba9e37d0a8957809773f5ff066)
+
+Fish Audio にはピッチ指定が無いため、`HTMLAudioElement` の `playbackRate` を pitch 倍にし `preservesPitch` を切って音程を変えます。速度も pitch 倍になるので Fish に頼む `speed` を `rate / pitch` にして、聞こえる速さは `rate` のままにします。高さが 1.0 のときは従来どおり何もしません。範囲は 0.85〜1.20 です。
+
+---
+
+## T-97 — 会話モデルを DeepSeek V4.1 Flash に固定し、上書きは開発者モードだけにする
+
+**2026-09-12** · [`a752d9e`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/a752d9ec9ff1256cb6a9b71d00387f5985d2d3d6)
+
+`llmModel.ts` に固定モデルと候補一覧、上書きの解決（`resolveLlmModel`）を置きました。設定画面から会話モデルの選択を外し、旧キー `shabe_china_selected_model` は読みません。
+
+---
+
+## T-96 — 声を Fish Audio S2.1 Pro 専用にし、Kokoro・ブラウザ音声・モデル切替を取り除く
+
+**2026-09-12** · [`52b5654`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/52b565472b265b813fd5ce2a4dbfe2aac2f573f5)
+
+`Voice` を `{ gender, voiceModel(reference_id), rate, pitch, voiceTuning }` に絞り、`ttsProvider` / `ttsModel` / `voiceName` / `voiceByModel` と Kokoro・Edge・Qwen の話者プリセット、ブラウザ音声の読み上げ、無料モードの声差し替え、カスタム声質を削除しました。`fishVoice.ts` が固定モデル・話者IDの判定・旧保存データの正規化（Kokoro 選択中でも退避してあった Fish の話者へ戻す）・プリセットの声の貸し出し・重複検出を持ちます。カスタム友達の声は同性のプリセット友達から借ります。ブラウザ音声用だったピッチは全員 1.0 に戻しました（Fish には効いていなかったため）。計画書は `docs/一般ユーザー向けテスト公開_計画書.md`（[`8b962a9`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/8b962a96eaefb028707db5ba8d25e74387832354)）。
+
+---
+
+## T-94 — 女性10人全員の声を Fish Audio S2.1 Pro の話者IDで確定する
+
+**2026-09-12** · [`d9fafe5`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/d9fafe5d357631294e3d82c2829e395865bd212a)
+
+T-92 の7人に残り3人を加え、女性10人全員の `reference_id` と調整値を `presetFriends.ts` に転記しました。男性10人は T-95 で確定します。
+
+---
+
+## T-93 — 声の上書きをプリセットに戻すボタンを個別・全員ぶん足す
+
+**2026-09-12** · [`e8edb78`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/e8edb78f39e4d53d2be04417bf350b4d6fae334f)
+
+声設定に「プリセットの声に戻す」、設定画面に「全員の声をプリセットに戻す」を足しました（後者は T-103 でテストモードへ移動）。
+
+---
+
+## T-92 — プリセット7人の声を Fish Audio S2.1 Pro の話者IDと調整値で反映する
+
+**2026-09-12** · [`8775ec1`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/8775ec17261287cfed3fe15546c000b88cf556a8)
+
+声設定の書き出しから美玲・李雪・子涵・雨辰・暖・静怡・小雨の `reference_id`・調整値・速度を転記しました。
+
+---
+
+## T-91 — README と変更履歴を T-90 まで更新し、無料モードと secret の手順を書く
+
+**2026-09-12** · [`f57c2d9`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/f57c2d9cbcfb45094ae91eba2ed5fc06790b360e)
+
+計画書の版も実装済みに更新しました（[`e331dde`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/e331dde8f807aee1a591dd4860a03eca87c65316)）。
+
+---
+
 ## T-90 — 声質設定と管理ダッシュボードに無料モードの注記を出す
 
 **2026-09-12** · [`3ecbde7`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/3ecbde779d5ffc5cbc764f372340e27d3a96009d)
