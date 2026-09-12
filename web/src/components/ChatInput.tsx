@@ -3,7 +3,11 @@ import { SendIcon, MicIcon, StopCircleIcon, ChinaFlagIcon, JapanFlagIcon } from 
 import {
   stopSpeaking,
   clampSilenceTimeoutMs,
+  createSpeechRecognizer,
+  isSpeechRecognitionSupported,
   DEFAULT_SILENCE_TIMEOUT_MS,
+  MAX_SILENCE_TIMEOUT_MS,
+  type SpeechRecognitionController,
 } from '../services/speech'
 import {
   isRecordingSupported,
@@ -59,6 +63,9 @@ export function ChatInput({
   const [isTranscribing, setIsTranscribing] = useState(false)
   // 無音タイムアウトに到達する時刻。カウントダウン表示のためだけに持つ。
   const [silenceDeadline, setSilenceDeadline] = useState<number | null>(null)
+  // 話している途中の文字。ブラウザ認識のプレビューで、送信本文（録音→STT）とは別物。
+  const [previewFinal, setPreviewFinal] = useState('')
+  const [previewInterim, setPreviewInterim] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const recorderRef = useRef<RecorderController | null>(null)
   const recordingGenerationRef = useRef(0)
@@ -68,6 +75,11 @@ export function ChatInput({
   const transcriptionAbortRef = useRef<AbortController | null>(null)
   const isStartingRecordingRef = useRef(false)
   const isFinalizingRecordingRef = useRef(false)
+  // 録音と並行して走らせるブラウザ認識。表示と「发送」「送信」の合図にだけ使う。
+  const previewRecognizerRef = useRef<SpeechRecognitionController | null>(null)
+  const previewFinalRef = useRef('')
+  // プレビュー側で送信の合図を聞き取ったか。STT の末尾に残った合図を緩めに剥がす根拠にする。
+  const previewSendCommandRef = useRef(false)
   const noiseFloorRef = useRef(0.01)
   const heardVoiceRef = useRef(false)
   const textRef = useRef('')
@@ -120,9 +132,19 @@ export function ChatInput({
     setSilenceDeadline(null)
   }, [])
 
+  const stopPreview = useCallback(() => {
+    previewRecognizerRef.current?.abort()
+    previewRecognizerRef.current = null
+    previewFinalRef.current = ''
+    previewSendCommandRef.current = false
+    setPreviewFinal('')
+    setPreviewInterim('')
+  }, [])
+
   const cancelActiveRecording = useCallback(() => {
     recordingGenerationRef.current += 1
     clearSilenceTimer()
+    stopPreview()
     recorderRef.current?.cancel()
     recorderRef.current = null
     transcriptionAbortRef.current?.abort()
@@ -132,7 +154,7 @@ export function ChatInput({
     setIsPreparingRecording(false)
     setIsTranscribing(false)
     setIsListening(false)
-  }, [clearSilenceTimer])
+  }, [clearSilenceTimer, stopPreview])
 
   const sendContent = useCallback((content: string, inputMethod = inputMethodRef.current) => {
     const trimmed = content.trim()
@@ -162,6 +184,10 @@ export function ChatInput({
     recorderRef.current = null
     isFinalizingRecordingRef.current = true
     clearSilenceTimer()
+    // プレビューは録音と同時に閉じる。STT が空振りしたときの控えとして最後の確定文だけ持ち越す。
+    const previewFallback = parseVoiceSendCommand(previewFinalRef.current, recordingLangRef.current).content
+    const heardSendCommandInPreview = previewSendCommandRef.current
+    stopPreview()
     setIsListening(false)
     setIsTranscribing(true)
 
@@ -171,20 +197,31 @@ export function ChatInput({
 
       const abortController = new AbortController()
       transcriptionAbortRef.current = abortController
-      const finalSpeech = await transcribeRecording(recording, {
-        language: recordingLangRef.current,
-        signal: abortController.signal,
-      })
+      let finalSpeech = ''
+      try {
+        finalSpeech = await transcribeRecording(recording, {
+          language: recordingLangRef.current,
+          signal: abortController.signal,
+        })
+      } catch (error) {
+        // 一括STTが使えなくても、プレビューで確定した文があるならそれで会話を続ける。
+        const aborted = error instanceof DOMException && error.name === 'AbortError'
+        if (aborted || !previewFallback) throw error
+        console.warn('STT failed; falling back to browser recognition preview:', error)
+      }
       if (generation !== recordingGenerationRef.current || abortController.signal.aborted) return
 
       transcriptionAbortRef.current = null
-      const parsed = parseVoiceSendCommand(finalSpeech, recordingLangRef.current)
-      const next = joinSpeechText(recordingBaseTextRef.current, parsed.content)
+      const parsed = parseVoiceSendCommand(finalSpeech, recordingLangRef.current, {
+        lenient: heardSendCommandInPreview,
+      })
+      const content = parsed.content || previewFallback
+      const next = joinSpeechText(recordingBaseTextRef.current, content)
       textRef.current = next
       setText(next)
       setTimeout(handleInput, 10)
 
-      if (sendWhenReady || parsed.hasSendCommand) {
+      if (sendWhenReady || parsed.hasSendCommand || heardSendCommandInPreview) {
         if (next) {
           sendContent(next, 'voice')
         } else {
@@ -211,7 +248,7 @@ export function ChatInput({
         setIsTranscribing(false)
       }
     }
-  }, [clearSilenceTimer, onHandsFreeChange, sendContent])
+  }, [clearSilenceTimer, onHandsFreeChange, sendContent, stopPreview])
 
   const armSilenceTimer = useCallback(() => {
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
@@ -222,6 +259,50 @@ export function ChatInput({
       setSilenceDeadline(null)
       void finishRecording(handsFreeRef.current)
     }, silenceTimeoutRef.current)
+  }, [finishRecording])
+
+  /**
+   * 録音と並行してブラウザ認識を開く。文字は画面に見せるだけで、送信本文には使わない。
+   * 「发送」「送信」を聞き取ったら録音を締める合図にする。
+   * 動かない環境や途中で落ちた場合はプレビューを消すだけで、録音はそのまま続く。
+   */
+  const startPreview = useCallback((generation: number, lang: 'zh-CN' | 'ja-JP') => {
+    if (!isSpeechRecognitionSupported() || previewRecognizerRef.current) return
+    const isStale = () => generation !== recordingGenerationRef.current
+    let recognizer: SpeechRecognitionController | null = null
+    recognizer = createSpeechRecognizer({
+      lang,
+      continuous: true,
+      // 発話の終わりは録音側の音量で決める。こちらの無音打ち切りは邪魔にならない長さにする。
+      silenceTimeoutMs: MAX_SILENCE_TIMEOUT_MS,
+      onInterimResult: (interim) => {
+        if (isStale()) return
+        setPreviewInterim(interim)
+      },
+      onFinalResult: (final) => {
+        if (isStale()) return
+        previewFinalRef.current = final
+        setPreviewFinal(final)
+        if (parseVoiceSendCommand(final, lang).hasSendCommand) {
+          previewSendCommandRef.current = true
+          void finishRecording(true)
+        }
+      },
+      onError: () => {
+        // プレビューが落ちても録音は続く。文字が見えないだけで済ませる。
+        if (isStale() || previewRecognizerRef.current !== recognizer) return
+        previewRecognizerRef.current = null
+        setPreviewInterim('')
+      },
+      onEnd: () => {
+        if (isStale() || previewRecognizerRef.current !== recognizer) return
+        previewRecognizerRef.current = null
+        setPreviewInterim('')
+      },
+    })
+    if (!recognizer) return
+    previewRecognizerRef.current = recognizer
+    recognizer.start()
   }, [finishRecording])
 
   const startListening = useCallback(async () => {
@@ -273,6 +354,8 @@ export function ChatInput({
       recorderRef.current = recorder
       setIsListening(true)
       armSilenceTimer()
+      // 録音が確立してから開く。プレビューが動かなくても録音は影響を受けない。
+      startPreview(generation, speechLang)
     } catch (error) {
       if (generation !== recordingGenerationRef.current) return
       onErrorRef.current?.(error instanceof Error ? error.message : 'マイクを開始できませんでした。')
@@ -286,7 +369,7 @@ export function ChatInput({
         setIsPreparingRecording(false)
       }
     }
-  }, [armSilenceTimer, isSupported, onHandsFreeChange, speechLang])
+  }, [armSilenceTimer, isSupported, onHandsFreeChange, speechLang, startPreview])
 
   useEffect(() => {
     const wasLoading = wasLoadingRef.current
@@ -426,49 +509,58 @@ export function ChatInput({
     <div className="chat-input-shell w-full bg-white/95 backdrop-blur-md rounded-2xl p-2 sm:p-3 shadow-md border border-rose-200/80">
       {/* ハンズフリー / 録音・文字起こしの状態 */}
       {(isListening || isPreparingRecording || isTranscribing || handsFreeEnabled) && (
-        <div className="mb-2 px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between" aria-live="polite">
-          <div className="flex items-center gap-2 text-xs font-semibold text-rose-600 min-w-0">
-            <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-600"></span>
-            </span>
-            <span className="flex-shrink-0">
-              {isFriendSpeaking
-                ? '友達が話しています...'
-                : isLoading
-                  ? '返答を待っています...'
-                  : isTranscribing
-                    ? '文字起こし中...'
-                    : isPreparingRecording
-                      ? 'マイクを準備中...'
-                      : isListening
-                        ? (speechLang === 'zh-CN' ? '中国語で録音中...' : '日本語で録音中...')
-                        : 'マイクを再開します...'}
-            </span>
-          </div>
-          {isListening && (
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <SilenceCountdownRing
-                deadline={silenceDeadline}
-                totalMs={clampSilenceTimeoutMs(silenceTimeoutMs)}
-                mode={handsFreeEnabled ? 'send' : 'stop'}
-              />
-              {/*
-                無音の使い切りを待たずに送れることが分かるよう、幅に関わらず出す。
-                待ち時間の短縮はこの合図を知っているかどうかで決まるため、
-                主端末であるスマートフォンで隠れていては意味がない。
-              */}
-              <span className="text-[10px] font-bold text-rose-500 whitespace-nowrap">
-                {`「${speechLang === 'zh-CN' ? '发送' : '送信'}」で送信`}
+        <div className="mb-2 px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-xl flex flex-col gap-1" aria-live="polite">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold text-rose-600 min-w-0">
+              <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-600"></span>
               </span>
-              <button
-                type="button"
-                onClick={() => void finishRecording(handsFreeEnabled)}
-                className="px-2 py-0.5 text-xs bg-white border border-rose-200 text-rose-600 font-bold rounded-md hover:bg-rose-100 transition-colors cursor-pointer"
-              >
-                {handsFreeEnabled ? '送信' : '完了'}
-              </button>
+              <span className="flex-shrink-0">
+                {isFriendSpeaking
+                  ? '友達が話しています...'
+                  : isLoading
+                    ? '返答を待っています...'
+                    : isTranscribing
+                      ? '文字起こし中...'
+                      : isPreparingRecording
+                        ? 'マイクを準備中...'
+                        : isListening
+                          ? (speechLang === 'zh-CN' ? '中国語で録音中...' : '日本語で録音中...')
+                          : 'マイクを再開します...'}
+              </span>
             </div>
+            {isListening && (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <SilenceCountdownRing
+                  deadline={silenceDeadline}
+                  totalMs={clampSilenceTimeoutMs(silenceTimeoutMs)}
+                  mode={handsFreeEnabled ? 'send' : 'stop'}
+                />
+                {/*
+                  無音の使い切りを待たずに送れることが分かるよう、幅に関わらず出す。
+                  待ち時間の短縮はこの合図を知っているかどうかで決まるため、
+                  主端末であるスマートフォンで隠れていては意味がない。
+                */}
+                <span className="text-[10px] font-bold text-rose-500 whitespace-nowrap">
+                  {`「${speechLang === 'zh-CN' ? '发送' : '送信'}」で送信`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void finishRecording(handsFreeEnabled)}
+                  className="px-2 py-0.5 text-xs bg-white border border-rose-200 text-rose-600 font-bold rounded-md hover:bg-rose-100 transition-colors cursor-pointer"
+                >
+                  {handsFreeEnabled ? '送信' : '完了'}
+                </button>
+              </div>
+            )}
+          </div>
+          {/* 話している途中の文字。確認用で、送信されるのは録音の文字起こし結果。 */}
+          {isListening && (previewFinal || previewInterim) && (
+            <p className="text-xs text-stone-700 leading-snug line-clamp-2 break-words">
+              {previewFinal}
+              {previewInterim && <span className="text-stone-400">{previewInterim}</span>}
+            </p>
           )}
         </div>
       )}

@@ -404,6 +404,10 @@ function joinTranscript(head: string, tail: string): string {
 /**
  * 音声認識セッションの作成（継続リスニング対応）
  *
+ * 会話へ送る本文の正本は録音→一括STT（transcription.ts）で、ここは
+ * 話している途中の文字を見せるプレビューと、「发送」「送信」の合図を拾う役に徹する。
+ * 表示が一瞬乱れても送信内容には影響しない前提で、再掲の畳み込みは軽い判定に留める。
+ *
  * ブラウザは短い沈黙でも認識セッションを終了してしまうため、
  * 無音タイムアウトに達するまでは内部で自動的に開き直し、
  * 確定テキストはセッションをまたいで蓄積する。
@@ -428,6 +432,9 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
   let finished = false
   // 内部再開より前に確定したテキスト
   let committedFinal = ''
+  // 直前のセッションが単独で確定した塊。開き直した直後の再掲を見分けるために持つ。
+  let lastSessionFinal = ''
+  let sessionFinal = ''
   let previousFinal = ''
   let previousInterim = ''
   // 動いている実体は常にひとつだけ。古い実体からの通知はすべて捨てる。
@@ -514,7 +521,14 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
         if (item.isFinal) final += item[0].transcript
         else interim += item[0].transcript
       }
-      const normalizedFinal = joinTranscript(committedFinal, final.trim())
+      let chunk = final.trim()
+      // 開き直した直後、ブラウザが前セッションで確定済みの文字列をそのまま先頭に再掲することがある。
+      // 蓄積済みの末尾と同じ塊で始まるなら、新しい発話ではなく再掲とみなして重ねない。
+      if (lastSessionFinal && chunk.startsWith(lastSessionFinal)) {
+        chunk = chunk.slice(lastSessionFinal.length).trim()
+      }
+      sessionFinal = chunk
+      const normalizedFinal = joinTranscript(committedFinal, chunk)
       if (normalizedFinal !== previousFinal) {
         previousFinal = normalizedFinal
         options.onFinalResult?.(normalizedFinal)
@@ -553,6 +567,8 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
 
       // ブラウザ都合の終了。確定済みを引き継いでマイクを開き直す。
       committedFinal = previousFinal
+      lastSessionFinal = sessionFinal
+      sessionFinal = ''
       if (previousInterim !== '') {
         previousInterim = ''
         options.onInterimResult?.('')
@@ -583,6 +599,8 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions): Speec
       aborted = false
       finished = false
       committedFinal = ''
+      lastSessionFinal = ''
+      sessionFinal = ''
       previousFinal = ''
       previousInterim = ''
       clearTimers()

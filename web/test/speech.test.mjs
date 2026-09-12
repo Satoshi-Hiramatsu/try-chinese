@@ -194,6 +194,37 @@ test('a reopened microphone never repeats the utterance it already captured', ()
   assert.deepEqual(finals, ['我已经结婚了'])
 })
 
+test('開き直した直後に前セッションの確定文が再掲されても、プレビューは重ねない', () => {
+  const s = setup()
+  const finals = []
+  const controller = s.api.createSpeechRecognizer({
+    lang: 'zh-CN',
+    silenceTimeoutMs: 20000,
+    onFinalResult: (t) => finals.push(t),
+  })
+  controller.start()
+  const r = s.recognition()
+  r.onresult({ resultIndex: 0, results: [result('我已经结婚了')] })
+  r.onend()
+  assert.equal(s.runTimer(250), true)
+  const r2 = s.recognition()
+
+  // 新しい実体が前の確定文をそのまま先頭に再掲しても、表示は増えない
+  r2.onresult({ resultIndex: 0, results: [result('我已经结婚了')] })
+  assert.deepEqual(finals, ['我已经结婚了'])
+
+  // 再掲のうしろに新しい発話が続いたら、その分だけを積む
+  r2.onresult({ resultIndex: 0, results: [result('我已经结婚了'), result('有一个孩子')] })
+  assert.deepEqual(finals, ['我已经结婚了', '我已经结婚了有一个孩子'])
+
+  // 同じセッション内での意図的な繰り返しは、これまでどおりそのまま残す
+  r2.onend()
+  assert.equal(s.runTimer(250), true)
+  const r3 = s.recognition()
+  r3.onresult({ resultIndex: 0, results: [result('好'), result('好')] })
+  assert.deepEqual(finals[finals.length - 1], '我已经结婚了有一个孩子好好')
+})
+
 test('running out of silence between sessions still ends listening', () => {
   const s = setup()
   let ended = 0

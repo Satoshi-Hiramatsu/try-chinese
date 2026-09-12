@@ -95,9 +95,21 @@ test('STTの残高切れをAPIキー状態へ反映する', async () => {
   assert.equal(s.requests.length, 1)
 })
 
-test('会話入力はSpeechRecognitionではなく録音STTを正本にする', () => {
+test('会話入力は録音STTを正本にし、ブラウザ認識はプレビューと合図にしか使わない', () => {
   const chatInput = readFileSync(new URL('../src/components/ChatInput.tsx', import.meta.url), 'utf8')
   assert.match(chatInput, /transcribeRecording/)
   assert.match(chatInput, /startRecording/)
-  assert.doesNotMatch(chatInput, /createSpeechRecognizer/)
+
+  // ブラウザ認識のコールバック本体を切り出す。ここから本文や送信へ直接触れてはいけない。
+  const start = chatInput.indexOf('createSpeechRecognizer({')
+  assert.notEqual(start, -1)
+  const end = chatInput.indexOf('recognizer.start()', start)
+  assert.notEqual(end, -1)
+  const recognizerBlock = chatInput.slice(start, end)
+  assert.doesNotMatch(recognizerBlock, /textRef\.current\s*=/)
+  assert.doesNotMatch(recognizerBlock, /setText\(/)
+  assert.doesNotMatch(recognizerBlock, /sendContent\(/)
+  assert.doesNotMatch(recognizerBlock, /onSendMessage/)
+  // 本文へ入るのは録音の文字起こし結果だけ
+  assert.match(recognizerBlock, /setPreview(Final|Interim)\(/)
 })
