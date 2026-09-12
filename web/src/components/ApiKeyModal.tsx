@@ -15,9 +15,11 @@ interface ApiKeyModalProps {
   status: ApiKeyStatus
   /** 空文字で保存すると削除。 */
   onSave: (apiKey: string) => void
+  /** 会話や読み上げを止めて開いたときの理由。先頭に目立つ色で出す。 */
+  notice?: string
 }
 
-export function ApiKeyModal({ isOpen, onClose, currentApiKey, status, onSave }: ApiKeyModalProps) {
+export function ApiKeyModal({ isOpen, onClose, currentApiKey, status, onSave, notice }: ApiKeyModalProps) {
   const [draft, setDraft] = useState(currentApiKey)
 
   useEffect(() => {
@@ -64,6 +66,11 @@ export function ApiKeyModal({ isOpen, onClose, currentApiKey, status, onSave }: 
         </div>
 
         <div className="px-5 sm:px-6 py-4 space-y-3 text-left">
+          {notice && (
+            <p className="m-0 text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              {notice}
+            </p>
+          )}
           <p className="m-0 text-xs text-stone-600 leading-relaxed">
             会話と読み上げには OpenRouter の API キーが必要です。
             お持ちでない場合は下のリンクから作成し、少額（$5 程度）をチャージしてください。

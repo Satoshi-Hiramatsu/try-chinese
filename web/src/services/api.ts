@@ -8,7 +8,8 @@ export interface SendMessageOptions {
   friend: Friend
   hskLevel: number
   history: ChatMessage[]
-  apiKey?: string
+  /** 利用者の OpenRouter キー。無いときは呼び出し側で止める（Worker には投げない）。 */
+  apiKey: string
   model?: string
   /**
    * 添削と趣味語彙が揃ったときの通知。
@@ -52,37 +53,37 @@ function formatHistory(history: ChatMessage[]) {
     .filter((item) => item.content.trim() !== '')
 }
 
-async function postChat(options: SendMessageOptions, part: ChatPart, apiKey: string | undefined): Promise<Response> {
-  const { message, friend, hskLevel, history, model } = options
+/** 残高切れ(402)のときの文言。キーの状態バッジからチャージ後の再確認へ誘導する。 */
+export const API_KEY_EXHAUSTED_MESSAGE =
+  'OpenRouter の残高が切れました。チャージしてから、キーの状態バッジで「確認」し直してください。'
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (apiKey) headers['x-api-key'] = apiKey
+async function postChat(options: SendMessageOptions, part: ChatPart): Promise<Response> {
+  const { message, friend, hskLevel, history, model, apiKey } = options
 
   return fetch('/api/chat', {
     method: 'POST',
-    headers,
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
     body: JSON.stringify({
       message,
       friend,
       hskLevel,
       history: formatHistory(history),
       part,
-      config: (apiKey || model) ? { llm: { apiKey: apiKey || undefined, model: model || undefined } } : undefined,
+      config: { llm: { apiKey, model: model || undefined } },
     }),
   })
 }
 
 /**
  * 会話を1回送る。
- * キーが残高切れ(402)なら無料モードへ切り替え、キー無しで1回だけ送り直す。
- * 利用者が見るのは「無料モードに切り替えた」通知だけで、会話は途切れない。
+ * 残高切れ(402)ならキーの状態を「残高切れ」にして止める。別のモデルへ黙って切り替えない。
  */
 async function requestChat(options: SendMessageOptions, part: ChatPart): Promise<ChatPayload> {
-  let response = await postChat(options, part, options.apiKey)
+  const response = await postChat(options, part)
 
-  if (response.status === 402 && options.apiKey) {
+  if (response.status === 402) {
     markApiKeyExhausted()
-    response = await postChat(options, part, undefined)
+    throw new Error(API_KEY_EXHAUSTED_MESSAGE)
   }
 
   if (!response.ok) {

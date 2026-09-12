@@ -21,7 +21,7 @@ import { VoiceAdminDashboard } from './components/VoiceAdminDashboard'
 import { DevConsole } from './components/DevConsole'
 import { TitleScreen, type ContinueSummary } from './components/TitleScreen'
 import { AlertIcon, CloseIcon } from './components/Icons'
-import { sendMessageToChatApi } from './services/api'
+import { sendMessageToChatApi, API_KEY_EXHAUSTED_MESSAGE } from './services/api'
 import { speakChinese, stopSpeaking } from './services/speech'
 import { prefetchPinyin } from './services/pinyin'
 import {
@@ -206,6 +206,8 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
   /** APIキーだけの小さなモーダル。タイトルと会話画面のバッジから開く */
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false)
+  /** キーが無くて会話・読み上げを止めたときの理由。モーダルの先頭に出す */
+  const [apiKeyNotice, setApiKeyNotice] = useState<string | null>(null)
   // 初回のオンボーディングはタイトルの「はじめる」から開く
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false)
   const [isFriendListOpen, setIsFriendListOpen] = useState(false)
@@ -333,6 +335,18 @@ export default function App() {
     saveApiKey(trimmed)
     void verifyApiKey(trimmed)
     setErrorMessage(null)
+  }
+
+  /**
+   * 送ってよいキーを返す。無ければ理由つきでキー入力のモーダルを開き、null を返す。
+   * 無効・残高切れと分かっているキーも送らない（送っても失敗するだけ）。
+   */
+  const requireUsableApiKey = (reason: string): string | null => {
+    const usable = apiKey && isApiKeyUsable(apiKeyStatus) ? apiKey : ''
+    if (usable) return usable
+    setApiKeyNotice(reason)
+    setIsApiKeyModalOpen(true)
+    return null
   }
 
   // 起動時に1回だけ検査する。会話のたびには叩かない。
@@ -468,6 +482,10 @@ export default function App() {
    */
   const handlePlayText = (text: string, speechText?: string, resumeHandsFree = false) => {
     stopSpeaking()
+    if (!requireUsableApiKey('読み上げには OpenRouter API キーが必要です。')) {
+      if (resumeHandsFree) setHandsFreeResumeToken((prev) => prev + 1)
+      return
+    }
     setPlayingText(text)
     let completed = false
     const completePlayback = () => {
@@ -600,6 +618,12 @@ export default function App() {
     setPlayingText(null)
     setErrorMessage(null)
 
+    const usableKey = requireUsableApiKey('会話には OpenRouter API キーが必要です。')
+    if (!usableKey) {
+      if (handsFreeEnabled) setHandsFreeResumeToken((prev) => prev + 1)
+      return
+    }
+
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -621,8 +645,7 @@ export default function App() {
         friend: currentFriend,
         hskLevel,
         history: nextMessages,
-        // 無効・残高切れと分かっているキーは送らず、無料モードで会話する
-        apiKey: apiKey && isApiKeyUsable(apiKeyStatus) ? apiKey : undefined,
+        apiKey: usableKey,
         model: llmModel.model,
         onSupport: (support) => {
           setMessages((prev) =>
@@ -662,8 +685,10 @@ export default function App() {
 
       if (handsFreeEnabled) setHandsFreeResumeToken((prev) => prev + 1)
 
-      if (msg.includes('APIキー') || msg.includes('401')) {
-        setIsSettingsModalOpen(true)
+      // 残高切れ・無効なキーはその場でキー入力へ誘導する
+      if (msg === API_KEY_EXHAUSTED_MESSAGE || msg.includes('APIキー') || msg.includes('401')) {
+        setApiKeyNotice(msg)
+        setIsApiKeyModalOpen(true)
       }
     } finally {
       setIsLoading(false)
@@ -902,10 +927,14 @@ export default function App() {
 
       <ApiKeyModal
         isOpen={isApiKeyModalOpen}
-        onClose={() => setIsApiKeyModalOpen(false)}
+        onClose={() => {
+          setIsApiKeyModalOpen(false)
+          setApiKeyNotice(null)
+        }}
         currentApiKey={apiKey}
         status={apiKeyStatus}
         onSave={handleSaveApiKey}
+        notice={apiKeyNotice ?? undefined}
       />
 
       {/* 設定（APIキー・音声・入力） */}
@@ -985,6 +1014,8 @@ export default function App() {
             setMessages([buildWelcomeMessage(friend, level)])
           }
           if (appPhase === 'title') enterPlay()
+          // キーが無いままでは会話が始められないので、続けて入力を促す
+          requireUsableApiKey('会話を始めるには OpenRouter API キーが必要です。')
         }}
       />
 
