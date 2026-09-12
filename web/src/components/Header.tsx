@@ -31,7 +31,7 @@ function effectiveKeyState(status: ApiKeyStatus): ApiKeyStatus['state'] {
   return status.state === 'unreachable' && status.last ? status.last : status.state
 }
 
-/** キーの状態に応じたバッジの色。無料モードは目立たせず、無効・残高切れだけ気付けるようにする。 */
+/** キーの状態に応じたバッジの色。未設定・無効・残高切れは気付けるようにする。 */
 function apiKeyBadgeClass(status: ApiKeyStatus): string {
   switch (effectiveKeyState(status)) {
     case 'valid':
@@ -39,6 +39,8 @@ function apiKeyBadgeClass(status: ApiKeyStatus): string {
     case 'invalid':
       return 'bg-rose-50 border-rose-300 text-rose-700'
     case 'exhausted':
+      return 'bg-amber-50 border-amber-300 text-amber-800'
+    case 'none':
       return 'bg-amber-50 border-amber-300 text-amber-800'
     default:
       return ''
@@ -55,6 +57,8 @@ function apiKeyDotClass(status: ApiKeyStatus): string {
       return 'bg-amber-500'
     case 'checking':
       return 'bg-stone-300 animate-pulse'
+    case 'none':
+      return 'bg-amber-500'
     default:
       return 'bg-stone-400'
   }

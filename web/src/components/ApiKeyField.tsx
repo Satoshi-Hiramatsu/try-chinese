@@ -118,7 +118,7 @@ export function ApiKeyField({ value, onChange, savedKey, savedStatus, autoFocus,
         <ApiKeyStatusLine status={status} />
       ) : (
         <p className="m-0 text-[11px] text-stone-400">
-          {trimmed ? '「確認」で有効なキーか調べられます。' : 'キーが無くても無料の音声で話せます。'}
+          {trimmed ? '「確認」で有効なキーか調べられます。' : '会話と読み上げにはキーが必要です。'}
         </p>
       )}
       <a

@@ -59,8 +59,6 @@ import {
   loadFriendVoice,
   saveFriendVoice,
   clearFriendVoice,
-  clearAllFriendVoices,
-  listFriendVoiceOverrides,
   loadFriendProfile,
   saveFriendProfile,
   clearFriendProfile,
@@ -271,11 +269,6 @@ export default function App() {
     return () => window.removeEventListener('hashchange', syncFromHash)
   }, [])
 
-  const openAdmin = () => {
-    window.location.hash = '#admin'
-    setIsAdminOpen(true)
-  }
-
   /** ハッシュだけを消して、履歴に空のエントリを積まないようにする。 */
   const clearHash = (hash: string) => {
     if (window.location.hash === hash) {
@@ -332,7 +325,7 @@ export default function App() {
     publishApiKeyStatus(await checkApiKey(key, loadApiKeyStatus()))
   }
 
-  /** APIキーのモーダルからの保存。空なら削除して無料モードへ戻る。 */
+  /** APIキーのモーダルからの保存。空なら削除する。 */
   const handleSaveApiKey = (newKey: string) => {
     const trimmed = newKey.trim()
     if (trimmed === apiKey) return
@@ -442,16 +435,6 @@ export default function App() {
     }
     setVoiceSettingsFriend(null)
     setVoiceRevision((current) => current + 1)
-  }
-
-  /** 全員の声の上書きを捨てる。消した件数を返す。 */
-  const handleResetAllVoices = (): number => {
-    const count = clearAllFriendVoices()
-    const preset = PRESET_FRIENDS.find((f) => f.id === currentFriend.id)
-    if (preset) setCurrentFriend((prev) => ({ ...prev, voice: preset.voice }))
-    setVoiceSettingsFriend(null)
-    setVoiceRevision((current) => current + 1)
-    return count
   }
 
   /**
@@ -925,26 +908,16 @@ export default function App() {
         onSave={handleSaveApiKey}
       />
 
-      {/* Settings Modal (BYO-AI & Model Selection & Audio) */}
+      {/* 設定（APIキー・音声・入力） */}
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         currentApiKey={apiKey}
         apiKeyStatus={apiKeyStatus}
-        voiceOverrideCount={listFriendVoiceOverrides().length}
-        onResetAllVoices={handleResetAllVoices}
         autoPlayTts={autoPlayTts}
         speechInputLang={speechInputLang}
         toneColoring={toneColoring}
         silenceTimeoutMs={silenceTimeoutMs}
-        onOpenTtsDebug={() => {
-          setIsSettingsModalOpen(false)
-          setIsTtsDebugOpen(true)
-        }}
-        onOpenVoiceAdmin={() => {
-          setIsSettingsModalOpen(false)
-          openAdmin()
-        }}
         onSave={handleSaveSettings}
       />
 

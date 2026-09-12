@@ -13,7 +13,7 @@ interface ApiKeyModalProps {
   onClose: () => void
   currentApiKey: string
   status: ApiKeyStatus
-  /** 空文字で保存すると削除（無料モードへ戻る）。 */
+  /** 空文字で保存すると削除。 */
   onSave: (apiKey: string) => void
 }
 
@@ -65,8 +65,8 @@ export function ApiKeyModal({ isOpen, onClose, currentApiKey, status, onSave }: 
 
         <div className="px-5 sm:px-6 py-4 space-y-3 text-left">
           <p className="m-0 text-xs text-stone-600 leading-relaxed">
-            キーを入れると、友達ごとに作り込んだ AI 音声で話せます。
-            キーが無くても無料の音声モデルで会話できます。
+            会話と読み上げには OpenRouter の API キーが必要です。
+            お持ちでない場合は下のリンクから作成し、少額（$5 程度）をチャージしてください。
           </p>
           <ApiKeyField
             value={draft}

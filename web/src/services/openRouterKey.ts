@@ -6,7 +6,7 @@ import { loadApiKey, loadApiKeyStatusRaw, saveApiKeyStatusRaw } from './storage'
  * 金額は出さない。通常キーではアカウント残高が取れないため、
  * 「有効 / 無効 / 切れている」が分かれば足りる。
  *
- * - none: 未入力。無料モードで動く
+ * - none: 未入力。会話も読み上げも送らない
  * - checking: 検査中
  * - valid: /api/openrouter/key が有効と答えた
  * - invalid: キーの文字列が間違い・削除済み
@@ -94,7 +94,7 @@ export async function checkApiKey(apiKey: string, previous?: ApiKeyStatus | null
 
 /**
  * 会話や音声が OpenRouter から 402 で返ったときに呼ぶ。
- * 以後は無料モードで動き、再検査で有効に戻るまでキーを送らない。
+ * 以後は再検査で有効に戻るまでキーを送らず、会話と読み上げを止める。
  */
 export function markApiKeyExhausted(): void {
   publishApiKeyStatus({ state: 'exhausted', checkedAt: Date.now() })
@@ -102,7 +102,7 @@ export function markApiKeyExhausted(): void {
 
 /**
  * その状態のキーを Worker へ送ってよいか。
- * 無効・残高切れは送っても失敗するだけなので、無料モードに落とす。
+ * 無効・残高切れは送っても失敗するだけなので、使えないキーとして扱う。
  * 検査できなかったキーは送る（前回無効と分かっている場合を除く）。
  */
 export function isApiKeyUsable(status: ApiKeyStatus | null | undefined): boolean {
@@ -120,7 +120,7 @@ export function isApiKeyUsable(status: ApiKeyStatus | null | undefined): boolean
 
 /**
  * 実際にリクエストへ載せるキー。未入力、または無効・残高切れと分かっているときは空。
- * speech.ts / api.ts はこれが空なら無料モードとして Worker に任せる。
+ * speech.ts / App.tsx はこれが空なら送らずにキー入力を促す。
  */
 export function loadUsableApiKey(): string {
   const key = loadApiKey()
@@ -132,7 +132,7 @@ export function loadUsableApiKey(): string {
 export function formatApiKeyStatusNote(status: ApiKeyStatus): string {
   switch (status.state) {
     case 'none':
-      return '未設定 · 無料モードで動きます'
+      return '未設定 · はじめる前に登録してください'
     case 'checking':
       return '確認中…'
     case 'valid':
@@ -140,7 +140,7 @@ export function formatApiKeyStatusNote(status: ApiKeyStatus): string {
     case 'invalid':
       return '無効なキーです · タップして確認'
     case 'exhausted':
-      return '残高切れ · 無料モードで動きます'
+      return '残高切れ · チャージ後に「確認」してください'
     case 'unreachable':
       return status.last
         ? `確認できませんでした · 前回: ${formatApiKeyStateLabel(status.last)}`
@@ -152,7 +152,7 @@ export function formatApiKeyStatusNote(status: ApiKeyStatus): string {
 export function formatApiKeyStateLabel(state: ApiKeyState): string {
   switch (state) {
     case 'none':
-      return '無料モード'
+      return 'キー未設定'
     case 'checking':
       return '確認中'
     case 'valid':

@@ -116,8 +116,8 @@ test('壊れたキャッシュや検査中のまま残ったキャッシュは�
 
 test('状態ごとの短い文言', () => {
   const mod = load()
-  assert.equal(mod.formatApiKeyStatusNote({ state: 'none' }), '未設定 · 無料モードで動きます')
-  assert.equal(mod.formatApiKeyStatusNote({ state: 'exhausted' }), '残高切れ · 無料モードで動きます')
+  assert.equal(mod.formatApiKeyStatusNote({ state: 'none' }), '未設定 · はじめる前に登録してください')
+  assert.equal(mod.formatApiKeyStatusNote({ state: 'exhausted' }), '残高切れ · チャージ後に「確認」してください')
   assert.equal(mod.formatApiKeyStatusNote({ state: 'unreachable', last: 'valid' }), '確認できませんでした · 前回: 有効')
   assert.equal(mod.formatApiKeyStatusNote({ state: 'unreachable' }), '確認できませんでした')
 })
