@@ -1,4 +1,12 @@
-import type { Friend, ChatMessage, BilingualReply, Correction, Expression, HobbyVocabulary } from '../types'
+import type {
+  Friend,
+  ChatMessage,
+  BilingualReply,
+  Correction,
+  Expression,
+  HobbyVocabulary,
+  SampleReply,
+} from '../types'
 import { resolveExpression } from './expression'
 import { fillPinyin } from './pinyin'
 import { markApiKeyExhausted } from './openRouterKey'
@@ -16,6 +24,10 @@ export interface SendMessageOptions {
    * 返答より遅れて届くため、画面へは後から差し込む。
    */
   onSupport?: (support: SupportPart) => void
+  /** 有効時だけ、Friend の返答に対する中国語サンプル3件を追加生成する。 */
+  includeSampleReplies?: boolean
+  /** サンプル回答が揃ったときの通知。通常の返答表示を待たせず後から差し込む。 */
+  onSampleReplies?: (sampleReplies: SampleReply[]) => void
 }
 
 /** 会話の返答。音声を出し始めるのに要るのはここだけ。 */
@@ -32,12 +44,13 @@ export interface SupportPart {
 
 export interface SendMessageResponse extends ReplyPart, SupportPart {}
 
-type ChatPart = 'reply' | 'support'
+type ChatPart = 'reply' | 'support' | 'samples'
 
 interface ChatPayload {
   reply?: BilingualReply
   correction?: Correction
   vocabulary?: HobbyVocabulary[]
+  sampleReplies?: SampleReply[]
   expression?: unknown
 }
 
@@ -57,7 +70,11 @@ function formatHistory(history: ChatMessage[]) {
 export const API_KEY_EXHAUSTED_MESSAGE =
   'OpenRouter の残高が切れました。チャージしてから、キーの状態バッジで「確認」し直してください。'
 
-async function postChat(options: SendMessageOptions, part: ChatPart): Promise<Response> {
+async function postChat(
+  options: SendMessageOptions,
+  part: ChatPart,
+  replyContext?: string
+): Promise<Response> {
   const { message, friend, hskLevel, history, model, apiKey } = options
 
   return fetch('/api/chat', {
@@ -69,6 +86,7 @@ async function postChat(options: SendMessageOptions, part: ChatPart): Promise<Re
       hskLevel,
       history: formatHistory(history),
       part,
+      ...(replyContext ? { replyContext } : {}),
       config: { llm: { apiKey, model: model || undefined } },
     }),
   })
@@ -78,8 +96,12 @@ async function postChat(options: SendMessageOptions, part: ChatPart): Promise<Re
  * 会話を1回送る。
  * 残高切れ(402)ならキーの状態を「残高切れ」にして止める。別のモデルへ黙って切り替えない。
  */
-async function requestChat(options: SendMessageOptions, part: ChatPart): Promise<ChatPayload> {
-  const response = await postChat(options, part)
+async function requestChat(
+  options: SendMessageOptions,
+  part: ChatPart,
+  replyContext?: string
+): Promise<ChatPayload> {
+  const response = await postChat(options, part, replyContext)
 
   if (response.status === 402) {
     markApiKeyExhausted()
@@ -128,11 +150,29 @@ export async function sendMessageToChatApi(options: SendMessageOptions): Promise
 
   const payload = await requestChat(options, 'reply')
   const reply = payload.reply || { zh: '', ja: '', pinyin: '', hskLevel: options.hskLevel }
+  const normalizedReply = { ...reply, pinyin: await fillPinyin(reply.zh, reply.pinyin) }
+
+  if (options.includeSampleReplies && normalizedReply.zh) {
+    void requestChat(options, 'samples', normalizedReply.zh)
+      .then(async (samplePayload) => {
+        const candidates = (samplePayload.sampleReplies || []).slice(0, 3)
+        if (candidates.length !== 3) return
+        const pinyin = await Promise.all(
+          candidates.map((sample) => fillPinyin(sample.zh, sample.pinyin))
+        )
+        options.onSampleReplies?.(
+          candidates.map((sample, index) => ({ ...sample, pinyin: pinyin[index] }))
+        )
+      })
+      .catch(() => {
+        // サンプル回答が取れなくても本体の会話は続ける。
+      })
+  }
 
   // ピンインは辞書で作る。LLM に作らせると多音字が揺れるうえ、
   // 出力トークンの3分の1を占めて返答そのものを待たせていた。
   return {
-    reply: { ...reply, pinyin: await fillPinyin(reply.zh, reply.pinyin) },
+    reply: normalizedReply,
     expression: resolveExpression(payload.expression, reply.zh, reply.ja),
   }
 }

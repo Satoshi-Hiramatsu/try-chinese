@@ -3,6 +3,7 @@ import type { ChatMessage, Friend } from '../types'
 import { BulbIcon, SpeakerIcon, StopCircleIcon, BookmarkIcon, BookmarkFilledIcon } from './Icons'
 import { FriendAvatar } from './FriendAvatar'
 import { TonePinyin } from './TonePinyin'
+import { SampleReplyPanel } from './SampleReplyPanel'
 
 interface ChatMessageItemProps {
   message: ChatMessage
@@ -12,6 +13,7 @@ interface ChatMessageItemProps {
   onStopText?: () => void
   savedTerms?: Set<string>
   enableToneColoring?: boolean
+  showSampleReplies?: boolean
   onSaveVocabulary?: (item: {
     term: string
     pinyin: string
@@ -29,6 +31,7 @@ export function ChatMessageItem({
   onStopText,
   savedTerms,
   enableToneColoring = false,
+  showSampleReplies = false,
   onSaveVocabulary,
 }: ChatMessageItemProps) {
   const [showCorrection, setShowCorrection] = useState(true)
@@ -187,6 +190,16 @@ export function ChatMessageItem({
             </div>
           )}
         </div>
+
+        {showSampleReplies && message.sampleReplies && message.sampleReplies.length > 0 && (
+          <SampleReplyPanel
+            sampleReplies={message.sampleReplies}
+            playingText={playingText}
+            onPlayText={onPlayText}
+            onStopText={onStopText}
+            enableToneColoring={enableToneColoring}
+          />
+        )}
 
         {/* 控えめな発話添削 (Correction) */}
         {correction && correction.hasCorrection && (

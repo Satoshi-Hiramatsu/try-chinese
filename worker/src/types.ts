@@ -72,6 +72,14 @@ export interface HobbyVocabulary {
   hskLevel?: number
 }
 
+export type SampleReplyStyle = 'simple' | 'natural' | 'expand'
+
+export interface SampleReply {
+  style: SampleReplyStyle
+  zh: string
+  pinyin: string
+}
+
 export interface ChatHistoryItem {
   role: 'user' | 'assistant'
   content: string
@@ -93,10 +101,13 @@ export interface ChatRequest {
   config?: AppConfig
   /**
    * 今回作らせる範囲。
-   * 'reply' は会話の返答だけ、'support' は添削と語彙だけ。
+   * 'reply' は会話の返答だけ、'support' は添削と語彙だけ、
+   * 'samples' は Friend の返答に対する学習者のサンプル回答だけ。
    * 省略すると従来どおり全部を1回で作る。
    */
-  part?: 'all' | 'reply' | 'support'
+  part?: 'all' | 'reply' | 'support' | 'samples'
+  /** samples 生成時に、返答対象となる Friend の直前の中国語。 */
+  replyContext?: string
 }
 
 /**
@@ -118,6 +129,8 @@ export interface ChatResponse {
   vocabulary: HobbyVocabulary[]
   /** 返答時の Friend の表情（立ち絵切り替え用） */
   expression: Expression
+  /** シャドーイング用。simple / natural / expand の順で3件。 */
+  sampleReplies?: SampleReply[]
   /** 消費量。本体の会話では使わず、開発者モードの比較でのみ参照する。 */
   usage?: LlmUsage
 }

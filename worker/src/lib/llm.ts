@@ -13,6 +13,8 @@ export interface CallLLMOptions {
   apiBaseUrl?: string
   /** 今回作らせる範囲。既定は従来どおり全部。 */
   part?: ChatPart
+  /** samples 生成時に返答対象となる Friend の直前の中国語。 */
+  replyContext?: string
 }
 
 const DEFAULT_MODEL = 'deepseek/deepseek-v4.1-flash'
@@ -108,7 +110,7 @@ const CHAT_RESPONSE_SCHEMA = {
  * 返答の生成を待つ必要がない。二つに割って同時に投げれば、
  * 最初の一声までの待ち時間が出力の分量ぶんだけ縮む。
  */
-export type ChatPart = 'all' | 'reply' | 'support'
+export type ChatPart = 'all' | 'reply' | 'support' | 'samples'
 
 const REPLY_PROPERTIES = {
   reply: CHAT_RESPONSE_SCHEMA.properties.reply,
@@ -118,6 +120,22 @@ const REPLY_PROPERTIES = {
 const SUPPORT_PROPERTIES = {
   correction: CHAT_RESPONSE_SCHEMA.properties.correction,
   vocabulary: CHAT_RESPONSE_SCHEMA.properties.vocabulary,
+} as const
+
+const SAMPLE_REPLIES_PROPERTY = {
+  type: 'array',
+  minItems: 3,
+  maxItems: 3,
+  description: 'Friend の直前の返答に対して学習者が言える、異なる3種類の中国語回答。',
+  items: {
+    type: 'object',
+    properties: {
+      style: { type: 'string', enum: ['simple', 'natural', 'expand'] },
+      zh: { type: 'string', description: '学習者がそのまま発話できる簡体字中国語。日本語を混ぜない。' },
+    },
+    required: ['style', 'zh'],
+    additionalProperties: false,
+  },
 } as const
 
 const PART_SCHEMAS: Record<ChatPart, Record<string, unknown>> = {
@@ -132,6 +150,12 @@ const PART_SCHEMAS: Record<ChatPart, Record<string, unknown>> = {
     type: 'object',
     properties: SUPPORT_PROPERTIES,
     required: ['correction', 'vocabulary'],
+    additionalProperties: false,
+  },
+  samples: {
+    type: 'object',
+    properties: { sampleReplies: SAMPLE_REPLIES_PROPERTY },
+    required: ['sampleReplies'],
     additionalProperties: false,
   },
 }
@@ -152,6 +176,11 @@ const PART_DIRECTIVES: Record<ChatPart, string | undefined> = {
 "correction" と "vocabulary" だけを出力してください。
 会話の返答（"reply"）と "expression" は別の呼び出しで扱うため、今回は一切出力しないでください。
 学習者の発話そのものを対象に、添削と、覚えると役に立つ語の抽出を行ってください。`,
+  samples: `【今回の出力範囲】
+sampleReplies だけを出力してください。
+Friend の直前の返答に対して、学習者本人が次に言える中国語を必ず3件作ってください。
+1件目は style=simple（短く易しい返答）、2件目は style=natural（自然な返答）、3件目は style=expand（質問などで話を広げる返答）とし、順番も固定してください。
+すべて指定された HSK 級を基準に、互いに内容が異なる簡体字中国語にしてください。日本語、ピンイン、Friend 側の発言は出力しないでください。`,
 }
 
 /** スキーマで縛れないモデル向けの指定。JSONであることだけを求める。 */
@@ -202,7 +231,7 @@ export function parseChatResponse(content: string, part: ChatPart = 'all'): Chat
   const res = parsed as Record<string, unknown>
 
   // reply の検証。学習支援だけを作らせた回には reply が無くて当然なので求めない。
-  if (part !== 'support' && (!res.reply || typeof res.reply !== 'object')) {
+  if (part !== 'support' && part !== 'samples' && (!res.reply || typeof res.reply !== 'object')) {
     throw new Error('LLMレスポンスに reply オブジェクトが存在しません。')
   }
   const replyObj = (res.reply && typeof res.reply === 'object' ? res.reply : {}) as Record<string, unknown>
@@ -225,6 +254,23 @@ export function parseChatResponse(content: string, part: ChatPart = 'all'): Chat
     suggested: corrObj.suggested ? String(corrObj.suggested) : undefined,
     pinyin: corrObj.pinyin ? String(corrObj.pinyin) : undefined,
     ja: corrObj.ja ? String(corrObj.ja) : undefined,
+  }
+
+  const sampleReplies: NonNullable<ChatResponse['sampleReplies']> = []
+  if (Array.isArray(res.sampleReplies)) {
+    const styles = ['simple', 'natural', 'expand'] as const
+    for (const style of styles) {
+      const item = res.sampleReplies.find(
+        (candidate) =>
+          candidate &&
+          typeof candidate === 'object' &&
+          (candidate as Record<string, unknown>).style === style
+      )
+      if (!item || typeof item !== 'object') continue
+      const candidate = item as Record<string, unknown>
+      const sampleZh = typeof candidate.zh === 'string' ? candidate.zh.trim() : ''
+      if (sampleZh) sampleReplies.push({ style, zh: sampleZh, pinyin: '' })
+    }
   }
 
   // vocabulary の検証
@@ -257,6 +303,7 @@ export function parseChatResponse(content: string, part: ChatPart = 'all'): Chat
     correction,
     vocabulary: vocabList,
     expression,
+    ...(sampleReplies.length > 0 ? { sampleReplies } : {}),
   }
 }
 
@@ -306,18 +353,23 @@ export async function callChatLLM(options: CallLLMOptions): Promise<ChatResponse
   const messages: Array<{ role: string; content: string }> = [
     { role: 'system', content: systemPrompt },
     ...(directive ? [{ role: 'system', content: directive }] : []),
+    ...(part === 'samples'
+      ? [{ role: 'system', content: `<friend_reply>${options.replyContext || ''}</friend_reply>` }]
+      : []),
   ]
 
-  for (const item of history) {
-    messages.push({
-      role: item.role,
-      content: item.content,
-    })
+  if (part !== 'samples') {
+    for (const item of history) {
+      messages.push({
+        role: item.role,
+        content: item.content,
+      })
+    }
   }
 
   messages.push({
     role: 'user',
-    content: message,
+    content: part === 'samples' ? '直前の Friend の返答に対するサンプル回答を生成してください。' : message,
   })
 
   const url = `${apiBaseUrl.replace(/\/$/, '')}/chat/completions`

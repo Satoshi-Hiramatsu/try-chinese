@@ -123,6 +123,15 @@ export interface HobbyVocabulary {
   hskLevel?: number
 }
 
+export type SampleReplyStyle = 'simple' | 'natural' | 'expand'
+
+/** Friend の直前の返答に対して、学習者がそのまま発話できる中国語例。 */
+export interface SampleReply {
+  style: SampleReplyStyle
+  zh: string
+  pinyin: string
+}
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -131,6 +140,7 @@ export interface ChatMessage {
   expression?: Expression // 返答時の立ち絵の表情
   correction?: Correction // 添削情報
   vocabulary?: HobbyVocabulary[] // 趣味語彙
+  sampleReplies?: SampleReply[] // 相手へのサンプル回答（シャドーイング用）
   timestamp: number
 }
 
@@ -155,6 +165,7 @@ export interface AppConfig {
   /** 音声入力を打ち切るまでの無音許容時間(ms) */
   silenceTimeoutMs?: number
   toneColoring?: boolean
+  sampleReplyMode?: boolean
 }
 
 export type TtsDebugLanguage = 'zh' | 'ja' | 'mixed'

@@ -23,6 +23,7 @@ interface SettingsModalProps {
   autoPlayTts?: boolean
   speechInputLang?: 'zh-CN' | 'ja-JP'
   toneColoring?: boolean
+  sampleReplyMode?: boolean
   /** 音声入力を打ち切る（ハンズフリーでは自動送信する）までの無音許容時間(ms) */
   silenceTimeoutMs?: number
   onSave: (
@@ -30,7 +31,8 @@ interface SettingsModalProps {
     autoPlayTts: boolean,
     speechInputLang: 'zh-CN' | 'ja-JP',
     toneColoring: boolean,
-    silenceTimeoutMs: number
+    silenceTimeoutMs: number,
+    sampleReplyMode: boolean
   ) => void
 }
 
@@ -43,6 +45,7 @@ export function SettingsModal({
   autoPlayTts = false,
   speechInputLang = 'zh-CN',
   toneColoring = false,
+  sampleReplyMode = false,
   silenceTimeoutMs = DEFAULT_SILENCE_TIMEOUT_MS,
   onSave,
 }: SettingsModalProps) {
@@ -50,6 +53,7 @@ export function SettingsModal({
   const [autoPlay, setAutoPlay] = useState(autoPlayTts)
   const [inputLang, setInputLang] = useState<'zh-CN' | 'ja-JP'>(speechInputLang)
   const [enableToneColor, setEnableToneColor] = useState(toneColoring)
+  const [enableSampleReplies, setEnableSampleReplies] = useState(sampleReplyMode)
   const [silenceMs, setSilenceMs] = useState(clampSilenceTimeoutMs(silenceTimeoutMs))
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -58,13 +62,14 @@ export function SettingsModal({
     setAutoPlay(autoPlayTts)
     setInputLang(speechInputLang)
     setEnableToneColor(toneColoring)
+    setEnableSampleReplies(sampleReplyMode)
     setSilenceMs(clampSilenceTimeoutMs(silenceTimeoutMs))
-  }, [currentApiKey, autoPlayTts, speechInputLang, toneColoring, silenceTimeoutMs, isOpen])
+  }, [currentApiKey, autoPlayTts, speechInputLang, toneColoring, sampleReplyMode, silenceTimeoutMs, isOpen])
 
   if (!isOpen) return null
 
   const handleSave = () => {
-    onSave(apiKey, autoPlay, inputLang, enableToneColor, silenceMs)
+    onSave(apiKey, autoPlay, inputLang, enableToneColor, silenceMs, enableSampleReplies)
     onClose()
   }
 
@@ -235,6 +240,34 @@ export function SettingsModal({
                 <span
                   className={`block w-4 h-4 rounded-full bg-white transition-transform transform shadow-xs ${
                     enableToneColor ? 'translate-x-6' : 'translate-x-1'
+                  } top-1`}
+                />
+              </button>
+            </div>
+
+            {/* シャドーイング用サンプル回答 */}
+            <div className="flex items-center justify-between gap-3 p-3 bg-stone-50 rounded-2xl border border-stone-200/80">
+              <div>
+                <span className="text-xs font-bold text-stone-800 block">
+                  サンプル回答モード
+                </span>
+                <span className="text-[11px] text-stone-500 block mt-0.5">
+                  相手の返答ごとに中国語を3種類表示します（追加生成分の利用料がかかります）
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEnableSampleReplies((enabled) => !enabled)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors cursor-pointer ${
+                  enableSampleReplies ? 'bg-rose-500' : 'bg-stone-300'
+                }`}
+                role="switch"
+                aria-checked={enableSampleReplies}
+                aria-label="サンプル回答モード"
+              >
+                <span
+                  className={`block w-4 h-4 rounded-full bg-white transition-transform transform shadow-xs ${
+                    enableSampleReplies ? 'translate-x-6' : 'translate-x-1'
                   } top-1`}
                 />
               </button>

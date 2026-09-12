@@ -10,6 +10,7 @@ import {
 import { CharacterPortrait, EXPRESSION_LABELS } from './CharacterPortrait'
 import { SceneBackdrop } from './SceneBackdrop'
 import { TonePinyin } from './TonePinyin'
+import { SampleReplyPanel } from './SampleReplyPanel'
 import {
   BulbIcon,
   SpeakerIcon,
@@ -33,6 +34,7 @@ interface NovelStageProps {
   onStopText?: () => void
   savedTerms?: Set<string>
   enableToneColoring?: boolean
+  showSampleReplies?: boolean
   onSaveVocabulary?: (item: {
     term: string
     pinyin: string
@@ -59,6 +61,7 @@ export function NovelStage({
   onStopText,
   savedTerms,
   enableToneColoring = false,
+  showSampleReplies = false,
   onSaveVocabulary,
   onOpenLog,
   onOpenFriendList,
@@ -461,6 +464,17 @@ export function NovelStage({
                     </div>
                   )}
                 </div>
+              )}
+
+              {isComplete && showSampleReplies && message?.sampleReplies && message.sampleReplies.length > 0 && (
+                <SampleReplyPanel
+                  sampleReplies={message.sampleReplies}
+                  playingText={playingText}
+                  onPlayText={onPlayText}
+                  onStopText={onStopText}
+                  enableToneColoring={enableToneColoring}
+                  compact
+                />
               )}
 
               {/* 送りマーカー */}

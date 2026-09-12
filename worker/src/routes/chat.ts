@@ -44,7 +44,7 @@ chatRoute.post('/chat', async (c) => {
     return c.json({ error: 'リクエストボディが有効な JSON ではありません。' }, 400)
   }
 
-  const { message, friend, hskLevel, history, config, part } = body
+  const { message, friend, hskLevel, history, config, part, replyContext } = body
 
   // 1. バリデーション
   if (!message || typeof message !== 'string' || message.trim() === '') {
@@ -86,7 +86,10 @@ chatRoute.post('/chat', async (c) => {
   }
 
   // 4. LLM 呼び出し。無料モデルは混雑しやすいので、失敗したら次の候補を試す。
-  const resolvedPart = part === 'reply' || part === 'support' ? part : 'all'
+  const resolvedPart = part === 'reply' || part === 'support' || part === 'samples' ? part : 'all'
+  if (resolvedPart === 'samples' && (typeof replyContext !== 'string' || replyContext.trim() === '')) {
+    return c.json({ error: 'samples の生成には replyContext が必要です。' }, 400)
+  }
   let lastError: unknown
   for (const [index, model] of candidateModels.entries()) {
     try {
@@ -98,10 +101,11 @@ chatRoute.post('/chat', async (c) => {
         apiKey: resolved.key,
         model,
         part: resolvedPart,
+        replyContext,
       })
       // 無料モードだけ、日本語訳が崩れていたら同じモデルで少しだけやり直す。
       // 有料キーの経路は品質が安定しているので、待ち時間を増やさない。
-      if (resolved.source === 'env' && resolvedPart !== 'support') {
+      if (resolved.source === 'env' && (resolvedPart === 'all' || resolvedPart === 'reply')) {
         for (let retry = 0; retry < FREE_MODE_JA_RETRIES && !looksLikeJapanese(result.reply.ja); retry += 1) {
           result = await callChatLLM({
             message,
@@ -111,6 +115,7 @@ chatRoute.post('/chat', async (c) => {
             apiKey: resolved.key,
             model,
             part: resolvedPart,
+            replyContext,
           })
         }
       }

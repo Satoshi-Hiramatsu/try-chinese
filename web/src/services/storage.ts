@@ -21,6 +21,7 @@ const STORAGE_KEYS = {
   FRIEND_PITCH_PREFIX: 'shabe_china_pitch_',
   VOCABULARY_LIST: 'shabe_china_vocabulary_list',
   TONE_COLORING: 'shabe_china_tone_coloring',
+  SAMPLE_REPLY_MODE: 'shabe_china_sample_reply_mode',
   VIEW_MODE: 'shabe_china_view_mode',
   FRIEND_PROFILE_PREFIX: 'shabe_china_profile_',
 } as const
@@ -298,6 +299,23 @@ export function loadAutoPlayTts(defaultValue = false): boolean {
 export function saveAutoPlayTts(enabled: boolean): void {
   try {
     localStorage.setItem(STORAGE_KEYS.AUTO_PLAY_TTS, String(enabled))
+  } catch {
+    // ignore
+  }
+}
+
+export function loadSampleReplyMode(defaultValue = false): boolean {
+  try {
+    const val = localStorage.getItem(STORAGE_KEYS.SAMPLE_REPLY_MODE)
+    return val === null ? defaultValue : val === 'true'
+  } catch {
+    return defaultValue
+  }
+}
+
+export function saveSampleReplyMode(enabled: boolean): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.SAMPLE_REPLY_MODE, String(enabled))
   } catch {
     // ignore
   }

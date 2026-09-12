@@ -434,14 +434,21 @@ describe('T-77: クリティカルパス分離', () => {
     correction: { hasCorrection: true, original: '我很喜欢电影', suggested: '我很喜欢看电影', ja: '看を足すと自然です' },
     vocabulary: [{ term: '电影', ja: '映画', hskLevel: 1 }],
   })
+  const samplesContent = JSON.stringify({
+    sampleReplies: [
+      { style: 'simple', zh: '我也喜欢。' },
+      { style: 'natural', zh: '我也很喜欢看电影。' },
+      { style: 'expand', zh: '你最近看了什么电影？' },
+    ],
+  })
 
-  const send = async (part?: string) => {
+  const send = async (part?: string, extra: Record<string, unknown> = {}) => {
     const ctx = createExecutionContext()
     const response = await worker.fetch(
       new Request('http://example.com/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': 'test-key' },
-        body: JSON.stringify({ message: '我很喜欢电影', friend: mockFriend, hskLevel: 2, ...(part ? { part } : {}) }),
+        body: JSON.stringify({ message: '我很喜欢电影', friend: mockFriend, hskLevel: 2, ...(part ? { part } : {}), ...extra }),
       }),
       {} as never,
       ctx
@@ -488,6 +495,37 @@ describe('T-77: クリティカルパス分離', () => {
     stub(supportContent)
     const response = await send('support')
     expect(response.status).toBe(200)
+  })
+
+  it('samples は直前の返答をもとに3種類の中国語だけを求める', async () => {
+    const calls = stub(samplesContent)
+    const response = await send('samples', { replyContext: '我周末常常看电影。你呢？' })
+    expect(response.status).toBe(200)
+
+    const schema = (calls[0].response_format as { json_schema: { schema: { required: string[] } } }).json_schema.schema
+    expect(schema.required).toEqual(['sampleReplies'])
+
+    const messages = calls[0].messages as { role: string; content: string }[]
+    expect(messages[1].content).toContain('必ず3件')
+    expect(messages[2].content).toContain('我周末常常看电影。你呢？')
+
+    const payload = (await response.json()) as {
+      sampleReplies: Array<{ style: string; zh: string }>
+    }
+    expect(payload.sampleReplies).toHaveLength(3)
+    expect(payload.sampleReplies.map((sample) => sample.style)).toEqual([
+      'simple',
+      'natural',
+      'expand',
+    ])
+  })
+
+  it('samples で直前の返答が無ければ400を返す', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const response = await send('samples')
+    expect(response.status).toBe(400)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('部位を指定しない従来の呼び出しは全部を1回で作る', async () => {

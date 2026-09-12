@@ -73,6 +73,8 @@ import {
   toggleVocabularyMastered,
   loadToneColoring,
   saveToneColoring,
+  loadSampleReplyMode,
+  saveSampleReplyMode,
   loadViewMode,
   saveViewMode,
 } from './services/storage'
@@ -195,6 +197,7 @@ export default function App() {
     loadSpeechInputLang('zh-CN')
   )
   const [toneColoring, setToneColoring] = useState<boolean>(() => loadToneColoring(false))
+  const [sampleReplyMode, setSampleReplyMode] = useState<boolean>(() => loadSampleReplyMode(false))
   // 音声入力を打ち切る（ハンズフリーでは自動送信する）までの無音許容時間
   const [silenceTimeoutMs, setSilenceTimeoutMs] = useState<number>(() => loadSilenceTimeoutMs())
   /** 開発者向けの声設定の対象。null のあいだはモーダルを閉じる。管理画面から別の友達を開くために持つ。 */
@@ -387,7 +390,8 @@ export default function App() {
     newAutoPlay: boolean,
     newSpeechLang: 'zh-CN' | 'ja-JP',
     newToneColoring: boolean,
-    newSilenceTimeoutMs: number
+    newSilenceTimeoutMs: number,
+    newSampleReplyMode: boolean
   ) => {
     if (newKey.trim() !== apiKey) {
       setApiKey(newKey.trim())
@@ -401,6 +405,8 @@ export default function App() {
     saveSpeechInputLang(newSpeechLang)
     setToneColoring(newToneColoring)
     saveToneColoring(newToneColoring)
+    setSampleReplyMode(newSampleReplyMode)
+    saveSampleReplyMode(newSampleReplyMode)
     setSilenceTimeoutMs(newSilenceTimeoutMs)
     saveSilenceTimeoutMs(newSilenceTimeoutMs)
     setErrorMessage(null)
@@ -691,6 +697,14 @@ export default function App() {
             )
           )
         },
+        includeSampleReplies: sampleReplyMode,
+        onSampleReplies: (sampleReplies) => {
+          setMessages((prev) =>
+            prev.map((item) =>
+              item.id === assistantId ? { ...item, sampleReplies } : item
+            )
+          )
+        },
       })
 
       const assistantMessage: ChatMessage = {
@@ -907,6 +921,7 @@ export default function App() {
             onStopText={handleStopText}
             savedTerms={savedTermsSet}
             enableToneColoring={toneColoring}
+            showSampleReplies={sampleReplyMode}
             onSaveVocabulary={handleAddVocabulary}
             onOpenLog={() => setIsLogModalOpen(true)}
             onOpenFriendList={() => setIsFriendListOpen(true)}
@@ -933,6 +948,7 @@ export default function App() {
                 onStopText={handleStopText}
                 savedTerms={savedTermsSet}
                 enableToneColoring={toneColoring}
+                showSampleReplies={sampleReplyMode}
                 onSaveVocabulary={handleAddVocabulary}
               />
             </div>
@@ -982,6 +998,7 @@ export default function App() {
         autoPlayTts={autoPlayTts}
         speechInputLang={speechInputLang}
         toneColoring={toneColoring}
+        sampleReplyMode={sampleReplyMode}
         silenceTimeoutMs={silenceTimeoutMs}
         onSave={handleSaveSettings}
       />
