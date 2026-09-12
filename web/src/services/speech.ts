@@ -4,7 +4,7 @@
  */
 
 import type { Voice } from '../types'
-import { FIXED_TTS_MODEL } from '../data/fishVoice'
+import { FIXED_TTS_MODEL, clampVoicePitch } from '../data/fishVoice'
 import { loadUsableApiKey, markApiKeyExhausted } from './openRouterKey'
 import { responseToPlayableBlob } from './audioFormat'
 
@@ -95,18 +95,38 @@ export function splitIntoSpeechSegments(text: string): string[] {
   return merged
 }
 
+/**
+ * 声の高さを再生側で作るための値。
+ *
+ * Fish Audio にはピッチの指定が無い。そこで再生速度（playbackRate）を pitch 倍にして音程を上げ下げし、
+ * preservesPitch を切って音程が速度に追随するようにする。速度も pitch 倍になってしまうので、
+ * Fish に頼む speed を rate / pitch にして打ち消し、聞こえる速さは rate のままにする。
+ */
+export function resolvePitchPlayback(voice: Pick<Voice, 'rate' | 'pitch'>): {
+  requestSpeed: number
+  playbackRate: number
+} {
+  const rate = voice.rate ?? 1.0
+  const pitch = clampVoicePitch(voice.pitch)
+  return {
+    requestSpeed: Math.round((rate / pitch) * 1000) / 1000,
+    playbackRate: pitch,
+  }
+}
+
 /** 声の指定から、TTSリクエストに載せる話者・速度を決める。モデルは Fish に固定。 */
 function resolveTtsRequest(text: string, voice: Voice) {
-  const speed = voice.rate ?? 1.0
+  const { requestSpeed, playbackRate } = resolvePitchPlayback(voice)
   const tuning = voice.voiceTuning
   // 声の調整値が変われば別の音声になるため、キャッシュキーにも含める。
   const tuningKey = tuning ? JSON.stringify(tuning) : ''
   return {
     ttsModel: FIXED_TTS_MODEL,
     voiceModel: voice.voiceModel,
-    speed,
+    speed: requestSpeed,
+    playbackRate,
     tuning,
-    cacheKey: `${FIXED_TTS_MODEL}_${voice.voiceModel}_${speed}_${tuningKey}_${text}`,
+    cacheKey: `${FIXED_TTS_MODEL}_${voice.voiceModel}_${requestSpeed}_${tuningKey}_${text}`,
   }
 }
 
@@ -148,6 +168,20 @@ async function fetchSegmentAudioUrl(text: string, voice: Voice, apiKey: string):
   return audioUrl
 }
 
+/** Safari は preservesPitch を接頭辞つきで持つ。 */
+interface PitchControlledAudio extends HTMLAudioElement {
+  webkitPreservesPitch?: boolean
+}
+
+/** 再生速度で音程を変える。1.0 なら何もしない（ブラウザ既定のまま）。 */
+function applyPlaybackPitch(audio: HTMLAudioElement, playbackRate: number): void {
+  if (playbackRate === 1) return
+  const target = audio as PitchControlledAudio
+  target.preservesPitch = false
+  if ('webkitPreservesPitch' in target) target.webkitPreservesPitch = false
+  target.playbackRate = playbackRate
+}
+
 /**
  * 1文ぶんを再生し、鳴り終わるまで待つ。
  * 停止されたか最後まで鳴ったかを返し、呼び出し側が次の文へ進むか決める。
@@ -155,6 +189,7 @@ async function fetchSegmentAudioUrl(text: string, voice: Voice, apiKey: string):
 function playSegment(
   audioUrl: string,
   generation: number,
+  playbackRate: number,
   onStart?: () => void
 ): Promise<'ended' | 'stopped' | 'error'> {
   return new Promise((resolve) => {
@@ -169,6 +204,7 @@ function playSegment(
 
     const audio = new Audio(audioUrl)
     currentAudio = audio
+    applyPlaybackPitch(audio, playbackRate)
 
     audio.onplay = () => onStart?.()
     audio.onended = () => {
@@ -205,6 +241,7 @@ async function speakWithOpenRouterTts(
 
   const segments = splitIntoSpeechSegments(text)
   if (segments.length === 0) return false
+  const { playbackRate } = resolvePitchPlayback(voice)
 
   try {
     // 次の文の取得は、いまの文を鳴らし始めてから走らせる。
@@ -225,7 +262,7 @@ async function speakWithOpenRouterTts(
           ? fetchSegmentAudioUrl(segments[index + 1], voice, apiKey).catch(() => undefined)
           : undefined
 
-      const result = await playSegment(audioUrl, generation, index === 0 ? options?.onStart : undefined)
+      const result = await playSegment(audioUrl, generation, playbackRate, index === 0 ? options?.onStart : undefined)
       if (result === 'stopped') return true
       if (result === 'error') {
         options?.onError?.(new Error('音声を再生できませんでした。'))

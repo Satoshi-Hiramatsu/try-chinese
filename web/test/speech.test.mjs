@@ -22,7 +22,7 @@ function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob([
     URL: { createObjectURL: () => 'blob:' + nextObjectUrlId++, revokeObjectURL: () => {} },
     setTimeout: (fn, ms) => { const id = nextTimerId++; timers.set(id, { fn, ms }); return id },
     clearTimeout: (id) => { timers.delete(id) },
-    require: () => ({ loadUsableApiKey: () => apiKey, markApiKeyExhausted: () => {}, FIXED_TTS_MODEL: 'fish-audio/s2.1-pro', responseToPlayableBlob: async (response) => await response.blob() }),
+    require: () => ({ loadUsableApiKey: () => apiKey, markApiKeyExhausted: () => {}, FIXED_TTS_MODEL: 'fish-audio/s2.1-pro', clampVoicePitch: (v) => Math.min(1.2, Math.max(0.85, typeof v === 'number' ? v : 1)), responseToPlayableBlob: async (response) => await response.blob() }),
     window: { SpeechRecognition: class {
       constructor() { recognition = this }
       start() { this.onstart?.() }
@@ -405,4 +405,32 @@ test('途中で停止したら次の文を鳴らさない', async () => {
   s.audios[0].onended()
   await settle()
   assert.equal(s.played.length, 1)
+})
+
+test('声の高さは再生速度で作り、Fish に頼む速さで打ち消す', () => {
+  const s = setup()
+  assert.deepEqual({ ...s.api.resolvePitchPlayback({ rate: 1, pitch: 1 }) }, { requestSpeed: 1, playbackRate: 1 })
+  assert.deepEqual({ ...s.api.resolvePitchPlayback({ rate: 0.9, pitch: 1.2 }) }, { requestSpeed: 0.75, playbackRate: 1.2 })
+  assert.deepEqual({ ...s.api.resolvePitchPlayback({ rate: 1.0, pitch: 0.85 }) }, { requestSpeed: 1.176, playbackRate: 0.85 })
+  // 範囲外・未指定は丸める
+  assert.deepEqual({ ...s.api.resolvePitchPlayback({ pitch: 2 }) }, { requestSpeed: 0.833, playbackRate: 1.2 })
+  assert.deepEqual({ ...s.api.resolvePitchPlayback({}) }, { requestSpeed: 1, playbackRate: 1 })
+})
+
+test('高さを変えた友達は打ち消した速さで求め、音程を変えて再生する', async () => {
+  const requests = []
+  const s = setup(async (_, init) => { requests.push(JSON.parse(init.body)); return { ok: true, blob: async () => new Blob(['audio']) } })
+  s.api.speakChinese('test', { ...fishVoice(), rate: 1, pitch: 1.1 })
+  await flush()
+  assert.equal(requests[0].speed, 0.909)
+  assert.equal(s.audios[0].playbackRate, 1.1)
+  assert.equal(s.audios[0].preservesPitch, false)
+})
+
+test('高さが標準なら再生速度に触らない', async () => {
+  const s = setup()
+  s.api.speakChinese('test', fishVoice())
+  await flush()
+  assert.equal(s.audios[0].playbackRate, undefined)
+  assert.equal(s.audios[0].preservesPitch, undefined)
 })
