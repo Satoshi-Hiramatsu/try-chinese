@@ -223,8 +223,8 @@ export function NovelStage({
           <button
             type="button"
             onClick={onOpenVoiceSettings}
-            title="声質・読み上げ設定"
-            aria-label="声質・読み上げ設定"
+            title="声の高さを変える"
+            aria-label="声の高さを変える"
             className="p-2 rounded-xl bg-white/85 hover:bg-white text-stone-600 hover:text-rose-600 shadow-sm backdrop-blur-sm transition-colors cursor-pointer"
           >
             <SettingsIcon className="w-4 h-4" />
