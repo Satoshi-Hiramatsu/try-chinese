@@ -7,6 +7,78 @@
 
 ---
 
+## T-90 — 声質設定と管理ダッシュボードに無料モードの注記を出す
+
+**2026-09-12** · [`3ecbde7`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/3ecbde779d5ffc5cbc764f372340e27d3a96009d)
+
+キー未入力のときは、再生が Fish Audio S2.1 Pro (Free) に切り替わることと、Fish の話者IDが無い友達はブラウザ音声になることを声質設定と管理ダッシュボードで伝えます。保存値は変えません。
+
+---
+
+## T-89 — キーが無いときは再生時に Fish Audio S2.1 Pro (Free) へ差し替える
+
+**2026-09-12** · [`9e259ee`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/9e259ee0352118c2c0f28d7d6f17072145ea2637)
+
+保存された声設定は書き換えず、読み上げの直前に無料モードの声へ解決します。有料版 Fish を選んでいれば話者・調整値そのままで無料版へ、Fish の話者を覚えていなければブラウザ音声へ落とします。会話・音声が 402 で返ったらキーを残高切れにし、会話はキー無しで送り直します。
+
+---
+
+## T-88 — 利用者キーが無いときは所有者キーで無料モデルだけを代行する
+
+**2026-09-12** · [`a002f9a`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/a002f9a76720736f3a3df16525ac9e54aa7beed8)
+
+Worker の環境変数のキーで代行するリクエストは、TTS/STT が `:free` モデルのみ、会話は `vars.OPENROUTER_FREE_MODELS` の無料 LLM（Nemotron 3 Super → Nex N2.5 Pro）に固定します。上流の 402/429 は番号をそのまま返します。無料モードで日本語訳に中国語が返ったときは同じモデルで1回だけやり直します（[`8d9a1d7`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/8d9a1d77060027643af013f0b9d2b18c10853038)）。
+
+---
+
+## T-87 — タイトル画面と会話画面から APIキーを入力・確認できるようにする
+
+**2026-09-12** · [`d31f7af`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/d31f7af8e7995c5b8645b5fda632f1d7826498a1)
+
+タイトルのメニューに「APIキー」を足し、未設定・有効・無効・残高切れの状態を添えました。入力欄は `ApiKeyField` として設定画面と共用し、保存前に「確認」で検査できます。会話画面のヘッダーは緑の点をやめ、状態バッジからキーのモーダルを開きます。
+
+---
+
+## T-86 — キーの検査結果（有効・無効・残高切れ）を持つ状態サービスを足す
+
+**2026-09-12** · [`295f1ca`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/295f1ca4277752539756657e8ac1f898345bdf56)
+
+起動時と保存時に `/api/openrouter/key` で検査し、結果を localStorage に残します。無効・残高切れのキーは Worker へ送らず、無料モードの判定に使います。
+
+---
+
+## T-85 — 利用者の OpenRouter API キーを検査する /api/openrouter/key を足す
+
+**2026-09-12** · [`3654c19`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/3654c19a5c855c3f21a570bc712d1b71f51b13ee)
+
+OpenRouter の `GET /api/v1/key` を叩き、有効か・上限を使い切っていないかだけを返します。環境変数のキーへはフォールバックしません。計画書 `docs/OpenRouter APIキー導線と無料モード_計画書.md` を同梱しています。
+
+---
+
+## T-84 — 感情マーカーを Fish Audio S2.1 の角括弧記法に直す
+
+**2026-09-11** · [`c02a8d6`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/c02a8d68e56da7f1e2f404a1accff370f684aa40)
+
+読み上げの冒頭で表示にない短い単語が聞こえる原因は、S1 の丸括弧記法で付けていた感情マーカーでした。プロンプトを角括弧に改め、Worker が送信直前にモデルの記法へ括弧を揃えます。
+
+---
+
+## T-83 — タイトル画面に「アプリとして追加」を足す
+
+**2026-09-11** · [`fa0f261`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/fa0f26113e1fac8a70e21abe05d99877125e7d44)
+
+Chromium では純正のインストールダイアログ、Safari では「共有 → ホーム画面に追加」の手順を出します。インストール済みや非対応ブラウザでは項目を出しません。
+
+---
+
+## T-82 — 起動時のタイトル画面（待機→メニュー）を足す
+
+**2026-09-11** · [`3c68daf`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/3c68daf6fbc43dea9d992889bf391086cec07361)
+
+最後に話した友達が出迎えるタイトル画面を追加しました。待機中のタップでメニュー（つづきから・はじめから・友達をえらぶ・せってい）に切り替わります。
+
+---
+
 ## T-81 — 残り9体の表情差分を追加し、プリセット20体すべてを解放する
 
 **2026-09-11** · [`0769bd0`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/0769bd00156045290183e6f3627cd9e32551bd58)
