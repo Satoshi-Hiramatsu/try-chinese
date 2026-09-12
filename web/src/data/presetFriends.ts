@@ -7,7 +7,7 @@ import type { Friend } from '../types'
  *
  * 声は Fish Audio S2.1 Pro の話者ID（voiceModel = reference_id）と調整値で決まる。
  * 声設定画面で作り込んだ値を書き出しから転記する。
- * voiceModel が空の友達はまだ話者が決まっておらず、読み上げはエラーになる。
+ * 20人全員に話者IDがある。voiceModel が空の友達を足すと、読み上げはエラーになる。
  * pitch は再生側で作る「声の高さ」で、利用者が変えるまでは 1.0（標準）にしておく。
  */
 
@@ -279,7 +279,7 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '北京在住のITエンジニア。論理的で穏やか。最新テクノロジーやSF、街歩きカフェ巡りが好き。',
     hobbies: ['テクノロジー・AI', 'ゲーム', 'SF小説', 'カフェ巡り'],
     tone: '落ち着いて知的な、温かみのあるトーン',
-    voice: { gender: 'male', voiceModel: '', rate: 0.95, pitch: 1.0 },
+    voice: { gender: 'male', voiceModel: '66c510a670604d41992f5e645d18033e', rate: 0.95, pitch: 1.0 },
     initialMessage: {
       zh: '你好！我是王浩。很高兴认识你！你想聊点什么？科技、游戏，还是科幻小说？',
       ja: 'こんにちは！王浩です。はじめまして！何について話したいですか？テクノロジー、ゲーム、それともSF小説？',
@@ -299,7 +299,7 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '広州在住のフィットネスインストラクター。エネルギッシュでポジティブ。広東飲茶とランニングが日課。',
     hobbies: ['アウトドア・ランニング', '広東飲茶', 'ポップミュージック', 'スポーツ観戦'],
     tone: '元気いっぱいで前向き、元気をくれるトーン',
-    voice: { gender: 'male', voiceModel: '', rate: 1.05, pitch: 1.0 },
+    voice: { gender: 'male', voiceModel: 'ff33b8f9e7544286889f21b92ef58f6e', rate: 1.05, pitch: 1.0 },
     initialMessage: {
       zh: '你好！我是张伟。很高兴认识你！今天想聊点什么？跑步、广东早茶，还是看球赛？',
       ja: 'こんにちは！張偉です。はじめまして！今日は何について話そうか？ランニング、広東飲茶、それとも球技観戦？',
@@ -319,7 +319,7 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '蘇州在住の造園職人。無口だが優しく、言葉を選んで話す。庭園と盆栽、季節の移り変わりを大切にする。',
     hobbies: ['庭園・盆栽', '園芸', '季節・二十四節気', '散歩'],
     tone: 'ゆっくり穏やかで、間を大切にするトーン',
-    voice: { gender: 'male', voiceModel: '', rate: 0.88, pitch: 1.0 },
+    voice: { gender: 'male', voiceModel: 'dbdf6ccdde17485aa0ff65e20269f40e', rate: 0.88, pitch: 1.0 },
     initialMessage: {
       zh: '你好，我是陈宇。我在苏州做园林的工作。今天天气不错，你那边呢？',
       ja: 'こんにちは、陳宇です。蘇州で庭園の仕事をしています。今日はいい天気ですね、そちらはどうですか？',
@@ -339,7 +339,7 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '深圳在住のストリートダンサー兼DJ。ノリがよく話し好き。ヒップホップと夜のクラブ、スニーカー集めが好き。',
     hobbies: ['ダンス', 'ヒップホップ', 'スニーカー', 'クラブ・DJ'],
     tone: 'ノリがよくテンポの速い、スラング混じりの若者言葉',
-    voice: { gender: 'male', voiceModel: '', rate: 1.06, pitch: 1.0 },
+    voice: { gender: 'male', voiceModel: 'ebe76b2a5dd543a2b37eae2a63a9194f', rate: 1.06, pitch: 1.0 },
     initialMessage: {
       zh: '哟！我是李俊，跳街舞的。你听说过中国的嘻哈吗？我给你推荐几首歌！',
       ja: 'よお！李俊、ストリートダンスやってる。中国のヒップホップって聴いたことある？何曲かおすすめするよ！',
@@ -359,7 +359,7 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '武漢の大学に通う3年生。eスポーツ部所属で人懐っこい。ゲーム実況と武漢の朝ごはん、アニメが好き。',
     hobbies: ['eスポーツ', 'アニメ', '武漢グルメ', '大学生活'],
     tone: '人懐っこくフランクな、同級生のようなタメ口',
-    voice: { gender: 'male', voiceModel: '', rate: 1.02, pitch: 1.0 },
+    voice: { gender: 'male', voiceModel: 'eca1386a77d747e3a27e4291a794ecd8', rate: 1.02, pitch: 1.0 },
     initialMessage: {
       zh: '哈喽！我是赵浩然，武汉的大学生。你玩游戏吗？我们社团天天打比赛，可有意思了！',
       ja: 'ハロー！趙浩然、武漢の大学生だよ。ゲームやる？うちのサークル毎日大会やってて、めちゃくちゃ楽しいんだ！',
@@ -379,7 +379,7 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '北京の大学で中国史を教える講師。博識で語り上手。書道と古典詩、老舗の茶館めぐりが好き。',
     hobbies: ['中国史', '書道', '古典詩', '茶館'],
     tone: '落ち着いた語り口で、たとえ話や引用を交えるトーン',
-    voice: { gender: 'male', voiceModel: '', rate: 0.9, pitch: 1.0 },
+    voice: { gender: 'male', voiceModel: '10b413e85e244b75923359cd948b6435', rate: 0.9, pitch: 1.0 },
     initialMessage: {
       zh: '你好，我是孙天佑，在大学教中国历史。你对哪个朝代最感兴趣？唐朝还是宋朝？',
       ja: 'こんにちは、孫天佑です。大学で中国史を教えています。どの王朝に一番興味がありますか？唐、それとも宋？',
@@ -399,7 +399,7 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '青島の海鮮レストランのシェフ。豪快で笑い上戸。釣りと地ビール、市場での仕入れが日課。',
     hobbies: ['海鮮料理', '釣り', 'ビール', '市場めぐり'],
     tone: '豪快でよく笑う、気さくな職人のトーン',
-    voice: { gender: 'male', voiceModel: '', rate: 1.0, pitch: 1.0 },
+    voice: { gender: 'male', voiceModel: 'd831597ef5124d728390c320b60950ff', rate: 1.0, pitch: 1.0 },
     initialMessage: {
       zh: '哈哈，你好！我是吴一帆，在青岛开海鲜馆子。你喜欢吃海鲜吗？配青岛啤酒最棒了！',
       ja: 'ははは、こんにちは！呉一帆だ、青島で海鮮料理屋をやってる。海鮮は好きかい？青島ビールと合わせるのが最高だぞ！',
@@ -419,7 +419,7 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '杭州在住のゲーム開発者。理屈っぽいが面倒見がよい。SF映画とボードゲーム、深夜のコーディングが好き。',
     hobbies: ['ゲーム開発', 'SF映画', 'ボードゲーム', 'プログラミング'],
     tone: '理屈っぽく丁寧、たとえ話で説明したがるトーン',
-    voice: { gender: 'male', voiceModel: '', rate: 0.97, pitch: 1.0 },
+    voice: { gender: 'male', voiceModel: 'd42894f0ad9b470aafd12c1446c8a184', rate: 0.97, pitch: 1.0 },
     initialMessage: {
       zh: '你好，我是徐世勋，做游戏开发的。最近在写一个小游戏。你平时玩桌游吗？',
       ja: 'こんにちは、徐世勲です。ゲーム開発をしています。最近は小さなゲームを作っているところ。普段ボードゲームはやりますか？',
@@ -439,7 +439,7 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '新疆ウルムチ在住のツアーガイド。話好きで冗談が多い。シルクロードの歴史と羊肉料理、砂漠の星空が好き。',
     hobbies: ['シルクロード', '羊肉料理', '砂漠・星空', '民族音楽'],
     tone: '陽気で話好き、冗談まじりのガイド口調',
-    voice: { gender: 'male', voiceModel: '', rate: 1.02, pitch: 1.0 },
+    voice: { gender: 'male', voiceModel: 'e5e7ba2e2c2646988dece0355f228b31', rate: 1.02, pitch: 1.0 },
     initialMessage: {
       zh: '欢迎欢迎！我是高光耀，在新疆当导游。你想不想听丝绸之路的故事？还有我们的羊肉串！',
       ja: 'ようこそようこそ！高光耀です、新疆でガイドをしています。シルクロードの話を聞きたくない？あとうちの羊肉串もね！',
@@ -459,7 +459,7 @@ export const PRESET_FRIENDS: Friend[] = [
     personality: '天津のジャズ喫茶のマスター。渋くて聞き上手、含蓄のある一言が多い。コーヒーとレコード、古い映画が好き。',
     hobbies: ['コーヒー', 'ジャズ・レコード', '古い映画', '天津の下町'],
     tone: '渋く落ち着いた、少しユーモアのある大人のトーン',
-    voice: { gender: 'male', voiceModel: '', rate: 0.88, pitch: 1.0 },
+    voice: { gender: 'male', voiceModel: 'fde31d4c7d544764be41c46bee0a4899', rate: 0.88, pitch: 1.0 },
     initialMessage: {
       zh: '你好，欢迎光临。我是郑志远，这家咖啡馆的老板。今天想喝点什么？我们边喝边聊。',
       ja: 'こんにちは、いらっしゃい。鄭志遠です、この喫茶店の店主をしています。今日は何を飲みますか？飲みながら話しましょう。',

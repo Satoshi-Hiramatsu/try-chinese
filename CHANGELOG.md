@@ -63,6 +63,14 @@ Fish Audio にはピッチ指定が無いため、`HTMLAudioElement` の `playba
 
 ---
 
+## T-95 — 男性10人の声を Fish Audio S2.1 Pro の話者IDで確定する
+
+**2026-09-12** · [`81667f1`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/81667f1c3b426675b551ebb303f7cecf734078cb)
+
+声の管理の書き出しから男性10人の `reference_id` を `presetFriends.ts` に転記し、プリセット20人全員が Fish の話者を持つようになりました。ブラウザ音声用だった速さ以外の値（ピッチ）は転記せず 1.0 のままです。
+
+---
+
 ## T-96 — 声を Fish Audio S2.1 Pro 専用にし、Kokoro・ブラウザ音声・モデル切替を取り除く
 
 **2026-09-12** · [`52b5654`](https://github.com/Satoshi-Hiramatsu/try-chinese/commit/52b565472b265b813fd5ce2a4dbfe2aac2f573f5)
