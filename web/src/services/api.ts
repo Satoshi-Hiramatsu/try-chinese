@@ -1,6 +1,7 @@
 import type { Friend, ChatMessage, BilingualReply, Correction, Expression, HobbyVocabulary } from '../types'
 import { resolveExpression } from './expression'
 import { fillPinyin } from './pinyin'
+import { markApiKeyExhausted } from './openRouterKey'
 
 export interface SendMessageOptions {
   message: string
@@ -51,13 +52,13 @@ function formatHistory(history: ChatMessage[]) {
     .filter((item) => item.content.trim() !== '')
 }
 
-async function requestChat(options: SendMessageOptions, part: ChatPart): Promise<ChatPayload> {
-  const { message, friend, hskLevel, history, apiKey, model } = options
+async function postChat(options: SendMessageOptions, part: ChatPart, apiKey: string | undefined): Promise<Response> {
+  const { message, friend, hskLevel, history, model } = options
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (apiKey) headers['x-api-key'] = apiKey
 
-  const response = await fetch('/api/chat', {
+  return fetch('/api/chat', {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -69,6 +70,20 @@ async function requestChat(options: SendMessageOptions, part: ChatPart): Promise
       config: (apiKey || model) ? { llm: { apiKey: apiKey || undefined, model: model || undefined } } : undefined,
     }),
   })
+}
+
+/**
+ * 会話を1回送る。
+ * キーが残高切れ(402)なら無料モードへ切り替え、キー無しで1回だけ送り直す。
+ * 利用者が見るのは「無料モードに切り替えた」通知だけで、会話は途切れない。
+ */
+async function requestChat(options: SendMessageOptions, part: ChatPart): Promise<ChatPayload> {
+  let response = await postChat(options, part, options.apiKey)
+
+  if (response.status === 402 && options.apiKey) {
+    markApiKeyExhausted()
+    response = await postChat(options, part, undefined)
+  }
 
   if (!response.ok) {
     const errorData = (await response.json().catch(() => ({}))) as { error?: string }

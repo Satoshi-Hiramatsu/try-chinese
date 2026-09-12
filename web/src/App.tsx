@@ -26,6 +26,7 @@ import { prefetchPinyin } from './services/pinyin'
 import {
   NO_KEY_STATUS,
   checkApiKey,
+  isApiKeyUsable,
   loadApiKeyStatus,
   publishApiKeyStatus,
   subscribeApiKeyStatus,
@@ -628,7 +629,8 @@ export default function App() {
         friend: currentFriend,
         hskLevel,
         history: nextMessages,
-        apiKey: apiKey || undefined,
+        // 無効・残高切れと分かっているキーは送らず、無料モードで会話する
+        apiKey: apiKey && isApiKeyUsable(apiKeyStatus) ? apiKey : undefined,
         model: model || undefined,
         onSupport: (support) => {
           setMessages((prev) =>

@@ -22,7 +22,7 @@ function setup(fetchImpl = async () => ({ ok: true, blob: async () => new Blob([
     URL: { createObjectURL: () => 'blob:' + nextObjectUrlId++, revokeObjectURL: () => {} },
     setTimeout: (fn, ms) => { const id = nextTimerId++; timers.set(id, { fn, ms }); return id },
     clearTimeout: (id) => { timers.delete(id) },
-    require: () => ({ loadApiKey: () => 'test-key', loadTtsProvider: () => 'openrouter', loadTtsModel: () => 'qwen/qwen-audio-3.0-tts-flash', responseToPlayableBlob: async (response) => await response.blob() }),
+    require: () => ({ loadUsableApiKey: () => 'test-key', markApiKeyExhausted: () => {}, resolveEffectiveVoice: (voice) => voice, loadTtsProvider: () => 'openrouter', loadTtsModel: () => 'qwen/qwen-audio-3.0-tts-flash', responseToPlayableBlob: async (response) => await response.blob() }),
     window: { SpeechRecognition: class {
       constructor() { recognition = this }
       start() { this.onstart?.() }

@@ -180,7 +180,9 @@ export function unlockSpeechSynthesis(): void {
   }
 }
 
-import { loadApiKey, loadTtsProvider, loadTtsModel } from './storage'
+import { loadTtsProvider, loadTtsModel } from './storage'
+import { loadUsableApiKey, markApiKeyExhausted } from './openRouterKey'
+import { resolveEffectiveVoice } from './freeMode'
 import { responseToPlayableBlob } from './audioFormat'
 
 // 再生中のオーディオオブジェクト
@@ -274,7 +276,10 @@ function resolveTtsRequest(text: string, voice?: Voice) {
   }
 }
 
-/** 1文ぶんの音声を取得する。取得済みならキャッシュを返す。 */
+/**
+ * 1文ぶんの音声を取得する。取得済みならキャッシュを返す。
+ * apiKey が空なら無料モードとして送り、Worker が所有者キーで無料モデルを代行する。
+ */
 async function fetchSegmentAudioUrl(text: string, voice: Voice | undefined, apiKey: string): Promise<string | undefined> {
   const { ttsModel, voiceModel, speed, tuning, cacheKey } = resolveTtsRequest(text, voice)
   const cached = audioBlobCache.get(cacheKey)
@@ -284,7 +289,7 @@ async function fetchSegmentAudioUrl(text: string, voice: Voice | undefined, apiK
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
+      ...(apiKey ? { 'x-api-key': apiKey } : {}),
     },
     body: JSON.stringify({
       text,
@@ -292,12 +297,14 @@ async function fetchSegmentAudioUrl(text: string, voice: Voice | undefined, apiK
       voice: voiceModel,
       speed,
       tuning,
-      apiKey,
+      ...(apiKey ? { apiKey } : {}),
     }),
   })
 
   if (!res.ok) {
     console.warn('OpenRouter TTS API error, request failed:', res.status)
+    // 残高切れ。以後は無料モードで鳴らす。
+    if (res.status === 402 && apiKey) markApiKeyExhausted()
     return undefined
   }
 
@@ -357,12 +364,11 @@ function playSegment(
  */
 async function speakWithOpenRouterTts(
   text: string,
-  voice?: Voice,
+  voice: Voice | undefined,
+  apiKey: string,
   options?: SpeakOptions
 ): Promise<boolean> {
   const generation = playbackGeneration
-  const apiKey = loadApiKey()
-  if (!apiKey) return false
 
   const segments = splitIntoSpeechSegments(text)
   if (segments.length === 0) return false
@@ -405,23 +411,34 @@ async function speakWithOpenRouterTts(
 /**
  * 中国語テキストを音声で読み上げる（ハイブリッド対応）
  */
-export function speakChinese(text: string, voice?: Voice, options?: SpeakOptions): void {
+export function speakChinese(text: string, savedVoice?: Voice, options?: SpeakOptions): void {
   // 既存の音声をすべて停止
   stopSpeaking()
   const generation = playbackGeneration
 
   if (!text.trim()) return
 
-  const effectiveProvider = voice?.ttsProvider || loadTtsProvider('openrouter')
-  const hasApiKey = Boolean(loadApiKey())
+  // 使えるキーが無ければ無料モードの声に差し替える（保存された設定は変えない）。
+  const apiKey = loadUsableApiKey()
+  const globalProvider = loadTtsProvider('openrouter')
+  const voice = resolveEffectiveVoice(savedVoice, {
+    hasApiKey: Boolean(apiKey),
+    globalProvider,
+    globalModel: loadTtsModel(),
+  })
+  const effectiveProvider = voice?.ttsProvider || globalProvider
 
   if (effectiveProvider === 'openrouter') {
-    if (!hasApiKey) {
-      options?.onError?.(new Error('AI音声にはOpenRouter APIキーが必要です。'))
-      return
-    }
-    speakWithOpenRouterTts(text, voice, options).then((success) => {
-      if (!success && generation === playbackGeneration) options?.onError?.(new Error('AI音声を再生できません。APIキー・残高・音声モデルを確認してください。'))
+    speakWithOpenRouterTts(text, voice, apiKey, options).then((success) => {
+      if (!success && generation === playbackGeneration) {
+        options?.onError?.(
+          new Error(
+            apiKey
+              ? 'AI音声を再生できません。APIキー・残高・音声モデルを確認してください。'
+              : '無料の AI 音声が混み合っています。少し待ってからもう一度お試しください。'
+          )
+        )
+      }
     })
     return
   }
